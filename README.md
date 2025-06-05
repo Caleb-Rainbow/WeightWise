@@ -19,7 +19,7 @@ WeightWise 是一款基于 Jetpack Compose 构建的开源 Android 应用，旨�
 
 您可以从以下渠道下载 WeightWise：
 
-* **[GitHub Releases](链接到您的GitHub Releases页面)**
+* **[GitHub Releases](https://github.com/Caleb-Rainbow/WeightWise/releases)**
 
 ## 技术栈
 
@@ -37,8 +37,8 @@ WeightWise 是一款基于 Jetpack Compose 构建的开源 Android 应用，旨�
 
 您可以：
 
-* **报告 Bug：** 如果您发现了任何问题，请在 [Issues](链接到您的GitHub Issues页面) 中提交。
-* **提出功能建议：** 如果您有新的想法，欢迎在 [Issues](链接到您的GitHub Issues页面) 中提出。
+* **报告 Bug：** 如果您发现了任何问题，请在 [Issues](https://github.com/Caleb-Rainbow/WeightWise/issues) 中提交。
+* **提出功能建议：** 如果您有新的想法，欢迎在 [Issues](https://github.com/Caleb-Rainbow/WeightWise/issues)中提出。
 * **提交代码：** 如果您修复了 Bug 或实现了新功能，请提交 Pull Request。
 * **翻译：** 帮助我们将应用翻译成更多语言。
 
