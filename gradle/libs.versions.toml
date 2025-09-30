@@ -1,24 +1,30 @@
 [versions]
-agp = "8.10.1"
-kotlin = "2.1.21"
-coreKtx = "1.16.0"
-lifecycleRuntimeKtx = "2.9.1"
-activityCompose = "1.12.0-alpha02"
-composeBom = "2025.05.01"
-navigation = "2.9.0"
-navigation3 = "1.0.0-alpha03"
+agp = "8.13.0"
+kotlin = "2.2.20"
+coreKtx = "1.17.0"
+lifecycleRuntimeKtx = "2.9.4"
+activityCompose = "1.11.0"
+composeBom = "2025.09.01"
+navigation = "2.9.5"
+navigation3 = "1.0.0-alpha10"
 
-koin = "4.0.4"
-koin-annotations = "2.0.0"
-ksp = "2.1.21-2.0.1"
-kotlinx-serialization = "1.8.1"
+koin = "4.1.1"
+koin-annotations = "2.1.0"
+ksp = "2.2.20-2.0.3"
+kotlinx-serialization = "1.9.0"
 paging = "3.3.6"
-room = "2.7.1"
+room = "2.8.1"
 
-charts = "0.1.7"
-vico = "2.1.3"
+charts = "0.1.11"
+vico = "2.2.0"
 mmkv = "2.0.1"
-uiTooling = "1.8.2"
+uiTooling = "1.9.2"
+junit = "1.3.0"
+espressoCore = "3.7.0"
+uiautomator = "2.3.0"
+benchmarkMacroJunit4 = "1.4.1"
+baselineprofile = "1.4.1"
+profileinstaller = "1.4.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -54,6 +60,11 @@ charts = {module = "io.github.ehsannarmani:compose-charts",version.ref = "charts
 vico-compose-m3 = { group = "com.patrykandpatrick.vico", name = "compose-m3", version.ref = "vico" }
 mmkv = {module = "com.github.DylanCaiCoding:MMKV-KTX",version.ref = "mmkv"}
 androidx-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling", version.ref = "uiTooling" }
+androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junit" }
+androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
+androidx-uiautomator = { group = "androidx.test.uiautomator", name = "uiautomator", version.ref = "uiautomator" }
+androidx-benchmark-macro-junit4 = { group = "androidx.benchmark", name = "benchmark-macro-junit4", version.ref = "benchmarkMacroJunit4" }
+androidx-profileinstaller = { group = "androidx.profileinstaller", name = "profileinstaller", version.ref = "profileinstaller" }
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
@@ -61,3 +72,5 @@ kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "ko
 serialization = {id = "org.jetbrains.kotlin.plugin.serialization",version.ref = "kotlin"}
 room = {id = "androidx.room",version.ref = "room"}
 ksp-plugins = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+android-test = { id = "com.android.test", version.ref = "agp" }
+baselineprofile = { id = "androidx.baselineprofile", version.ref = "baselineprofile" }

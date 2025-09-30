@@ -22,4 +22,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Weight"
 include(":app")
- 
+include(":baselineprofile")

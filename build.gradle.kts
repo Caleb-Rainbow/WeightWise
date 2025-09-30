@@ -6,4 +6,6 @@ plugins {
     alias(libs.plugins.ksp.plugins) apply false
     alias(libs.plugins.serialization) apply false
     alias(libs.plugins.room) apply false
+    alias(libs.plugins.android.test) apply false
+    alias(libs.plugins.baselineprofile) apply false
 }
