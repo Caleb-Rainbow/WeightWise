@@ -25,6 +25,13 @@ android {
     }
 
     buildTypes {
+        debug {
+            // 在原始 applicationId 后追加后缀，例如 .debug
+            applicationIdSuffix = ".debug"
+
+            // 可选：为 debug 版应用名称添加后缀，方便在手机桌面区分
+            resValue("string", "app_name", "体重记录-Debug")
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true

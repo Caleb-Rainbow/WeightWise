@@ -1,6 +1,5 @@
 package com.example.weight.ui.common
 
-import android.text.Layout
 import androidx.compose.animation.core.animateIntOffsetAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -42,32 +41,25 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.patrykandpatrick.vico.compose.cartesian.axis.rememberAxisGuidelineComponent
+import com.patrykandpatrick.vico.compose.cartesian.data.CartesianValueFormatter
+import com.patrykandpatrick.vico.compose.cartesian.marker.CartesianMarker
+import com.patrykandpatrick.vico.compose.cartesian.marker.DefaultCartesianMarker
 import com.patrykandpatrick.vico.compose.cartesian.marker.rememberDefaultCartesianMarker
+import com.patrykandpatrick.vico.compose.common.Fill
+import com.patrykandpatrick.vico.compose.common.Insets
+import com.patrykandpatrick.vico.compose.common.LayeredComponent
+import com.patrykandpatrick.vico.compose.common.component.ShapeComponent
+import com.patrykandpatrick.vico.compose.common.component.TextComponent
 import com.patrykandpatrick.vico.compose.common.component.rememberShapeComponent
 import com.patrykandpatrick.vico.compose.common.component.rememberTextComponent
-import com.patrykandpatrick.vico.compose.common.fill
-import com.patrykandpatrick.vico.compose.common.insets
-import com.patrykandpatrick.vico.compose.common.shape.markerCorneredShape
-import com.patrykandpatrick.vico.core.cartesian.CartesianMeasuringContext
-import com.patrykandpatrick.vico.core.cartesian.axis.Axis
-import com.patrykandpatrick.vico.core.cartesian.data.CartesianValueFormatter
-import com.patrykandpatrick.vico.core.cartesian.marker.CartesianMarker
-import com.patrykandpatrick.vico.core.cartesian.marker.DefaultCartesianMarker
-import com.patrykandpatrick.vico.core.common.LayeredComponent
-import com.patrykandpatrick.vico.core.common.component.ShapeComponent
-import com.patrykandpatrick.vico.core.common.component.TextComponent
-import com.patrykandpatrick.vico.core.common.shape.CorneredShape
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
 import java.text.DecimalFormat
 
-class BottomXDateFormatter(private val labels: List<String>) : CartesianValueFormatter {
-    override fun format(
-        context: CartesianMeasuringContext,
-        value: Double,
-        verticalAxisPosition: Axis.Position.Vertical?
-    ): CharSequence {
-        return labels.getOrNull(value.toInt()) ?: "无日期"
+fun BottomXDateFormatter(labels: List<String>): CartesianValueFormatter =
+    CartesianValueFormatter { _, value, _ ->
+        labels.getOrNull(value.toInt()) ?: "无日期"
     }
-}
 
 @Composable
 internal fun rememberMarker(
@@ -75,24 +67,26 @@ internal fun rememberMarker(
         DefaultCartesianMarker.ValueFormatter.default(),
     showIndicator: Boolean = true,
 ): CartesianMarker {
-    val labelBackgroundShape = markerCorneredShape(CorneredShape.Corner.Rounded)
+    val labelBackgroundShape = RoundedCornerShape(10)
     val labelBackground =
         rememberShapeComponent(
-            fill = fill(MaterialTheme.colorScheme.background),
+            fill = Fill(MaterialTheme.colorScheme.background),
             shape = labelBackgroundShape,
             strokeThickness = 1.dp,
-            strokeFill = fill(MaterialTheme.colorScheme.outline),
+            strokeFill = Fill(MaterialTheme.colorScheme.outline),
         )
     val label =
         rememberTextComponent(
-            color = MaterialTheme.colorScheme.onSurface,
-            textAlignment = Layout.Alignment.ALIGN_CENTER,
-            padding = insets(8.dp, 4.dp),
+            style = TextStyle(
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center,
+            ),
+            padding = Insets(8.dp, 4.dp),
             background = labelBackground,
-            minWidth = TextComponent.MinWidth.fixed(40f),
+            minWidth = TextComponent.MinWidth.fixed(40.dp),
         )
     val indicatorFrontComponent =
-        rememberShapeComponent(fill(MaterialTheme.colorScheme.surface), CorneredShape.Pill)
+        rememberShapeComponent(Fill(MaterialTheme.colorScheme.surface), RoundedCornerShape(10))
     val guideline = rememberAxisGuidelineComponent()
     return rememberDefaultCartesianMarker(
         label = label,
@@ -101,14 +95,14 @@ internal fun rememberMarker(
             if (showIndicator) {
                 { color ->
                     LayeredComponent(
-                        back = ShapeComponent(fill(color.copy(alpha = 0.15f)), CorneredShape.Pill),
+                        back = ShapeComponent(Fill(color.copy(alpha = 0.15f)), RoundedCornerShape(10)),
                         front =
                             LayeredComponent(
-                                back = ShapeComponent(fill = fill(color), shape = CorneredShape.Pill),
+                                back = ShapeComponent(fill = Fill(color), shape = RoundedCornerShape(10)),
                                 front = indicatorFrontComponent,
-                                padding = insets(5.dp),
+                                padding = Insets(5.dp),
                             ),
-                        padding = insets(10.dp),
+                        padding = Insets(10.dp),
                     )
                 }
             } else {

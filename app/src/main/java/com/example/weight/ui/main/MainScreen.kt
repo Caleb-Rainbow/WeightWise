@@ -42,7 +42,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush.Companion.verticalGradient
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -59,26 +61,23 @@ import com.example.weight.ui.common.ExposedOutlineTextFieldGenericListDropdownMe
 import com.example.weight.ui.common.rememberMarker
 import com.example.weight.util.TimeUtils
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
-import com.patrykandpatrick.vico.compose.cartesian.axis.rememberBottom
-import com.patrykandpatrick.vico.compose.cartesian.axis.rememberStart
+import com.patrykandpatrick.vico.compose.cartesian.Scroll
+import com.patrykandpatrick.vico.compose.cartesian.axis.HorizontalAxis
+import com.patrykandpatrick.vico.compose.cartesian.axis.VerticalAxis
+import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModelProducer
+import com.patrykandpatrick.vico.compose.cartesian.data.CartesianLayerRangeProvider
+import com.patrykandpatrick.vico.compose.cartesian.data.CartesianValueFormatter
+import com.patrykandpatrick.vico.compose.cartesian.data.lineSeries
+import com.patrykandpatrick.vico.compose.cartesian.layer.LineCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLine
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
+import com.patrykandpatrick.vico.compose.cartesian.marker.CartesianMarker
+import com.patrykandpatrick.vico.compose.cartesian.marker.CartesianMarkerVisibilityListener
+import com.patrykandpatrick.vico.compose.cartesian.marker.DefaultCartesianMarker
 import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
 import com.patrykandpatrick.vico.compose.cartesian.rememberVicoScrollState
-import com.patrykandpatrick.vico.compose.common.shader.verticalGradient
+import com.patrykandpatrick.vico.compose.common.Fill
 import com.patrykandpatrick.vico.compose.common.vicoTheme
-import com.patrykandpatrick.vico.core.cartesian.Scroll
-import com.patrykandpatrick.vico.core.cartesian.axis.HorizontalAxis
-import com.patrykandpatrick.vico.core.cartesian.axis.VerticalAxis
-import com.patrykandpatrick.vico.core.cartesian.data.CartesianChartModelProducer
-import com.patrykandpatrick.vico.core.cartesian.data.CartesianLayerRangeProvider
-import com.patrykandpatrick.vico.core.cartesian.data.CartesianValueFormatter
-import com.patrykandpatrick.vico.core.cartesian.data.lineSeries
-import com.patrykandpatrick.vico.core.cartesian.layer.LineCartesianLayer
-import com.patrykandpatrick.vico.core.cartesian.marker.CartesianMarker
-import com.patrykandpatrick.vico.core.cartesian.marker.CartesianMarkerVisibilityListener
-import com.patrykandpatrick.vico.core.cartesian.marker.DefaultCartesianMarker
-import com.patrykandpatrick.vico.core.common.shader.ShaderProvider
 import org.koin.androidx.compose.koinViewModel
 import java.text.DecimalFormat
 
@@ -246,12 +245,12 @@ private fun WeightChart(
                 lineProvider =
                     LineCartesianLayer.LineProvider.series(
                         LineCartesianLayer.rememberLine(
-                            fill = LineCartesianLayer.LineFill.single(com.patrykandpatrick.vico.compose.common.fill(lineColor)),
+                            fill = LineCartesianLayer.LineFill.single(Fill(lineColor)),
                             areaFill =
                                 LineCartesianLayer.AreaFill.single(
-                                    com.patrykandpatrick.vico.compose.common.fill(
-                                        ShaderProvider.verticalGradient(
-                                            arrayOf(lineColor.copy(alpha = 0.4f), Color.Transparent)
+                                    Fill(
+                                        verticalGradient(
+                                            listOf(lineColor.copy(alpha = 0.4f), Color.Transparent)
                                         )
                                     )
                                 ),
@@ -260,12 +259,12 @@ private fun WeightChart(
                 rangeProvider = CartesianLayerRangeProvider.fixed(maxY = maxWeight, minY = minWeight),
             ),
             startAxis = VerticalAxis.rememberStart(
-                title = "体重",
-                valueFormatter = CartesianValueFormatter.decimal(DecimalFormat("#.##kg;−#.##kg")),
+                title = {"体重"},
+                valueFormatter = CartesianValueFormatter.decimal(decimalCount = 2, suffix = "kg"),
                 itemPlacer = remember { VerticalAxis.ItemPlacer.step(step = { 0.5 }) }),
             bottomAxis = HorizontalAxis.rememberBottom(valueFormatter = BottomXDateFormatter(labels = xLabels)),
             marker = rememberMarker(valueFormatter = remember {
-                DefaultCartesianMarker.ValueFormatter.default(DecimalFormat("#.##kg;−#.##kg"))
+                DefaultCartesianMarker.ValueFormatter.default(decimalCount = 2, suffix = "kg")
             }),
             markerVisibilityListener = object : CartesianMarkerVisibilityListener {
                 override fun onShown(marker: CartesianMarker, targets: List<CartesianMarker.Target>) {
