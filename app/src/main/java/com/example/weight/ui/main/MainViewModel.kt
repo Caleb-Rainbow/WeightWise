@@ -1,36 +1,56 @@
 package com.example.weight.ui.main
 
+import androidx.compose.runtime.getValue
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import com.example.weight.data.LocalStorageData
+import com.example.weight.data.chat.ChatBodyModel
+import com.example.weight.data.chat.ChatMessageRole
+import com.example.weight.data.chat.ChatRepository
+import com.example.weight.data.chat.MessageModel
 import com.example.weight.data.record.DailyMinWeight
 import com.example.weight.data.record.Record
 import com.example.weight.data.record.RecordDao
 import com.example.weight.util.TimeUtils
 import com.example.weight.util.TimeUtils.getStartTimeForLastDays
 import com.example.weight.util.TimeUtils.getStartTimeForLastMonths
+import com.mikepenz.markdown.model.State
+import com.mikepenz.markdown.model.parseMarkdownFlow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.koin.android.annotation.KoinViewModel
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 data class UiState(
-    val selectedRecord: DailyMinWeight? = null
+    val selectedRecord: DailyMinWeight? = null,
+    val firstRecord: Record? = null,
+    val analyzeResponse: String = "",
 )
 
 data class DialogState(
     val isShowAddDialog: Boolean = false,//添加体重弹窗
     val isShowSetHeightDialog: Boolean = false,//设置身高弹窗
+    val isShowAiAnalyzeBottomSheet: Boolean = false,//AI分析弹窗
+    val isLoading: Boolean = false,//加载中a
 )
 
 @KoinViewModel
 class MainViewModel(
-    private val recordDao: RecordDao
+    private val recordDao: RecordDao,
+    private val chatRepository: ChatRepository
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(UiState())
     val uiState = _uiState.asStateFlow()
@@ -58,6 +78,10 @@ class MainViewModel(
             }
             recordDao.getDailyMinWeightSince(startTime)
         }
+
+    init {
+        getFirstRecord()
+    }
 
     // 更新选中的统计范围
     fun selectScope(scope: StatisticsScope) {
@@ -112,15 +136,116 @@ class MainViewModel(
         }
     }
 
-    fun insertRecord(date: String, time: String, weight: Double, onSuccess: () -> Unit) {
+    fun insertRecord(date: String, time: String,log:String, weight: Double, onSuccess: () -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             recordDao.insert(
                 Record(
                     timestamp = TimeUtils.convertTimeToMillis("$date $time:00"),
                     weight = weight,
+                    log = log
                 )
             )
             onSuccess()
         }
+    }
+
+    fun getFirstRecord(){
+        viewModelScope.launch(Dispatchers.IO) {
+            _uiState.update {
+                it.copy(firstRecord = recordDao.getFirstData())
+            }
+        }
+    }
+    fun showLoading(){
+        _dialogState.update {
+            it.copy(isLoading = true)
+        }
+    }
+    fun hideLoading(){
+        _dialogState.update {
+            it.copy(isLoading = false)
+        }
+    }
+    fun showAiAnalyzeBottomSheet(){
+        _dialogState.update {
+            it.copy(isShowAiAnalyzeBottomSheet = true)
+        }
+    }
+    fun hideAiAnalyzeBottomSheet(){
+        _dialogState.update {
+            it.copy(isShowAiAnalyzeBottomSheet = false)
+        }
+        _uiState.update {
+            it.copy(analyzeResponse = "")
+        }
+    }
+    fun aiAnalyze(bmi: Double, onFail:(String)->Unit){
+        //todo 1.获取当前用户选择的时间范围
+        val scope = selectedScope.value
+        showLoading()
+        viewModelScope.launch(Dispatchers.IO) {
+            //todo 2.获取范围数据
+            val startTime = when (scope) {
+                StatisticsScope.LAST_7DAYS -> getStartTimeForLastDays(7)
+                StatisticsScope.LAST_14DAYS -> getStartTimeForLastDays(14)
+                else -> getStartTimeForLastMonths(1)
+            }
+            val data = recordDao.getRecordWeightSince(startTime)
+            if (data.size < 2) {
+                hideLoading()
+                onFail("数据量不足，至少需要两条记录才能进行分析哦。")
+                return@launch
+            }
+            showAiAnalyzeBottomSheet()
+            // 3. 构建 Prompt
+            val prompt = buildAnalysisPrompt(data, scope,bmi)
+            chatRepository.streamChat(model = ChatBodyModel(
+                messages = listOf(
+                    MessageModel(
+                        role = ChatMessageRole.USER.label,
+                        content = prompt
+                    )
+                )
+            ), onMessage = {msg->
+                if (dialogState.value.isLoading){
+                    hideLoading()
+                }
+                msg?.choices?.singleOrNull()?.delta?.content?.let { content ->
+                    _uiState.update {
+                        it.copy(analyzeResponse = it.analyzeResponse + content)
+                    }
+                }
+            })
+        }
+    }
+
+    /**
+     * 构建用于AI分析的高质量Prompt
+     * @param records 从数据库获取的记录列表
+     * @param scope 用户选择的时间范围
+     * @return 格式化后的完整Prompt字符串
+     */
+    private fun buildAnalysisPrompt(records: List<Record>, scope: StatisticsScope,bmi: Double): String {
+        val height = LocalStorageData.height.value
+        val targetWeight = LocalStorageData.targetWeight.value
+        val recordsString = records.joinToString("\n") { record ->
+            val date = Instant.ofEpochMilli(record.timestamp)
+                .atZone(ZoneId.systemDefault())
+                .toLocalDate()
+                .format(DateTimeFormatter.ISO_LOCAL_DATE)
+            val logText = if (record.log.isNotBlank()) " - 日志: ${record.log}" else ""
+            "$date: ${String.format(Locale.CHINA,"%.1f", record.weight)}kg$logText"
+        }
+
+        return """
+    你是一位专业的健康顾问和数据分析师。用户的身高:${height}cm，用户期望的目标体重是${targetWeight}kg。
+
+    这是用户在「${scope.label}」内的体重和日志数据。请你进行分析。
+    数据如下:
+    $recordsString
+    BMI:$bmi
+    
+    注意请不要在回复中出现代码和图标，用户只是一个普通用户，不具备专业性知识。
+    """.trimIndent()
     }
 }

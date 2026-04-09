@@ -24,6 +24,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -51,29 +53,31 @@ import com.example.weight.data.LocalStorageData
 import com.example.weight.ui.common.DatePickerDocked
 import com.example.weight.ui.common.TimePickerOutlineTextFiled
 import com.example.weight.util.TimeUtils
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import kotlin.math.absoluteValue
 
 @Composable
-fun MainDialog( viewModel: MainViewModel = koinViewModel()){
+fun MainDialog(viewModel: MainViewModel = koinViewModel()) {
     val dialogState by viewModel.dialogState.collectAsStateWithLifecycle()
     if (dialogState.isShowAddDialog) {
         AddRecordDialog(onDismissRequest = {
             viewModel.hideAddDialog()
         })
     }
-    if (dialogState.isShowSetHeightDialog){
+    if (dialogState.isShowSetHeightDialog) {
         SetHeightDialog(onDismissRequest = {
             viewModel.hideSetHeightDialog()
         })
     }
     LaunchedEffect(Unit) {
-        if (LocalStorageData.height == 100.0){
+        if (LocalStorageData.isFirst) {
             viewModel.showSetHeightDialog()
         }
     }
 }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddRecordDialog(onDismissRequest: () -> Unit, viewModel: MainViewModel = koinViewModel()) {
@@ -97,6 +101,10 @@ fun AddRecordDialog(onDismissRequest: () -> Unit, viewModel: MainViewModel = koi
     var initialWeight by remember {
         mutableStateOf<Double?>(null)
     }
+    //日志
+    var log by remember {
+        mutableStateOf("")
+    }
     LaunchedEffect(Unit) {
         viewModel.getLastRecordWeight {
             initialWeight = it
@@ -105,7 +113,10 @@ fun AddRecordDialog(onDismissRequest: () -> Unit, viewModel: MainViewModel = koi
     AlertDialog(onDismissRequest = onDismissRequest, title = {
         Text("记录体重")
     }, text = {
-        Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             Row {
                 DatePickerDocked(
                     modifier = Modifier.weight(1f),
@@ -115,20 +126,32 @@ fun AddRecordDialog(onDismissRequest: () -> Unit, viewModel: MainViewModel = koi
                     selectedDate = date
                 )
                 Spacer(modifier = Modifier.width(10.dp))
-                TimePickerOutlineTextFiled(modifier = Modifier.weight(0.7f), hint = "时间", value = time, onValueChanged = {
-                    time = it
-                }, isRequired = true, singleLine = true)
+                TimePickerOutlineTextFiled(
+                    modifier = Modifier.weight(0.7f),
+                    hint = "时间",
+                    value = time,
+                    onValueChanged = {
+                        time = it
+                    },
+                    isRequired = true,
+                    singleLine = true
+                )
             }
             NumberSelector(integerList = remember { (50..120).toList() }, decimalList = remember {
                 (0..9).toList()
             }, onWeightChange = {
                 weight = it
             }, initialWeight = initialWeight, unit = "kg")
+            OutlinedTextField(value = log, onValueChange = {
+                log = it
+            }, label = {
+                Text("日志/记录")
+            })
         }
     }, confirmButton = {
         val snackBarShow = LocalSnackBarShow.current
         Button(onClick = {
-            viewModel.insertRecord(date, time, weight) {
+            viewModel.insertRecord(date = date, time = time, weight = weight, log = log) {
                 snackBarShow.invoke("添加成功")
                 onDismissRequest()
             }
@@ -144,23 +167,45 @@ fun AddRecordDialog(onDismissRequest: () -> Unit, viewModel: MainViewModel = koi
 
 @Composable
 fun SetHeightDialog(onDismissRequest: () -> Unit) {
-    var height by remember {
-        mutableDoubleStateOf(LocalStorageData.height)
-    }
+    val height by LocalStorageData.height.collectAsStateWithLifecycle()
+    val weight by LocalStorageData.targetWeight.collectAsStateWithLifecycle()
+    val completeDays by LocalStorageData.completeDays.collectAsStateWithLifecycle()
     AlertDialog(onDismissRequest = onDismissRequest, title = {
-        Text("选择身高")
+        Text("输入信息")
     }, text = {
-        Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            NumberSelector(integerList = remember { (100..200).toList() }, decimalList = remember {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text("你的身高")
+            NumberSelector(integerList = remember { (150..200).toList() }, decimalList = remember {
                 (0..9).toList()
-            }, onWeightChange = {
-                height = it
+            }, onWeightChange = { change ->
+                LocalStorageData.height.update {
+                    change
+                }
             }, initialWeight = height, unit = "cm")
+            HorizontalDivider()
+            Text("你的目标")
+            NumberSelector(integerList = remember { (50..120).toList() }, decimalList = remember {
+                (0..9).toList()
+            }, onWeightChange = { change ->
+                LocalStorageData.targetWeight.update {
+                    change
+                }
+            }, initialWeight = weight, unit = "kg")
+            OutlinedTextField(value = completeDays.toString(), onValueChange = { change ->
+                LocalStorageData.completeDays.update {
+                    change.toIntOrNull() ?: 0
+                }
+            }, label = {
+                Text("计划完成天数")
+            })
         }
     }, confirmButton = {
         Button(onClick = {
-            LocalStorageData.height = height
             onDismissRequest()
+            LocalStorageData.isFirst = false
         }) {
             Text("保存")
         }
@@ -215,7 +260,12 @@ private fun NumberSelector(
             val integer = integerList[integerPagerState.currentPage]
             onWeightChange(integer + it.toDouble() / 10)
         }
-        Text(modifier = Modifier.padding(start = 1.dp, bottom = 6.dp), text = unit, color = Color.Gray, fontSize = 14.sp)
+        Text(
+            modifier = Modifier.padding(start = 1.dp, bottom = 6.dp),
+            text = unit,
+            color = Color.Gray,
+            fontSize = 14.sp
+        )
     }
 }
 

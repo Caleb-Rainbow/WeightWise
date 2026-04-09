@@ -8,14 +8,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.LoadingIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -31,11 +32,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
@@ -64,31 +61,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
-
-@Composable
-private fun MainNav() {
-    val navController = rememberNavController()
-    NavHost(navController = navController, startDestination = "main") {
-        composable("main") {
-            MainScreen(goSetting = {
-                navController.navigate("setting")
-            }, goRecord = {
-                navController.navigate("record")
-            })
-        }
-        composable("setting") {
-            SettingScreen {
-                navController.navigateUp()
-            }
-        }
-        composable("record") {
-            RecordScreen {
-                navController.navigateUp()
-            }
-        }
-    }
-}
-
 
 @Serializable
 object Main : NavKey
@@ -218,9 +190,15 @@ fun ProvideSnackBarHost(
 @Composable
 fun LoadingDialog(onDismissRequest: () -> Unit) {
     BasicAlertDialog(modifier = Modifier.size(80.dp), onDismissRequest = onDismissRequest) {
-        Card(colors = CardDefaults.cardColors(containerColor = Color.White)) {
+        Card {
             Box(modifier = Modifier.fillMaxSize()) {
-                LoadingIndicator(modifier = Modifier.align(Alignment.Center))
+                ContainedLoadingIndicator(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .padding(15.dp)
+                        .align(
+                            Alignment.Center
+                        ),indicatorColor = MaterialTheme.colorScheme.primary)
             }
         }
     }

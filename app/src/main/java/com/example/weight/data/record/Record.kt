@@ -1,5 +1,6 @@
 package com.example.weight.data.record
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -8,6 +9,8 @@ data class Record(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
     val weight: Double,
+    @ColumnInfo(defaultValue = "")
+    val log:String,
     val timestamp: Long
 )
 

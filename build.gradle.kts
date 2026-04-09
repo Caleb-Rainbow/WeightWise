@@ -8,4 +8,5 @@ plugins {
     alias(libs.plugins.room) apply false
     alias(libs.plugins.android.test) apply false
     alias(libs.plugins.baselineprofile) apply false
+    alias(libs.plugins.secrets.gradle.plugin) apply false
 }

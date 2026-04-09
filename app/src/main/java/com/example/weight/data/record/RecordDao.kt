@@ -27,6 +27,9 @@ interface RecordDao {
     @Query("SELECT * FROM Record ORDER BY id DESC LIMIT 1")
     fun getLastData(): Record?
 
+    @Query("SELECT * FROM Record ORDER BY id asc LIMIT 1")
+    fun getFirstData(): Record?
+
     @Query(
         """
     SELECT
@@ -47,4 +50,8 @@ interface RecordDao {
 """
     )
     fun getDailyMinWeightSince(startTimeMillis: Long): Flow<List<DailyMinWeight>>
+
+    @Query("SELECT * FROM Record WHERE timestamp >= :startTimeMillis")
+    suspend fun getRecordWeightSince(startTimeMillis: Long): List<Record>
+
 }

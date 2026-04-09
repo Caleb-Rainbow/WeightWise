@@ -8,6 +8,7 @@ plugins {
     alias(libs.plugins.serialization)
     alias(libs.plugins.room)
     alias(libs.plugins.baselineprofile)
+    alias(libs.plugins.secrets.gradle.plugin)
 }
 
 android {
@@ -18,8 +19,9 @@ android {
         applicationId = "com.example.weight"
         minSdk = 29
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.0.1"
+        ndk.abiFilters.add("arm64-v8a")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -52,6 +54,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     ksp {
@@ -60,6 +63,12 @@ android {
     }
     room {
         schemaDirectory("$projectDir/schemas")
+    }
+    secrets {
+        propertiesFileName = "secrets.properties"
+        defaultPropertiesFileName = "local.defaults.properties"
+        ignoreList.add("keyToIgnore")
+        ignoreList.add("sdk.*")
     }
 }
 
@@ -80,7 +89,6 @@ dependencies {
     //navigation
     implementation(libs.androidx.navigation.runtime)
     implementation(libs.androidx.navigation.ui)
-    implementation(libs.androidx.navigation)
     //room
     implementation(libs.androidx.room.runtime)
 
@@ -105,4 +113,12 @@ dependencies {
     implementation(libs.vico.compose.m3)
     //mmkv
     implementation(libs.mmkv)
+    //ktor
+    implementation(libs.ktor.client.core)
+    implementation(libs.ktor.client.cio)
+    implementation(libs.ktor.client.content.negotiation)
+    implementation(libs.ktor.serialization.kotlinx.json)
+    //markdown
+    implementation(libs.markdown.editor)
+    implementation(libs.markdown.m3)
 }
