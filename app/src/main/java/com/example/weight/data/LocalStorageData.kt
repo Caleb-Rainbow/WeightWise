@@ -2,7 +2,7 @@ package com.example.weight.data
 
 import com.dylanc.mmkv.MMKVOwner
 
-const val DEFAULT_HEIGHT = 150.0
+const val DEFAULT_HEIGHT = 170.0
 const val DEFAULT_TARGET_WEIGHT = 0.0
 
 object LocalStorageData:MMKVOwner(mmapID = "settings") {

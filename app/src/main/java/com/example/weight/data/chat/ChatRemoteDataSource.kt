@@ -1,6 +1,5 @@
 package com.example.weight.data.chat
 
-import android.util.Log
 import com.example.weight.BuildConfig
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -31,7 +30,7 @@ class ChatRemoteDataSource(private val httpClient: HttpClient, private val json:
     suspend fun chat(model: ChatBodyModel, onMessage: (MessageModel) -> Unit){
         try {
             val responseText = httpClient.post(urlString = "https://api.deepseek.com/chat/completions") {
-                method = HttpMethod.Companion.Post
+                method = HttpMethod.Post
                 headers.append("Authorization","Bearer ${BuildConfig.DEEP_SEEK_KEY}")
                 contentType(ContentType.Application.Json)
                 setBody(model)
@@ -53,7 +52,7 @@ class ChatRemoteDataSource(private val httpClient: HttpClient, private val json:
     suspend fun streamChat(model: ChatBodyModel, onMessage: (StreamChunkResponse?) -> Unit){
         val body = json.encodeToString(ChatBodyModel.serializer(),model.copy(stream = true))
         httpClient.preparePost(urlString = "https://api.deepseek.com/chat/completions") {
-            method = HttpMethod.Companion.Post
+            method = HttpMethod.Post
             headers.append("Authorization","Bearer ${BuildConfig.DEEP_SEEK_KEY}")
             contentType(ContentType.Application.Json)
             setBody(body)
