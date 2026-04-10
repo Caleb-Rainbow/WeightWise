@@ -37,6 +37,7 @@ import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
+import com.example.weight.ui.exercise.ExercisePlanScreen
 import com.example.weight.ui.main.MainScreen
 import com.example.weight.ui.record.RecordScreen
 import com.example.weight.ui.setting.SettingScreen
@@ -68,6 +69,8 @@ object Main : NavKey
 object Setting : NavKey
 @Serializable
 object Record : NavKey
+@Serializable
+object ExercisePlan : NavKey
 
 @Composable
 private fun MainNav3() {
@@ -78,6 +81,8 @@ private fun MainNav3() {
                 backStack.add(Setting)
             }, goRecord = {
                 backStack.add(Record)
+            }, goExercisePlan = {
+                backStack.add(ExercisePlan)
             })
         }
         entry<Setting> {
@@ -89,6 +94,11 @@ private fun MainNav3() {
             RecordScreen {
                 backStack.removeAt(backStack.lastIndex)
             }
+        }
+        entry<ExercisePlan> {
+            ExercisePlanScreen(goBack = {
+                backStack.removeAt(backStack.lastIndex)
+            })
         }
     })
 }

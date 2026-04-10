@@ -91,7 +91,7 @@ import kotlin.math.absoluteValue
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun MainScreen(modifier: Modifier = Modifier, viewModel: MainViewModel = koinViewModel(),goSetting:()-> Unit = {},goRecord:()-> Unit={}) {
+fun MainScreen(modifier: Modifier = Modifier, viewModel: MainViewModel = koinViewModel(),goSetting:()-> Unit = {},goRecord:()-> Unit={},goExercisePlan:()->Unit={}) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val dialogState by viewModel.dialogState.collectAsStateWithLifecycle()
     val showMessageDialog = LocalShowMessageDialog.current
@@ -164,9 +164,7 @@ fun MainScreen(modifier: Modifier = Modifier, viewModel: MainViewModel = koinVie
                     .align(Alignment.BottomCenter)
                     .offset(y = (-10).dp), expanded = true, expandedShadowElevation = 2.dp
             ) {
-                IconButton(onClick = {
-                    //TODO 跳转到计划界面
-                }){
+                IconButton(onClick = goExercisePlan){
                     Icon(imageVector = MyIconPack.CalendarCheck, contentDescription = null)
                 }
                 IconButton(onClick = goSetting) {
