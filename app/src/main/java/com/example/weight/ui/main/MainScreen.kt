@@ -10,6 +10,8 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -115,7 +117,9 @@ fun MainScreen(modifier: Modifier = Modifier, viewModel: MainViewModel = koinVie
                 .padding(paddingValues)
                 .fillMaxSize()
         ) {
-            Column {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState())
+            ) {
                 val currentScopeDataList by viewModel.currentScopeData.collectAsStateWithLifecycle(initialValue = emptyList())
                 LaunchedEffect(currentScopeDataList) {
                     viewModel.setSelectedRecord(currentScopeDataList.lastOrNull())
@@ -158,6 +162,7 @@ fun MainScreen(modifier: Modifier = Modifier, viewModel: MainViewModel = koinVie
                         .padding(top = 15.dp), firstWeightRecord = currentScopeDataList.firstOrNull(),
                     lastWeightRecord = currentScopeDataList.lastOrNull()
                 )
+                Spacer(modifier = Modifier.height(80.dp))
             }
             HorizontalFloatingToolbar(
                 modifier = Modifier

@@ -37,6 +37,9 @@ import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
+import com.example.weight.ui.common.navPopTransitionSpec
+import com.example.weight.ui.common.navTransitionSpec
+import com.example.weight.ui.common.prependNavTransitionSpec
 import com.example.weight.ui.exercise.ExercisePlanScreen
 import com.example.weight.ui.main.MainScreen
 import com.example.weight.ui.record.RecordScreen
@@ -65,42 +68,48 @@ class MainActivity : ComponentActivity() {
 
 @Serializable
 object Main : NavKey
+
 @Serializable
 object Setting : NavKey
+
 @Serializable
 object Record : NavKey
+
 @Serializable
 object ExercisePlan : NavKey
 
 @Composable
 private fun MainNav3() {
     val backStack = rememberNavBackStack(Main)
-    NavDisplay(backStack = backStack, entryProvider = entryProvider {
-        entry<Main> {
-            MainScreen(goSetting = {
-                backStack.add(Setting)
-            }, goRecord = {
-                backStack.add(Record)
-            }, goExercisePlan = {
-                backStack.add(ExercisePlan)
-            })
-        }
-        entry<Setting> {
-            SettingScreen {
-                backStack.removeAt(backStack.lastIndex)
+    NavDisplay(
+        backStack = backStack, transitionSpec = navTransitionSpec,
+        popTransitionSpec = navPopTransitionSpec,
+        predictivePopTransitionSpec = prependNavTransitionSpec, entryProvider = entryProvider {
+            entry<Main> {
+                MainScreen(goSetting = {
+                    backStack.add(Setting)
+                }, goRecord = {
+                    backStack.add(Record)
+                }, goExercisePlan = {
+                    backStack.add(ExercisePlan)
+                })
             }
-        }
-        entry<Record> {
-            RecordScreen {
-                backStack.removeAt(backStack.lastIndex)
+            entry<Setting> {
+                SettingScreen {
+                    backStack.removeAt(backStack.lastIndex)
+                }
             }
-        }
-        entry<ExercisePlan> {
-            ExercisePlanScreen(goBack = {
-                backStack.removeAt(backStack.lastIndex)
-            })
-        }
-    })
+            entry<Record> {
+                RecordScreen {
+                    backStack.removeAt(backStack.lastIndex)
+                }
+            }
+            entry<ExercisePlan> {
+                ExercisePlanScreen(goBack = {
+                    backStack.removeAt(backStack.lastIndex)
+                })
+            }
+        })
 }
 
 val LocalSnackBarShow = compositionLocalOf<(String) -> Unit> {
@@ -208,7 +217,8 @@ fun LoadingDialog(onDismissRequest: () -> Unit) {
                         .padding(15.dp)
                         .align(
                             Alignment.Center
-                        ),indicatorColor = MaterialTheme.colorScheme.primary)
+                        ), indicatorColor = MaterialTheme.colorScheme.primary
+                )
             }
         }
     }
@@ -220,7 +230,11 @@ fun LoadingDialog(onDismissRequest: () -> Unit) {
  * @property title 对话框的标题。
  * @property message 对话框的消息内容。
  */
-data class GlobalMessageDialogData(val title: String, val message: String, val onConfirm: () -> Unit)
+data class GlobalMessageDialogData(
+    val title: String,
+    val message: String,
+    val onConfirm: () -> Unit
+)
 
 
 /**

@@ -346,6 +346,9 @@ class ExercisePlanViewModel(
         val planId = exercisePlanDao.insertPlan(plan)
         val savedPlan = plan.copy(id = planId.toInt())
 
+        // 新计划写入成功后，再删除同一天的旧计划（CASCADE 会自动清理旧完成记录）
+        exercisePlanDao.deleteOldPlansByDate(date, planId.toInt())
+
         val completions = exercises.map { exercise ->
             ExerciseCompletion(planId = planId.toInt(), exerciseId = exercise.id)
         }

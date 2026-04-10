@@ -1,6 +1,9 @@
 package com.example.weight.ui.exercise
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -32,6 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -54,6 +58,8 @@ fun ExerciseCard(
     val isSkipped = completion?.skipped == true
     var showSkipInput by remember { mutableStateOf(false) }
     var skipReason by remember { mutableStateOf("") }
+    var isDescriptionExpanded by remember { mutableStateOf(false) }
+    var isDescriptionOverflowing by remember { mutableStateOf(false) }
 
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -89,9 +95,44 @@ fun ExerciseCard(
                         text = exercise.description,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
+                        maxLines = if (isDescriptionExpanded) Int.MAX_VALUE else 2,
                         overflow = TextOverflow.Ellipsis,
+                        onTextLayout = { result ->
+                            if (result.hasVisualOverflow) {
+                                isDescriptionOverflowing = true
+                            }
+                        },
+                        modifier = Modifier.animateContentSize(),
                     )
+                    if (isDescriptionOverflowing && !isDescriptionExpanded) {
+                        Text(
+                            text = "展开",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .padding(top = 2.dp)
+                                .then(
+                                    Modifier.clipToBounds().clickable(
+                                        indication = null,
+                                        interactionSource = remember { MutableInteractionSource() },
+                                    ) { isDescriptionExpanded = true }
+                                ),
+                        )
+                    } else if (isDescriptionExpanded) {
+                        Text(
+                            text = "收起",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .padding(top = 2.dp)
+                                .then(
+                                    Modifier.clipToBounds().clickable(
+                                        indication = null,
+                                        interactionSource = remember { MutableInteractionSource() },
+                                    ) { isDescriptionExpanded = false }
+                                ),
+                        )
+                    }
                 }
                 // Replace button - only show if not completed
                 if (!isCompleted && !isSkipped && !isGenerating) {
@@ -160,7 +201,7 @@ fun ExerciseCard(
             }
 
             // Show skip reason if already skipped
-            if (isSkipped && completion != null && completion.skipReason != null) {
+            if (isSkipped && completion.skipReason != null) {
                 Text(
                     text = "跳过原因: ${completion.skipReason}",
                     style = MaterialTheme.typography.bodySmall,

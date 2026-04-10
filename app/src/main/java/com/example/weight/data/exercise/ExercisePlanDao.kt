@@ -22,6 +22,9 @@ interface ExercisePlanDao {
     @Query("DELETE FROM ExerciseCompletion WHERE plan_id = :planId AND exercise_id = :exerciseId")
     suspend fun deleteCompletion(planId: Int, exerciseId: String)
 
+    @Query("DELETE FROM DailyPlan WHERE plan_date = :date AND id != :excludePlanId")
+    suspend fun deleteOldPlansByDate(date: String, excludePlanId: Int)
+
     @Query("SELECT * FROM DailyPlan WHERE plan_date = :date LIMIT 1")
     suspend fun getPlanByDate(date: String): DailyPlan?
 
