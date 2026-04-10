@@ -92,7 +92,7 @@ fun AnalysisBottomSheet(
                     LaunchedEffect(analysisResult) {
                         scrollState.animateScrollTo(scrollState.maxValue)
                     }
-                    val markdownState = rememberMarkdownState(analysisResult, immediate = true)
+                    val markdownState = rememberMarkdownState(analysisResult, retainState = true)
                     // 显示流式返回的文本
                     Markdown(
                         markdownState = markdownState,

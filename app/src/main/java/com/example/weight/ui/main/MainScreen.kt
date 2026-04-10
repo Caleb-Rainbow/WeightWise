@@ -43,6 +43,7 @@ import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -368,20 +369,22 @@ private fun StatisticChart(
 
     // 当 chartData 不为空时才显示图表
     if (currentScopeDataList.isNotEmpty()) {
-        val modelProducer = remember { CartesianChartModelProducer() }
-        LaunchedEffect(currentScopeDataList) {
-            modelProducer.runTransaction {
-                lineSeries { series(currentScopeDataList.map { it.minWeight }) }
+        key(currentScopeDataList) {
+            val modelProducer = remember { CartesianChartModelProducer() }
+            LaunchedEffect(Unit) {
+                modelProducer.runTransaction {
+                    lineSeries { series(currentScopeDataList.map { it.minWeight }) }
+                }
             }
-        }
-        WeightChart(
-            lineColor = vicoTheme.lineColor,
-            modelProducer = modelProducer,
-            maxWeight = maxWeight,
-            minWeight = minWeight,
-            xLabels = labels
-        ) {
-            onMarkerClick(currentScopeDataList[it])
+            WeightChart(
+                lineColor = vicoTheme.lineColor,
+                modelProducer = modelProducer,
+                maxWeight = maxWeight,
+                minWeight = minWeight,
+                xLabels = labels
+            ) {
+                onMarkerClick(currentScopeDataList[it])
+            }
         }
     }
 }

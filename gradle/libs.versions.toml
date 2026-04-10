@@ -5,7 +5,6 @@ coreKtx = "1.18.0"
 lifecycleRuntimeKtx = "2.10.0"
 activityCompose = "1.13.0"
 composeBom = "2026.04.00"
-navigation = "2.9.7"
 navigation3 = "1.1.0"
 
 koin = "4.2.0"
@@ -29,7 +28,7 @@ profileinstaller = "1.4.1"
 ktor = "3.4.2"
 
 secretsGradlePlugin = "2.0.1"
-markdownEditor = "0.37.0"
+markdownEditor = "0.40.2"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -61,9 +60,10 @@ koin-annotations = {module = "io.insert-koin:koin-annotations",version.ref = "ko
 koin-ksp-compiler = {module = "io.insert-koin:koin-ksp-compiler",version.ref = "koin-annotations"}
 
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
-ktor-client-cio = { module = "io.ktor:ktor-client-cio", version.ref = "ktor" }
+ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }
 ktor-client-content-negotiation = { module = "io.ktor:ktor-client-content-negotiation", version.ref = "ktor" }
 ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }
+ktor-client-logging = { module = "io.ktor:ktor-client-logging", version.ref = "ktor" }
 
 charts = {module = "io.github.ehsannarmani:compose-charts",version.ref = "charts"}
 vico-compose-m3 = { group = "com.patrykandpatrick.vico", name = "compose-m3", version.ref = "vico" }

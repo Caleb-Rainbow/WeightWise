@@ -52,7 +52,6 @@ class ChatRemoteDataSource(private val httpClient: HttpClient, private val json:
 
     suspend fun streamChat(model: ChatBodyModel, onMessage: (StreamChunkResponse?) -> Unit){
         val body = json.encodeToString(ChatBodyModel.serializer(),model.copy(stream = true))
-        Log.e("ChatRemoteDataSource", "chat: $body")
         httpClient.preparePost(urlString = "https://api.deepseek.com/chat/completions") {
             method = HttpMethod.Companion.Post
             headers.append("Authorization","Bearer ${BuildConfig.DEEP_SEEK_KEY}")
