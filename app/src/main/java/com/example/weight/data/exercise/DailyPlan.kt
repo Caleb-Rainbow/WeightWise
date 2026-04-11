@@ -2,9 +2,13 @@ package com.example.weight.data.exercise
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "DailyPlan")
+@Entity(
+    tableName = "DailyPlan",
+    indices = [Index("journey_id"), Index("plan_date")],
+)
 data class DailyPlan(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
@@ -23,4 +27,6 @@ data class DailyPlan(
     @ColumnInfo(name = "total_duration", defaultValue = "0")
     val totalDuration: Int = 0,
     val dailyTip: String = "",
+    @ColumnInfo(name = "journey_id", defaultValue = "0")
+    val journeyId: Int = 0,
 )

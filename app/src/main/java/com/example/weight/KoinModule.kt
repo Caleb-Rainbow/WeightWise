@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.example.weight.data.AppDataBase
 import com.example.weight.data.createDefaultHttpClient
 import com.example.weight.data.exercise.ExercisePlanDao
+import com.example.weight.data.exercise.JourneyDao
 import kotlinx.serialization.json.Json
 import org.koin.core.annotation.ComponentScan
 import org.koin.core.annotation.Module
@@ -24,6 +25,9 @@ class KoinModule {
 
     @Single
     fun provideExercisePlanDao(appDataBase: AppDataBase): ExercisePlanDao = appDataBase.exercisePlanDao()
+
+    @Single
+    fun provideJourneyDao(appDataBase: AppDataBase): JourneyDao = appDataBase.journeyDao()
 
     @Single
     fun provideHttpClient(json: Json) = createDefaultHttpClient(json)

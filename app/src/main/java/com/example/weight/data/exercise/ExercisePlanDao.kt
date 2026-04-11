@@ -67,4 +67,13 @@ interface ExercisePlanDao {
 
     @Query("UPDATE DailyPlan SET exercisesJson = :exercisesJson, total_calories = :totalCalories, total_duration = :totalDuration WHERE id = :planId")
     suspend fun updatePlanJson(planId: Int, exercisesJson: String, totalCalories: Int, totalDuration: Int)
+
+    @Query("SELECT * FROM DailyPlan WHERE journey_id = :journeyId ORDER BY plan_date ASC")
+    suspend fun getPlansForJourney(journeyId: Int): List<DailyPlan>
+
+    @Query("SELECT * FROM DailyPlan WHERE journey_id = :journeyId ORDER BY plan_date ASC")
+    fun getPlansForJourneyFlow(journeyId: Int): Flow<List<DailyPlan>>
+
+    @Query("UPDATE DailyPlan SET journey_id = :journeyId WHERE id = :planId AND journey_id = 0")
+    suspend fun updatePlanJourneyId(planId: Int, journeyId: Int)
 }

@@ -10,6 +10,22 @@ import com.example.weight.util.TimeUtils
 
 object ExercisePromptBuilder {
 
+    data class JourneyContext(
+        val journeyId: Int,
+        val currentDay: Int,
+        val totalDays: Int,
+        val currentPhaseName: String,
+        val currentPhaseDescription: String,
+        val phaseFocusAreas: List<String>,
+        val phaseDifficultyLevel: Int,
+        val phaseCalorieDeficit: Int,
+        val phaseExerciseDuration: Int,
+        val startWeight: Double,
+        val targetWeight: Double,
+        val weightLostSoFar: Double,
+        val isFirstDayOfPhase: Boolean,
+    )
+
     fun buildPrompt(
         height: Double,
         currentWeight: Double,
@@ -23,6 +39,7 @@ object ExercisePromptBuilder {
         blacklistTags: Set<String> = emptySet(),
         whitelistTags: Set<String> = emptySet(),
         scene: String = "",
+        journeyContext: JourneyContext? = null,
     ): ChatBodyModel {
         val userContent = buildString {
             appendLine("你是一位专业、温暖且富有同理心的运动健康顾问，专门为减重新手制定运动计划。")
@@ -116,6 +133,24 @@ object ExercisePromptBuilder {
             if (logsWithContent.isNotEmpty()) {
                 appendLine("【近期日志】（请仔细阅读，判断用户的身体和心理疲劳程度）")
                 logsWithContent.forEach { appendLine(it) }
+                appendLine()
+            }
+
+            if (journeyContext != null) {
+                appendLine("【阶段信息 — 当前减重旅程】")
+                appendLine("- 旅程进度：第${journeyContext.currentDay}天 / 共${journeyContext.totalDays}天")
+                appendLine("- 当前阶段：${journeyContext.currentPhaseName}（${journeyContext.currentPhaseDescription}）")
+                appendLine("- 阶段重点：${journeyContext.phaseFocusAreas.joinToString("、")}")
+                appendLine("- 阶段建议难度：${journeyContext.phaseDifficultyLevel}（1=轻松,2=适中,3=挑战）")
+                appendLine("- 每日建议热量缺口：${journeyContext.phaseCalorieDeficit}kcal")
+                appendLine("- 每日建议运动时长：${journeyContext.phaseExerciseDuration}分钟")
+                appendLine("- 已减重：${"%.1f".format(journeyContext.weightLostSoFar)}kg / 目标${"%.1f".format(journeyContext.startWeight - journeyContext.targetWeight)}kg")
+                if (journeyContext.isFirstDayOfPhase) {
+                    appendLine()
+                    appendLine("今天是新阶段【${journeyContext.currentPhaseName}】的第一天！请在鼓励语中特别向用户祝贺他们进入了新阶段，并简单说明本阶段的重心变化。")
+                }
+                appendLine()
+                appendLine("请根据当前阶段目标调整运动计划的类型和强度。当前阶段重点关注：${journeyContext.phaseFocusAreas.joinToString("、")}。每日运动时长建议约${journeyContext.phaseExerciseDuration}分钟。")
                 appendLine()
             }
 

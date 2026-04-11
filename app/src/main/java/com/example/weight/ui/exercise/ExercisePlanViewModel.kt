@@ -14,11 +14,13 @@ import com.example.weight.data.exercise.ExerciseItem
 import com.example.weight.data.exercise.ExercisePlanDao
 import com.example.weight.data.exercise.ExercisePromptBuilder
 import com.example.weight.data.exercise.FallbackPlanGenerator
+import com.example.weight.data.exercise.JourneyDao
 import com.example.weight.data.exercise.WhitelistToCatalogTagMap
 import com.example.weight.data.exercise.sanitize
 import com.example.weight.data.record.RecordDao
 import com.example.weight.util.TimeUtils
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -38,6 +40,8 @@ data class ExercisePlanUiState(
     val error: String? = null,
     val streakDays: Int = 0,
     val allCompleted: Boolean = false,
+    val journeyContext: ExercisePromptBuilder.JourneyContext? = null,
+    val journeyPhaseName: String? = null,
 )
 
 @KoinViewModel
@@ -46,6 +50,7 @@ class ExercisePlanViewModel(
     private val exercisePlanDao: ExercisePlanDao,
     private val chatRepository: ChatRepository,
     private val json: Json,
+    private val journeyDao: JourneyDao,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ExercisePlanUiState())
@@ -53,8 +58,33 @@ class ExercisePlanViewModel(
 
     private val generateMutex = Mutex()
 
+    private var journeyObserverJob: Job? = null
+
     init {
         loadTodayPlan()
+        observeActiveJourney()
+    }
+
+    /**
+     * 响应式观察活跃旅程变化。
+     * 当用户在 JourneyProgressScreen 放弃/完成旅程后返回此页时，
+     * journeyContext 和 journeyPhaseName 会自动清空，PhaseBanner 消失。
+     */
+    private fun observeActiveJourney() {
+        journeyObserverJob?.cancel()
+        journeyObserverJob = viewModelScope.launch(Dispatchers.IO) {
+            journeyDao.getActiveJourneyFlow().collect { journey ->
+                if (journey == null) {
+                    _uiState.value = _uiState.value.copy(
+                        journeyContext = null,
+                        journeyPhaseName = null,
+                    )
+                } else {
+                    // 旅程存在，重新加载完整上下文
+                    reloadJourneyContext(journey)
+                }
+            }
+        }
     }
 
     fun loadTodayPlan() {
@@ -75,6 +105,7 @@ class ExercisePlanViewModel(
                     _uiState.value = _uiState.value.copy(isLoading = false)
                 }
                 updateStreak()
+                loadJourneyContext()
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isLoading = false, error = e.message)
             }
@@ -117,6 +148,9 @@ class ExercisePlanViewModel(
     }
 
     private suspend fun doGeneratePlan(today: String) {
+        // 确保 Journey 上下文已加载
+        loadJourneyContext()
+
         val height = LocalStorageData.height.value
         val targetWeight = LocalStorageData.targetWeight.value
         val isFirstTime = exercisePlanDao.getPlansSince(today).isEmpty()
@@ -154,6 +188,7 @@ class ExercisePlanViewModel(
             blacklistTags = blacklistTags,
             whitelistTags = whitelistTags,
             scene = scene,
+            journeyContext = _uiState.value.journeyContext,
         )
 
         try {
@@ -339,6 +374,7 @@ class ExercisePlanViewModel(
             totalCalories = totalCalories,
             totalDuration = totalDuration,
             dailyTip = dailyTip,
+            journeyId = _uiState.value.journeyContext?.journeyId ?: 0,
         )
         val planId = exercisePlanDao.insertPlan(plan)
         val savedPlan = plan.copy(id = planId.toInt())
@@ -413,6 +449,95 @@ class ExercisePlanViewModel(
             json.decodeFromString<List<ExerciseItem>>(exercisesJson)
         } catch (e: Exception) {
             emptyList()
+        }
+    }
+
+    private suspend fun loadJourneyContext() {
+        // MMKV 自愈: 验证 ID 是否有效
+        val mmkvId = LocalStorageData.activeJourneyId.value
+        var journey: com.example.weight.data.exercise.Journey? = null
+
+        if (mmkvId > 0) {
+            journey = journeyDao.getJourneyById(mmkvId)
+            if (journey == null || journey.status != "active") {
+                LocalStorageData.activeJourneyId.value = 0
+            }
+        }
+
+        if (journey == null) {
+            journey = journeyDao.getActiveJourney()
+            if (journey != null) {
+                LocalStorageData.activeJourneyId.value = journey.id
+            }
+        }
+
+        if (journey == null) {
+            _uiState.value = _uiState.value.copy(journeyContext = null, journeyPhaseName = null)
+            return
+        }
+
+        reloadJourneyContext(journey)
+    }
+
+    /**
+     * 根据 Journey 对象构建完整的 JourneyContext 并更新 UI 状态。
+     * 被 loadJourneyContext() 和 observeActiveJourney() 共同复用。
+     */
+    private suspend fun reloadJourneyContext(journey: com.example.weight.data.exercise.Journey) {
+        val currentDay = TimeUtils.getDaysSince(journey.startDate)
+
+        // 旅程到期自动完成
+        if (currentDay > journey.targetDays) {
+            journeyDao.updateJourneyStatus(journey.id, "completed", System.currentTimeMillis())
+            LocalStorageData.activeJourneyId.value = 0
+            _uiState.value = _uiState.value.copy(journeyContext = null, journeyPhaseName = null)
+            return
+        }
+
+        val phase = journeyDao.getPhaseForDay(journey.id, currentDay)
+        if (phase == null) {
+            _uiState.value = _uiState.value.copy(journeyContext = null, journeyPhaseName = null)
+            return
+        }
+
+        val startWeight = journey.startWeight
+        val lastWeight = recordDao.getLastData()?.weight ?: startWeight
+        val weightLost = startWeight - lastWeight
+
+        val focusAreas = try {
+            json.decodeFromString<List<String>>(phase.focusAreas)
+        } catch (e: Exception) {
+            emptyList()
+        }
+
+        val isFirstDayOfPhase = currentDay == phase.startDay
+
+        val context = ExercisePromptBuilder.JourneyContext(
+            journeyId = journey.id,
+            currentDay = currentDay,
+            totalDays = journey.targetDays,
+            currentPhaseName = phase.name,
+            currentPhaseDescription = phase.description,
+            phaseFocusAreas = focusAreas,
+            phaseDifficultyLevel = phase.difficultyLevel,
+            phaseCalorieDeficit = phase.dailyCalorieDeficit,
+            phaseExerciseDuration = phase.dailyExerciseDuration,
+            startWeight = startWeight,
+            targetWeight = journey.targetWeight,
+            weightLostSoFar = weightLost,
+            isFirstDayOfPhase = isFirstDayOfPhase,
+        )
+
+        _uiState.value = _uiState.value.copy(
+            journeyContext = context,
+            journeyPhaseName = "${phase.name} · 第${currentDay}天",
+        )
+
+        // 将已有的未关联今日计划关联到当前 Journey
+        val today = TimeUtils.getCurrentDate()
+        val existingPlan = exercisePlanDao.getPlanByDate(today)
+        if (existingPlan != null && existingPlan.journeyId == 0) {
+            exercisePlanDao.updatePlanJourneyId(existingPlan.id, journey.id)
         }
     }
 }

@@ -258,7 +258,7 @@ private fun TagFlowSection(
         customTags.forEach { customTag ->
             InputChip(
                 selected = true,
-                onClick = { onCustomTagRemove(customTag) },
+                onClick = {  },
                 label = { Text(customTag, style = MaterialTheme.typography.bodySmall) },
                 trailingIcon = {
                     Icon(

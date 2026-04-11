@@ -75,7 +75,7 @@ class MainViewModel(
         }
 
     init {
-        getFirstRecord()
+        observeFirstRecord()
     }
 
     // 更新选中的统计范围
@@ -142,6 +142,18 @@ class MainViewModel(
                 )
             )
             onSuccess()
+        }
+    }
+
+    /**
+     * 响应式观察最早记录变化。
+     * Record 表数据变化（新增/删除）时自动重发，确保进度条的"起始体重"始终准确。
+     */
+    private fun observeFirstRecord() {
+        viewModelScope.launch(Dispatchers.IO) {
+            recordDao.getFirstDataFlow().collect { record ->
+                _uiState.update { it.copy(firstRecord = record) }
+            }
         }
     }
 

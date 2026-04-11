@@ -3,6 +3,7 @@ package com.example.weight.util
 import java.text.SimpleDateFormat
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 import java.util.Date
 import java.util.Locale
 
@@ -56,5 +57,11 @@ object TimeUtils {
     fun getStartTimeForLastYears(years: Int): Long {
         val startDate = LocalDate.now().minusYears(years.toLong())
         return startDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    }
+
+    fun getDaysSince(startDateStr: String): Int {
+        val start = LocalDate.parse(startDateStr)
+        val today = LocalDate.now(ZoneId.systemDefault())
+        return ChronoUnit.DAYS.between(start, today).toInt() + 1
     }
 }

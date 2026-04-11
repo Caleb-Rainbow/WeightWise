@@ -41,6 +41,8 @@ import com.example.weight.ui.common.navPopTransitionSpec
 import com.example.weight.ui.common.navTransitionSpec
 import com.example.weight.ui.common.prependNavTransitionSpec
 import com.example.weight.ui.exercise.ExercisePlanScreen
+import com.example.weight.ui.journey.JourneyCreationScreen
+import com.example.weight.ui.journey.JourneyProgressScreen
 import com.example.weight.ui.main.MainScreen
 import com.example.weight.ui.record.RecordScreen
 import com.example.weight.ui.setting.SettingScreen
@@ -78,6 +80,12 @@ object Record : NavKey
 @Serializable
 object ExercisePlan : NavKey
 
+@Serializable
+object JourneyCreation : NavKey
+
+@Serializable
+object JourneyProgress : NavKey
+
 @Composable
 private fun MainNav3() {
     val backStack = rememberNavBackStack(Main)
@@ -92,6 +100,10 @@ private fun MainNav3() {
                     backStack.add(Record)
                 }, goExercisePlan = {
                     backStack.add(ExercisePlan)
+                }, goJourneyCreation = {
+                    backStack.add(JourneyCreation)
+                }, goJourneyProgress = {
+                    backStack.add(JourneyProgress)
                 })
             }
             entry<Setting> {
@@ -107,6 +119,25 @@ private fun MainNav3() {
             entry<ExercisePlan> {
                 ExercisePlanScreen(goBack = {
                     backStack.removeAt(backStack.lastIndex)
+                }, goJourneyProgress = {
+                    backStack.add(JourneyProgress)
+                })
+            }
+            entry<JourneyCreation> {
+                JourneyCreationScreen(goBack = {
+                    backStack.removeAt(backStack.lastIndex)
+                }, onJourneyCreated = {
+                    backStack.removeAt(backStack.lastIndex)
+                    backStack.add(JourneyProgress)
+                })
+            }
+            entry<JourneyProgress> {
+                JourneyProgressScreen(goBack = {
+                    backStack.removeAt(backStack.lastIndex)
+                }, goExercisePlan = {
+                    backStack.add(ExercisePlan)
+                }, goJourneyCreation = {
+                    backStack.add(JourneyCreation)
                 })
             }
         })

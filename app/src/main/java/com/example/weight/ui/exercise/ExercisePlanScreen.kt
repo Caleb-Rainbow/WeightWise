@@ -54,6 +54,7 @@ import org.koin.compose.viewmodel.koinViewModel
 @Composable
 fun ExercisePlanScreen(
     goBack: () -> Unit,
+    goJourneyProgress: () -> Unit = {},
     viewModel: ExercisePlanViewModel = koinViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -113,6 +114,7 @@ fun ExercisePlanScreen(
                         onSkip = { id, reason -> viewModel.skipExercise(id, reason) },
                         onRegenerate = { showRegenerateDialog = true },
                         onUseFallback = { viewModel.forceRegenerate() },
+                        onJourneyProgress = goJourneyProgress,
                     )
                 }
 
@@ -261,8 +263,20 @@ private fun PlanContent(
     onSkip: (String, String) -> Unit,
     onRegenerate: () -> Unit,
     onUseFallback: () -> Unit,
+    onJourneyProgress: () -> Unit = {},
 ) {
     val plan = uiState.todayPlan!!
+
+    // Journey phase banner
+    if (uiState.journeyPhaseName != null && uiState.journeyContext != null) {
+        JourneyPhaseBanner(
+            phaseName = uiState.journeyPhaseName,
+            currentDay = uiState.journeyContext.currentDay,
+            totalDays = uiState.journeyContext.totalDays,
+            onClick = onJourneyProgress,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+    }
 
     // Celebration card when all completed
     if (uiState.allCompleted) {
@@ -510,6 +524,52 @@ private fun PreferencesHintCard(onClick: () -> Unit) {
                 text = "告诉AI你的运动偏好和身体限制，获得更适合你的计划",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onTertiaryContainer,
+            )
+        }
+    }
+}
+
+@Composable
+private fun JourneyPhaseBanner(
+    phaseName: String,
+    currentDay: Int,
+    totalDays: Int,
+    onClick: () -> Unit,
+) {
+    Card(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+        ),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = phaseName,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = "第${currentDay}天/共${totalDays}天",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            androidx.compose.material3.LinearProgressIndicator(
+                progress = { (currentDay.toFloat() / totalDays).coerceIn(0f, 1f) },
+                modifier = Modifier.fillMaxWidth(),
+                trackColor = MaterialTheme.colorScheme.surfaceVariant,
             )
         }
     }

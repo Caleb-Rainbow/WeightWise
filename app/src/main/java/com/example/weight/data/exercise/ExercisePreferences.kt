@@ -23,8 +23,8 @@ object WhitelistTags {
 object SceneTags {
     val ALL: List<String> = listOf(
         "室内/居家",
-        "办公室/工位",
-        "户外/公园",
+        "办公室",
+        "户外",
     )
 }
 

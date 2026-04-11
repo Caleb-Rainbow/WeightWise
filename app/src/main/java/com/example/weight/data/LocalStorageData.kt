@@ -29,6 +29,10 @@ object LocalStorageData : MMKVOwner(mmapID = "settings") {
     private var exerciseWhitelistJson by mmkvString(default = "[]")
     val exerciseScene by mmkvString(default = "").asStateFlow()
 
+    /*--------旅程相关---------*/
+    // MainScreen 等需要响应式判断旅程图标路由，用 asStateFlow()
+    val activeJourneyId by mmkvInt(default = 0).asStateFlow()
+
     private val _exerciseBlacklist = MutableStateFlow(parseSet(exerciseBlacklistJson))
     val exerciseBlacklist: StateFlow<Set<String>> = _exerciseBlacklist.asStateFlow()
 

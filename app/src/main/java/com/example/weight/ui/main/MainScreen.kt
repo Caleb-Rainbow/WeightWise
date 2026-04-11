@@ -27,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -93,7 +94,7 @@ import kotlin.math.absoluteValue
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun MainScreen(modifier: Modifier = Modifier, viewModel: MainViewModel = koinViewModel(),goSetting:()-> Unit = {},goRecord:()-> Unit={},goExercisePlan:()->Unit={}) {
+fun MainScreen(modifier: Modifier = Modifier, viewModel: MainViewModel = koinViewModel(),goSetting:()-> Unit = {},goRecord:()-> Unit={},goExercisePlan:()->Unit={},goJourneyCreation:()->Unit={},goJourneyProgress:()->Unit={}) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val dialogState by viewModel.dialogState.collectAsStateWithLifecycle()
     val showMessageDialog = LocalShowMessageDialog.current
@@ -172,6 +173,16 @@ fun MainScreen(modifier: Modifier = Modifier, viewModel: MainViewModel = koinVie
                 IconButton(onClick = goExercisePlan){
                     Icon(imageVector = MyIconPack.CalendarCheck, contentDescription = null)
                 }
+                val activeJourneyId by com.example.weight.data.LocalStorageData.activeJourneyId.collectAsStateWithLifecycle()
+                IconButton(onClick = {
+                    if (activeJourneyId > 0) {
+                        goJourneyProgress()
+                    } else {
+                        goJourneyCreation()
+                    }
+                }){
+                    Icon(imageVector = Icons.Default.Flag, contentDescription = null)
+                }
                 IconButton(onClick = goSetting) {
                     Icon(imageVector = Icons.Default.Settings, contentDescription = null)
                 }
@@ -240,8 +251,22 @@ private fun GoalProgressContent(
                 modifier = Modifier
                     .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
-                // "距离目标还有 X kg" 的核心激励文本
+                // "距离目标还有 X kg，预计剩余 N 天" 的核心激励文本
                 val remainingWeight = (currentWeight - targetWeight).absoluteValue
+                // 基于历史减重速率估算剩余天数
+                val remainingDays = remember(startWeight, currentWeight, targetWeight, firstRecord) {
+                    val elapsedMillis = System.currentTimeMillis() - (firstRecord?.timestamp ?: 0L)
+                    val elapsedDays = elapsedMillis / (1000.0 * 60 * 60 * 24)
+                    val weightLost = startWeight - currentWeight
+                    // 已减重需为正且经过天数>=1才能估算
+                    if (weightLost > 0 && elapsedDays >= 1) {
+                        val dailyRate = weightLost / elapsedDays
+                        val daysLeft = remainingWeight / dailyRate
+                        daysLeft.toLong().coerceAtLeast(0)
+                    } else {
+                        null // 数据不足时不显示天数
+                    }
+                }
                 Text(
                     text = buildAnnotatedString {
                         append("距离目标还有 ")
@@ -252,12 +277,22 @@ private fun GoalProgressContent(
                                 color = MaterialTheme.colorScheme.primary
                             )
                         ) {
-                            // 格式化为一位小数，使显示更整洁
                             append(String.format(java.util.Locale.CHINA, "%.1f", remainingWeight))
                         }
-                        append(" kg  剩余")
-
-                        append("天")
+                        append(" kg")
+                        // 仅在能估算出天数时显示
+                        if (remainingDays != null && remainingWeight > 0) {
+                            withStyle(
+                                style = SpanStyle(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 18.sp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            ) {
+                                append(" ${remainingDays}")
+                            }
+                            append(" 天")
+                        }
                     },
                     modifier = Modifier.align(Alignment.CenterHorizontally)
                 )

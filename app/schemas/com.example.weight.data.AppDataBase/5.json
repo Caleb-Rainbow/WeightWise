@@ -1,0 +1,395 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 5,
+    "identityHash": "3e8fbcd0bc8e9b6262a0c88bcb01c86b",
+    "entities": [
+      {
+        "tableName": "Record",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `weight` REAL NOT NULL, `log` TEXT NOT NULL DEFAULT '', `timestamp` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "weight",
+            "columnName": "weight",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "log",
+            "columnName": "log",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "timestamp",
+            "columnName": "timestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "DailyPlan",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `plan_date` TEXT NOT NULL, `exercisesJson` TEXT NOT NULL, `aiAdvice` TEXT NOT NULL, `difficulty_level` INTEGER NOT NULL, `created_at` INTEGER NOT NULL, `is_ai_generated` INTEGER NOT NULL, `total_calories` INTEGER NOT NULL DEFAULT 0, `total_duration` INTEGER NOT NULL DEFAULT 0, `dailyTip` TEXT NOT NULL, `journey_id` INTEGER NOT NULL DEFAULT 0)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "planDate",
+            "columnName": "plan_date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "exercisesJson",
+            "columnName": "exercisesJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "aiAdvice",
+            "columnName": "aiAdvice",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "difficultyLevel",
+            "columnName": "difficulty_level",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isAiGenerated",
+            "columnName": "is_ai_generated",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalCalories",
+            "columnName": "total_calories",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "totalDuration",
+            "columnName": "total_duration",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "dailyTip",
+            "columnName": "dailyTip",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "journeyId",
+            "columnName": "journey_id",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "ExerciseCompletion",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `plan_id` INTEGER NOT NULL, `exercise_id` TEXT NOT NULL, `is_completed` INTEGER NOT NULL, `completed_at` INTEGER, `skipped` INTEGER NOT NULL, `skip_reason` TEXT, FOREIGN KEY(`plan_id`) REFERENCES `DailyPlan`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "planId",
+            "columnName": "plan_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "exerciseId",
+            "columnName": "exercise_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isCompleted",
+            "columnName": "is_completed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completedAt",
+            "columnName": "completed_at",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "skipped",
+            "columnName": "skipped",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skipReason",
+            "columnName": "skip_reason",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_ExerciseCompletion_plan_id",
+            "unique": false,
+            "columnNames": [
+              "plan_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_ExerciseCompletion_plan_id` ON `${TABLE_NAME}` (`plan_id`)"
+          },
+          {
+            "name": "index_ExerciseCompletion_exercise_id",
+            "unique": false,
+            "columnNames": [
+              "exercise_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_ExerciseCompletion_exercise_id` ON `${TABLE_NAME}` (`exercise_id`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "DailyPlan",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "plan_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "Journey",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `start_weight` REAL NOT NULL, `target_weight` REAL NOT NULL, `target_days` INTEGER NOT NULL, `start_date` TEXT NOT NULL, `phases_json` TEXT NOT NULL, `status` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `completed_at` INTEGER, `ai_advice` TEXT NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startWeight",
+            "columnName": "start_weight",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetWeight",
+            "columnName": "target_weight",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetDays",
+            "columnName": "target_days",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startDate",
+            "columnName": "start_date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "phasesJson",
+            "columnName": "phases_json",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completedAt",
+            "columnName": "completed_at",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "aiAdvice",
+            "columnName": "ai_advice",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "Phase",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `journey_id` INTEGER NOT NULL, `phase_index` INTEGER NOT NULL, `name` TEXT NOT NULL, `description` TEXT NOT NULL, `start_day` INTEGER NOT NULL, `end_day` INTEGER NOT NULL, `target_weight_loss` REAL NOT NULL, `focus_areas` TEXT NOT NULL, `difficulty_level` INTEGER NOT NULL, `daily_calorie_deficit` INTEGER NOT NULL, `daily_exercise_duration` INTEGER NOT NULL, FOREIGN KEY(`journey_id`) REFERENCES `Journey`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "journeyId",
+            "columnName": "journey_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "phaseIndex",
+            "columnName": "phase_index",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startDay",
+            "columnName": "start_day",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endDay",
+            "columnName": "end_day",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetWeightLoss",
+            "columnName": "target_weight_loss",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "focusAreas",
+            "columnName": "focus_areas",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "difficultyLevel",
+            "columnName": "difficulty_level",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dailyCalorieDeficit",
+            "columnName": "daily_calorie_deficit",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dailyExerciseDuration",
+            "columnName": "daily_exercise_duration",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_Phase_journey_id",
+            "unique": false,
+            "columnNames": [
+              "journey_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Phase_journey_id` ON `${TABLE_NAME}` (`journey_id`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "Journey",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "journey_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '3e8fbcd0bc8e9b6262a0c88bcb01c86b')"
+    ]
+  }
+}

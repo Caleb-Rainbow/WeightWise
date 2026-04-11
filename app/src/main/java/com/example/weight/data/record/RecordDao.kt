@@ -30,6 +30,9 @@ interface RecordDao {
     @Query("SELECT * FROM Record ORDER BY id asc LIMIT 1")
     fun getFirstData(): Record?
 
+    @Query("SELECT * FROM Record ORDER BY id asc LIMIT 1")
+    fun getFirstDataFlow(): Flow<Record?>
+
     @Query(
         """
     SELECT
