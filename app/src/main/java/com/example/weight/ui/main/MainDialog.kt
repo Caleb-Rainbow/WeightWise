@@ -169,7 +169,6 @@ fun AddRecordDialog(onDismissRequest: () -> Unit, viewModel: MainViewModel = koi
 fun SetHeightDialog(onDismissRequest: () -> Unit) {
     val height by LocalStorageData.height.collectAsStateWithLifecycle()
     val weight by LocalStorageData.targetWeight.collectAsStateWithLifecycle()
-    val completeDays by LocalStorageData.completeDays.collectAsStateWithLifecycle()
     AlertDialog(onDismissRequest = onDismissRequest, title = {
         Text("输入信息")
     }, text = {
@@ -194,13 +193,6 @@ fun SetHeightDialog(onDismissRequest: () -> Unit) {
                     change
                 }
             }, initialWeight = weight, unit = "kg")
-            OutlinedTextField(value = completeDays.toString(), onValueChange = { change ->
-                LocalStorageData.completeDays.update {
-                    change.toIntOrNull() ?: 0
-                }
-            }, label = {
-                Text("计划完成天数")
-            })
         }
     }, confirmButton = {
         Button(onClick = {

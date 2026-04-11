@@ -15,13 +15,11 @@ object ExercisePromptBuilder {
         currentWeight: Double,
         bmi: Double,
         targetWeight: Double,
-        fitnessLevel: Int,
         recentWeights: List<DailyMinWeight>,
         recentRecords: List<Record>,
         completionRate: Float,
         skippedExercises: List<SkipRecord>,
         isFirstTime: Boolean,
-        recentPlanDifficulty: Int,
         blacklistTags: Set<String> = emptySet(),
         whitelistTags: Set<String> = emptySet(),
         scene: String = "",
@@ -35,7 +33,6 @@ object ExercisePromptBuilder {
             appendLine("- 当前体重：${currentWeight}kg")
             appendLine("- BMI：${"%.1f".format(bmi)}")
             appendLine("- 目标体重：${targetWeight}kg")
-            appendLine("- 适应等级：$fitnessLevel（1=新手 2=入门 3=进阶）")
             appendLine()
 
             if (blacklistTags.isNotEmpty() || whitelistTags.isNotEmpty() || scene.isNotEmpty()) {

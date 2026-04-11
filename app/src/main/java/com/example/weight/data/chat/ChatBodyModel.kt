@@ -11,7 +11,7 @@ import kotlinx.serialization.Transient
 data class ChatBodyModel(
     val messages: List<MessageModel>,
     @EncodeDefault
-    val model : String = ChatModel.DEEP_SEEK_V3.value,
+    val model: String = ChatModel.DOUBAO_SEED_2_0_PRO.value,
     @SerialName("prompt_id")
     @EncodeDefault
     val promptId: String = "",
@@ -19,7 +19,9 @@ data class ChatBodyModel(
     @SerialName("response_format")
     val responseFormat: Map<String, String> = textType,
     @EncodeDefault
-    val stream: Boolean = false
+    val stream: Boolean = false,
+    @EncodeDefault
+    val thinking: Map<String, String> = mapOf("type" to "disabled")
 )
 
 val jsonType = mapOf("type" to "json_object")
@@ -32,14 +34,16 @@ data class MessageModel(
     val role: String,
     val content: String,
 )
-enum class ChatModel(val value: String,val displayName: String) {
-    DEEP_SEEK_V3("deepseek-chat", "DeepSeek V3")
+enum class ChatModel(val value: String, val displayName: String) {
+    DOUBAO_SEED_2_0_PRO("doubao-seed-2-0-pro-260215", "豆包 Seed 2.0 Pro"),
+    DOUBAO_SEED_2_0_MINI("doubao-seed-2-0-mini-260215", "豆包 Seed 2.0 Mini"),
+    DOUBAO_SEED_2_0_LITE("doubao-seed-2-0-lite-260215", "豆包 Seed 2.0 Lite"),
 }
-enum class ChatMessageRole(val role: Int,val label: String) {
-    USER(0,"user"),
-    ASSISTANT(1,"assistant"),
-    TOOL(2,"tool");
-    companion object{
+enum class ChatMessageRole(val role: Int, val label: String) {
+    USER(0, "user"),
+    ASSISTANT(1, "assistant"),
+    TOOL(2, "tool");
+    companion object {
         fun fromLabel(label: String): ChatMessageRole {
             return when (label) {
                 USER.label -> USER

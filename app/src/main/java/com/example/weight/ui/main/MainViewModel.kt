@@ -209,10 +209,10 @@ class MainViewModel(
                         )
                     )
                 ), onMessage = { msg ->
-                    if (dialogState.value.isLoading) {
-                        hideLoading()
-                    }
                     msg?.choices?.singleOrNull()?.delta?.content?.let { content ->
+                        if (dialogState.value.isLoading) {
+                            hideLoading()
+                        }
                         _uiState.update {
                             it.copy(analyzeResponse = it.analyzeResponse + content)
                         }

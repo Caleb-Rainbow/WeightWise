@@ -18,14 +18,11 @@ object LocalStorageData : MMKVOwner(mmapID = "settings") {
 
     /*--------目标相关---------*/
     val targetWeight by mmkvDouble(default = DEFAULT_TARGET_WEIGHT).asStateFlow()
-    val completeDays by mmkvInt(default = 0).asStateFlow()
     /*--------其他---------*/
     var isFirst by mmkvBool(default = true)
 
-    /*--------运动计划相关---------*/
-    val exerciseStreakDays by mmkvInt(default = 0).asStateFlow()
-    val lastPlanDate by mmkvString(default = "").asStateFlow()
-    val userFitnessLevel by mmkvInt(default = 2).asStateFlow()
+    /*--------AI 提供商相关---------*/
+    val doubaoModelId by mmkvString(default = "doubao-seed-2-0-lite-260215").asStateFlow()
 
     /*--------运动偏好与限制---------*/
     private var exerciseBlacklistJson by mmkvString(default = "[]")

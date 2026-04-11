@@ -117,7 +117,6 @@ class ExercisePlanViewModel(
     }
 
     private suspend fun doGeneratePlan(today: String) {
-        val fitnessLevel = LocalStorageData.userFitnessLevel.value
         val height = LocalStorageData.height.value
         val targetWeight = LocalStorageData.targetWeight.value
         val isFirstTime = exercisePlanDao.getPlansSince(today).isEmpty()
@@ -147,13 +146,11 @@ class ExercisePlanViewModel(
             currentWeight = currentWeight,
             bmi = bmi,
             targetWeight = targetWeight,
-            fitnessLevel = fitnessLevel,
             recentWeights = recentWeights,
             recentRecords = recentRecords,
             completionRate = completionRate,
             skippedExercises = skipRecords,
             isFirstTime = isFirstTime,
-            recentPlanDifficulty = recentPlans.firstOrNull()?.difficultyLevel ?: 2,
             blacklistTags = blacklistTags,
             whitelistTags = whitelistTags,
             scene = scene,
@@ -170,7 +167,7 @@ class ExercisePlanViewModel(
 
             savePlan(today, sanitizedExercises, aiResponse.encouragement, difficultyLevel, true, aiResponse.dailyTip)
         } catch (e: Exception) {
-            val difficulty = if (completionRate >= 0 && completionRate < 0.5f) 1 else fitnessLevel
+            val difficulty = if (completionRate >= 0 && completionRate < 0.5f) 1 else 2
             val fallbackPlan = FallbackPlanGenerator.generate(
                 difficultyLevel = difficulty,
                 blacklistTags = blacklistTags,
