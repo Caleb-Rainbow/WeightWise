@@ -6,6 +6,7 @@ import com.example.weight.data.LocalStorageData
 import com.example.weight.data.chat.ChatBodyModel
 import com.example.weight.data.chat.ChatMessageRole
 import com.example.weight.data.chat.ChatRepository
+import com.example.weight.data.chat.MessageContent
 import com.example.weight.data.chat.MessageModel
 import com.example.weight.data.record.DailyMinWeight
 import com.example.weight.data.record.Record
@@ -217,7 +218,7 @@ class MainViewModel(
                     messages = listOf(
                         MessageModel(
                             role = ChatMessageRole.USER.label,
-                            content = prompt
+                            content = MessageContent.TextOnly(prompt)
                         )
                     )
                 ), onMessage = { msg ->

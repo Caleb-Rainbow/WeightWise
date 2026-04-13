@@ -2,6 +2,7 @@ package com.example.weight.data.exercise
 
 import com.example.weight.data.chat.ChatBodyModel
 import com.example.weight.data.chat.ChatMessageRole
+import com.example.weight.data.chat.MessageContent
 import com.example.weight.data.chat.MessageModel
 import com.example.weight.data.chat.jsonType
 import com.example.weight.data.record.DailyMinWeight
@@ -75,7 +76,7 @@ object JourneyPromptBuilder {
 
         return ChatBodyModel(
             messages = listOf(
-                MessageModel(role = ChatMessageRole.USER.label, content = userContent)
+                MessageModel(role = ChatMessageRole.USER.label, content = MessageContent.TextOnly(userContent))
             ),
             responseFormat = jsonType,
         )

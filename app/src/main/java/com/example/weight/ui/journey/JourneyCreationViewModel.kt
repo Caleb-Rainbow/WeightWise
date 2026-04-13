@@ -202,10 +202,10 @@ class JourneyCreationViewModel(
 
             var responseText = ""
             chatRepository.chat(chatBody) { message ->
-                responseText = message.content
+                responseText = message.content.text ?: ""
             }
 
-            val aiResponse = json.decodeFromString<AiJourneyResponse>(responseText)
+            val aiResponse = json.decodeFromString<AiJourneyResponse>(stripMarkdownFences(responseText))
             AiGenerationResult(phases = aiResponse.phases, advice = aiResponse.overallAdvice)
         } catch (e: Exception) {
             val phases = FallbackJourneyGenerator.generate(targetDays, currentWeight, targetWeight)
@@ -213,3 +213,9 @@ class JourneyCreationViewModel(
         }
     }
 }
+
+private fun stripMarkdownFences(text: String): String = text
+    .trim()
+    .removePrefix("```json").removePrefix("```")
+    .removeSuffix("```")
+    .trim()

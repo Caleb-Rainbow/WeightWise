@@ -2,6 +2,7 @@ package com.example.weight.data.exercise
 
 import com.example.weight.data.chat.ChatBodyModel
 import com.example.weight.data.chat.ChatMessageRole
+import com.example.weight.data.chat.MessageContent
 import com.example.weight.data.chat.MessageModel
 import com.example.weight.data.chat.jsonType
 import com.example.weight.data.record.DailyMinWeight
@@ -26,6 +27,11 @@ object ExercisePromptBuilder {
         val isFirstDayOfPhase: Boolean,
     )
 
+    data class DietContext(
+        val yesterdayTotalCalories: Int,
+        val yesterdayRedLightCount: Int,
+    )
+
     fun buildPrompt(
         height: Double,
         currentWeight: Double,
@@ -40,6 +46,7 @@ object ExercisePromptBuilder {
         whitelistTags: Set<String> = emptySet(),
         scene: String = "",
         journeyContext: JourneyContext? = null,
+        dietContext: DietContext? = null,
     ): ChatBodyModel {
         val userContent = buildString {
             appendLine("你是一位专业、温暖且富有同理心的运动健康顾问，专门为减重新手制定运动计划。")
@@ -154,6 +161,23 @@ object ExercisePromptBuilder {
                 appendLine()
             }
 
+            // 昨日饮食记录
+            dietContext?.let { diet ->
+                if (diet.yesterdayTotalCalories > 0) {
+                    appendLine("【昨日饮食记录】")
+                    appendLine("- 摄入总热量：${diet.yesterdayTotalCalories}kcal")
+                    appendLine("- 红灯餐次数：${diet.yesterdayRedLightCount}")
+                    if (diet.yesterdayRedLightCount > 0) {
+                        appendLine()
+                        appendLine("⚠️ 用户昨日有${diet.yesterdayRedLightCount}次红灯饮食（高热量/不健康），今日运动计划应适当增加消耗。建议：")
+                        appendLine("- 总运动时长增加10-15分钟")
+                        appendLine("- 增加1个CARDIO类别运动")
+                        appendLine("- 在鼓励语中温和地提醒用户注意饮食")
+                    }
+                    appendLine()
+                }
+            }
+
             appendLine("【关键指示】")
             appendLine("请阅读用户的近期日志，判断用户的疲劳和情绪状态：")
             appendLine("- 如果用户处于疲惫、生病或情绪低落，请务必输出 difficulty=\"轻松\"，多安排NEAT类别运动")
@@ -177,7 +201,7 @@ object ExercisePromptBuilder {
 
         return ChatBodyModel(
             messages = listOf(
-                MessageModel(role = ChatMessageRole.USER.label, content = userContent)
+                MessageModel(role = ChatMessageRole.USER.label, content = MessageContent.TextOnly(userContent))
             ),
             responseFormat = jsonType,
         )

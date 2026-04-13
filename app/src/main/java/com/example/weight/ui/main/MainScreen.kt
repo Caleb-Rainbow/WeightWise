@@ -27,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
@@ -94,7 +95,7 @@ import kotlin.math.absoluteValue
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun MainScreen(modifier: Modifier = Modifier, viewModel: MainViewModel = koinViewModel(),goSetting:()-> Unit = {},goRecord:()-> Unit={},goExercisePlan:()->Unit={},goJourneyCreation:()->Unit={},goJourneyProgress:()->Unit={}) {
+fun MainScreen(modifier: Modifier = Modifier, viewModel: MainViewModel = koinViewModel(),goSetting:()-> Unit = {},goRecord:()-> Unit={},goExercisePlan:()->Unit={},goJourneyCreation:()->Unit={},goJourneyProgress:()->Unit={},goDietRecord:()->Unit={}) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val dialogState by viewModel.dialogState.collectAsStateWithLifecycle()
     val showMessageDialog = LocalShowMessageDialog.current
@@ -188,6 +189,9 @@ fun MainScreen(modifier: Modifier = Modifier, viewModel: MainViewModel = koinVie
                 }
                 FilledIconButton(onClick = viewModel::showAddDialog) {
                     Icon(imageVector = Icons.Default.Add, contentDescription = null)
+                }
+                IconButton(onClick = goDietRecord) {
+                    Icon(imageVector = Icons.Default.CameraAlt, contentDescription = null)
                 }
                 IconButton(onClick = goRecord) {
                     Icon(

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.weight.data.LocalStorageData
 import com.example.weight.data.chat.ChatRepository
+import com.example.weight.data.diet.DietRecordDao
 import com.example.weight.data.exercise.AiPlanResponse
 import com.example.weight.data.exercise.DailyPlan
 import com.example.weight.data.exercise.ExerciseCatalog
@@ -51,6 +52,7 @@ class ExercisePlanViewModel(
     private val chatRepository: ChatRepository,
     private val json: Json,
     private val journeyDao: JourneyDao,
+    private val dietRecordDao: DietRecordDao,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ExercisePlanUiState())
@@ -175,6 +177,23 @@ class ExercisePlanViewModel(
         val currentWeight = lastRecord?.weight ?: 0.0
         val bmi = if (height > 0) currentWeight / ((height / 100) * (height / 100)) else 0.0
 
+        // 获取昨日饮食数据
+        val yesterday = TimeUtils.getCurrentDate().let { today ->
+            val date = java.time.LocalDate.parse(today)
+            date.minusDays(1).toString()
+        }
+        val yesterdayDietRecords = try {
+            dietRecordDao.getByDateOnce(yesterday)
+        } catch (_: Exception) {
+            emptyList()
+        }
+        val dietContext = if (yesterdayDietRecords.isNotEmpty()) {
+            ExercisePromptBuilder.DietContext(
+                yesterdayTotalCalories = yesterdayDietRecords.sumOf { it.estimatedCalories },
+                yesterdayRedLightCount = yesterdayDietRecords.count { it.trafficLight == "RED" },
+            )
+        } else null
+
         val chatBody = ExercisePromptBuilder.buildPrompt(
             height = height,
             currentWeight = currentWeight,
@@ -189,14 +208,15 @@ class ExercisePlanViewModel(
             whitelistTags = whitelistTags,
             scene = scene,
             journeyContext = _uiState.value.journeyContext,
+            dietContext = dietContext,
         )
 
         try {
             var responseText = ""
             chatRepository.chat(chatBody) { message ->
-                responseText = message.content
+                responseText = message.content.text ?: ""
             }
-            val aiResponse = json.decodeFromString<AiPlanResponse>(responseText)
+            val aiResponse = json.decodeFromString<AiPlanResponse>(stripMarkdownFences(responseText))
             val sanitizedExercises = aiResponse.exercises.map { it.sanitize() }
             val difficultyLevel = mapDifficulty(aiResponse.difficulty)
 
@@ -541,3 +561,9 @@ class ExercisePlanViewModel(
         }
     }
 }
+
+private fun stripMarkdownFences(text: String): String = text
+    .trim()
+    .removePrefix("```json").removePrefix("```")
+    .removeSuffix("```")
+    .trim()
