@@ -1,12 +1,9 @@
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-
 plugins {
     alias(libs.plugins.android.test)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.baselineprofile)
 }
 
-android {
+extensions.configure<com.android.build.api.dsl.TestExtension>("android") {
     namespace = "com.food.baselineprofile"
     compileSdk = 36
 
@@ -15,19 +12,13 @@ android {
         targetCompatibility = JavaVersion.VERSION_21
     }
 
-    kotlin {
-        compilerOptions{
-            jvmTarget = JvmTarget.fromTarget("21")
-        }
-    }
+
 
     defaultConfig {
         minSdk = 29
         targetSdk = 36
-
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
-
     targetProjectPath = ":app"
 
 }
@@ -37,7 +28,6 @@ android {
 baselineProfile {
     useConnectedDevices = true
 }
-
 dependencies {
     implementation(libs.androidx.junit)
     implementation(libs.androidx.espresso.core)

@@ -1,8 +1,8 @@
+import com.android.build.api.dsl.ApplicationExtension
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp.plugins)
     alias(libs.plugins.serialization)
@@ -11,7 +11,7 @@ plugins {
     alias(libs.plugins.secrets.gradle.plugin)
 }
 
-android {
+extensions.configure<ApplicationExtension>("android") {
     namespace = "com.example.weight"
     compileSdk = 36
 
@@ -20,7 +20,7 @@ android {
         minSdk = 29
         targetSdk = 36
         versionCode = 2
-        versionName = "1.0.1"
+        versionName = "1.0.2"
         ndk.abiFilters.add("arm64-v8a")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -47,31 +47,33 @@ android {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
     }
-    kotlin {
-        compilerOptions{
-            jvmTarget = JvmTarget.fromTarget("21")
-        }
-    }
+
     buildFeatures {
         compose = true
         buildConfig = true
+        resValues = true
     }
 
-    ksp {
-        arg("KOIN_USE_COMPOSE_VIEWMODEL","true")
-        arg("room.generateKotlin","true")
-    }
-    room {
-        schemaDirectory("$projectDir/schemas")
-    }
-    secrets {
-        propertiesFileName = "secrets.properties"
-        defaultPropertiesFileName = "local.defaults.properties"
-        ignoreList.add("keyToIgnore")
-        ignoreList.add("sdk.*")
+
+}
+kotlin {
+    compilerOptions {
+        jvmTarget = JvmTarget.fromTarget("21")
     }
 }
-
+room {
+    schemaDirectory("$projectDir/schemas")
+}
+secrets {
+    propertiesFileName = "secrets.properties"
+    defaultPropertiesFileName = "local.defaults.properties"
+    ignoreList.add("keyToIgnore")
+    ignoreList.add("sdk.*")
+}
+ksp {
+    arg("KOIN_USE_COMPOSE_VIEWMODEL", "true")
+    arg("room.generateKotlin", "true")
+}
 dependencies {
     implementation(libs.androidx.profileinstaller)
     "baselineProfile"(project(":baselineprofile"))
