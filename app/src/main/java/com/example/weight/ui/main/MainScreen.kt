@@ -10,19 +10,24 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Add
@@ -34,13 +39,12 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.HorizontalFloatingToolbar
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ProgressIndicatorDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
@@ -51,8 +55,11 @@ import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush.Companion.verticalGradient
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -110,94 +117,164 @@ fun MainScreen(modifier: Modifier = Modifier, viewModel: MainViewModel = koinVie
         mutableDoubleStateOf(uiState.selectedRecord?.minWeight?.div(height.times(height)) ?: 0.0)
     }
     Scaffold(
-        modifier = modifier
-    ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .padding(paddingValues)
-                .fillMaxSize()
-        ) {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState())
-            ) {
-                val currentScopeDataList by viewModel.currentScopeData.collectAsStateWithLifecycle(initialValue = emptyList())
-                LaunchedEffect(currentScopeDataList) {
-                    viewModel.setSelectedRecord(currentScopeDataList.lastOrNull())
-                }
-                val maxWeightRecord = remember(currentScopeDataList) { currentScopeDataList.maxByOrNull { it.minWeight } }
-                val minWeightRecord = remember(currentScopeDataList) { currentScopeDataList.minByOrNull { it.minWeight } }
-                val predictionDataList by viewModel.predictionData.collectAsStateWithLifecycle(initialValue = emptyList())
-
-                SelectedRecordContent(record = uiState.selectedRecord)
-                GoalProgressContent(
-                    modifier = Modifier
-                        .padding(horizontal = 10.dp)
-                        .padding(top = 15.dp)
-                        .fillMaxWidth(),
-                    currentRecord = uiState.selectedRecord,
-                    firstRecord = uiState.firstRecord,
-                    recentDailyWeights = predictionDataList
-                )
-                StatisticChart(
-                    currentScopeDataList = currentScopeDataList,
-                    maxWeight = maxWeightRecord?.minWeight?.plus(1) ?: 0.0,
-                    minWeight = minWeightRecord?.minWeight?.minus(1) ?: 0.0
-                ) {
-                    viewModel.setSelectedRecord(it)
-                }
-                MinAndMaxDataContent(
-                    modifier = Modifier
-                        .padding(horizontal = 10.dp)
-                        .padding(top = 20.dp),
-                    maxWeightRecord = maxWeightRecord,
-                    minWeightRecord = minWeightRecord,
-
-                    )
-                BMIContent(
-                    modifier = Modifier
-                        .padding(horizontal = 10.dp)
-                        .padding(top = 15.dp), record = uiState.selectedRecord, bmi = bmi
-                )
-                IndicatorChangesContent(
-                    modifier = Modifier
-                        .padding(horizontal = 10.dp)
-                        .padding(top = 15.dp), firstWeightRecord = currentScopeDataList.firstOrNull(),
-                    lastWeightRecord = currentScopeDataList.lastOrNull()
-                )
-                Spacer(modifier = Modifier.height(80.dp))
-            }
-            HorizontalFloatingToolbar(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .offset(y = (-10).dp), expanded = true, expandedShadowElevation = 2.dp
-            ) {
-                IconButton(onClick = goSetting) {
-                    Icon(imageVector = Icons.Default.Settings, contentDescription = null)
-                }
-                FilledIconButton(onClick = viewModel::showAddDialog) {
-                    Icon(imageVector = Icons.Default.Add, contentDescription = null)
-                }
-                IconButton(onClick = goDietRecord) {
-                    Icon(imageVector = Icons.Default.CameraAlt, contentDescription = null)
-                }
-                IconButton(onClick = goRecord) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ReceiptLong,
-                        contentDescription = null
-                    )
-                }
-                IconButton(onClick = {
+        modifier = modifier,
+        bottomBar = {
+            MainBottomToolbar(
+                onSetting = goSetting,
+                onAddRecord = viewModel::showAddDialog,
+                onDietRecord = goDietRecord,
+                onRecord = goRecord,
+                onAiAnalyze = {
                     viewModel.aiAnalyze(bmi = bmi) {
                         showMessageDialog("提示", it) {}
                     }
-                }) {
+                }
+            )
+        }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .padding(paddingValues)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+        ) {
+            val currentScopeDataList by viewModel.currentScopeData.collectAsStateWithLifecycle(initialValue = emptyList())
+            LaunchedEffect(currentScopeDataList) {
+                viewModel.setSelectedRecord(currentScopeDataList.lastOrNull())
+            }
+            val maxWeightRecord = remember(currentScopeDataList) { currentScopeDataList.maxByOrNull { it.minWeight } }
+            val minWeightRecord = remember(currentScopeDataList) { currentScopeDataList.minByOrNull { it.minWeight } }
+            val predictionDataList by viewModel.predictionData.collectAsStateWithLifecycle(initialValue = emptyList())
+
+            SelectedRecordContent(record = uiState.selectedRecord)
+            GoalProgressContent(
+                modifier = Modifier
+                    .padding(horizontal = 10.dp)
+                    .padding(top = 15.dp)
+                    .fillMaxWidth(),
+                currentRecord = uiState.selectedRecord,
+                firstRecord = uiState.firstRecord,
+                recentDailyWeights = predictionDataList
+            )
+            StatisticChart(
+                currentScopeDataList = currentScopeDataList,
+                maxWeight = maxWeightRecord?.minWeight?.plus(1) ?: 0.0,
+                minWeight = minWeightRecord?.minWeight?.minus(1) ?: 0.0
+            ) {
+                viewModel.setSelectedRecord(it)
+            }
+            MinAndMaxDataContent(
+                modifier = Modifier
+                    .padding(horizontal = 10.dp)
+                    .padding(top = 20.dp),
+                maxWeightRecord = maxWeightRecord,
+                minWeightRecord = minWeightRecord,
+
+                )
+            BMIContent(
+                modifier = Modifier
+                    .padding(horizontal = 10.dp)
+                    .padding(top = 15.dp), record = uiState.selectedRecord, bmi = bmi
+            )
+            IndicatorChangesContent(
+                modifier = Modifier
+                    .padding(horizontal = 10.dp)
+                    .padding(top = 15.dp), firstWeightRecord = currentScopeDataList.firstOrNull(),
+                lastWeightRecord = currentScopeDataList.lastOrNull()
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+}
+
+/**
+ * 首页底部操作栏:胶囊形悬浮样式,五个入口等宽分布,中心的"记体重"按钮放大突出。
+ * 通过 [androidx.compose.material3.Scaffold] 的 bottomBar 槽位使用,自动为内容预留底部内边距。
+ */
+@Composable
+private fun MainBottomToolbar(
+    onSetting: () -> Unit,
+    onAddRecord: () -> Unit,
+    onDietRecord: () -> Unit,
+    onRecord: () -> Unit,
+    onAiAnalyze: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        shape = RoundedCornerShape(32.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shadowElevation = 6.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            MainToolbarItem(label = "设置", icon = Icons.Default.Settings, onClick = onSetting)
+            MainToolbarItem(label = "饮食", icon = Icons.Default.CameraAlt, onClick = onDietRecord)
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                FilledIconButton(
+                    onClick = onAddRecord,
+                    modifier = Modifier.size(52.dp)
+                ) {
                     Icon(
-                        imageVector = Icons.Default.AutoAwesome,
-                        contentDescription = null
+                        imageVector = Icons.Default.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(26.dp)
                     )
                 }
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "记体重",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1
+                )
             }
+            MainToolbarItem(
+                label = "记录",
+                icon = Icons.AutoMirrored.Filled.ReceiptLong,
+                onClick = onRecord
+            )
+            MainToolbarItem(label = "分析", icon = Icons.Default.AutoAwesome, onClick = onAiAnalyze)
         }
+    }
+}
+
+@Composable
+private fun RowScope.MainToolbarItem(
+    label: String,
+    icon: ImageVector,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .clip(RoundedCornerShape(20.dp))
+            .clickable(role = Role.Button, onClickLabel = label, onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1
+        )
     }
 }
 
