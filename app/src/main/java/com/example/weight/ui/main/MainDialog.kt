@@ -84,10 +84,10 @@ fun AddRecordDialog(onDismissRequest: () -> Unit, viewModel: MainViewModel = koi
     //日期-默认显示今日
     val pickerState =
         rememberDatePickerState(
-            initialSelectedDateMillis = System.currentTimeMillis()
+            initialSelectedDateMillis = TimeUtils.getTodayUtcMillis()
         )
     val date = pickerState.selectedDateMillis?.let {
-        TimeUtils.convertMillisToDate(it)
+        TimeUtils.convertUtcMillisToDate(it)
     } ?: ""
     //时间-默认显示当前时间
     var time: String by remember {
