@@ -123,4 +123,6 @@ dependencies {
     //markdown
     implementation(libs.markdown.editor)
     implementation(libs.markdown.m3)
+    //test
+    testImplementation("junit:junit:4.13.2")
 }

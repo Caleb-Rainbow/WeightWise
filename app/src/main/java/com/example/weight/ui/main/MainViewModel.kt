@@ -14,6 +14,7 @@ import com.example.weight.data.record.RecordDao
 import com.example.weight.util.TimeUtils
 import com.example.weight.util.TimeUtils.getStartTimeForLastDays
 import com.example.weight.util.TimeUtils.getStartTimeForLastMonths
+import com.example.weight.util.WeightPredictor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -78,6 +79,10 @@ class MainViewModel(
     init {
         observeFirstRecord()
     }
+
+    /** 预测目标达成天数用的固定窗口数据：最近 90 天每日最低体重，不随图表统计范围切换，保证预测稳定 */
+    val predictionData: Flow<List<DailyMinWeight>> =
+        recordDao.getDailyMinWeightSince(getStartTimeForLastDays(WeightPredictor.ANALYSIS_WINDOW_DAYS.toInt()))
 
     // 更新选中的统计范围
     fun selectScope(scope: StatisticsScope) {

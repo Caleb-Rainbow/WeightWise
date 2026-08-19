@@ -68,6 +68,7 @@ import com.example.weight.ui.common.BottomXDateFormatter
 import com.example.weight.ui.common.ExposedOutlineTextFieldGenericListDropdownMenu
 import com.example.weight.ui.common.rememberMarker
 import com.example.weight.util.TimeUtils
+import com.example.weight.util.WeightPredictor
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
 import com.patrykandpatrick.vico.compose.cartesian.Scroll
 import com.patrykandpatrick.vico.compose.cartesian.axis.HorizontalAxis
@@ -125,6 +126,7 @@ fun MainScreen(modifier: Modifier = Modifier, viewModel: MainViewModel = koinVie
                 }
                 val maxWeightRecord = remember(currentScopeDataList) { currentScopeDataList.maxByOrNull { it.minWeight } }
                 val minWeightRecord = remember(currentScopeDataList) { currentScopeDataList.minByOrNull { it.minWeight } }
+                val predictionDataList by viewModel.predictionData.collectAsStateWithLifecycle(initialValue = emptyList())
 
                 SelectedRecordContent(record = uiState.selectedRecord)
                 GoalProgressContent(
@@ -133,7 +135,8 @@ fun MainScreen(modifier: Modifier = Modifier, viewModel: MainViewModel = koinVie
                         .padding(top = 15.dp)
                         .fillMaxWidth(),
                     currentRecord = uiState.selectedRecord,
-                    firstRecord = uiState.firstRecord
+                    firstRecord = uiState.firstRecord,
+                    recentDailyWeights = predictionDataList
                 )
                 StatisticChart(
                     currentScopeDataList = currentScopeDataList,
@@ -203,7 +206,8 @@ fun MainScreen(modifier: Modifier = Modifier, viewModel: MainViewModel = koinVie
 private fun GoalProgressContent(
     modifier: Modifier,
     currentRecord: DailyMinWeight?,
-    firstRecord: Record?
+    firstRecord: Record?,
+    recentDailyWeights: List<DailyMinWeight>
 ) {
     currentRecord?.let {
         val targetWeight by LocalStorageData.targetWeight.collectAsStateWithLifecycle()
@@ -241,19 +245,10 @@ private fun GoalProgressContent(
             ) {
                 // "距离目标还有 X kg，预计剩余 N 天" 的核心激励文本
                 val remainingWeight = (currentWeight - targetWeight).absoluteValue
-                // 基于历史减重速率估算剩余天数
-                val remainingDays = remember(startWeight, currentWeight, targetWeight, firstRecord) {
-                    val elapsedMillis = System.currentTimeMillis() - (firstRecord?.timestamp ?: 0L)
-                    val elapsedDays = elapsedMillis / (1000.0 * 60 * 60 * 24)
-                    val weightLost = startWeight - currentWeight
-                    // 已减重需为正且经过天数>=1才能估算
-                    if (weightLost > 0 && elapsedDays >= 1) {
-                        val dailyRate = weightLost / elapsedDays
-                        val daysLeft = remainingWeight / dailyRate
-                        daysLeft.toLong().coerceAtLeast(0)
-                    } else {
-                        null // 数据不足时不显示天数
-                    }
+                // 基于近 90 天每日最低体重的加权回归趋势估算剩余天数，
+                // 趋势停滞、反向或数据不足时返回 null，不显示天数
+                val remainingDays = remember(recentDailyWeights, currentWeight, targetWeight) {
+                    WeightPredictor.estimateDaysToTarget(recentDailyWeights, currentWeight, targetWeight)
                 }
                 Text(
                     text = buildAnnotatedString {
