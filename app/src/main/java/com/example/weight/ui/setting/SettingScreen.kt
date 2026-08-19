@@ -3,7 +3,6 @@ package com.example.weight.ui.setting
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
@@ -19,12 +18,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.weight.data.LocalStorageData
 import com.example.weight.data.chat.ChatModel
 import com.example.weight.ui.common.MyTopBar
+import com.example.weight.ui.common.NumberTextField
 import kotlinx.coroutines.flow.update
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -38,21 +37,19 @@ fun SettingScreen(modifier: Modifier = Modifier, goBack: () -> Unit) {
             val targetWeight by LocalStorageData.targetWeight.collectAsStateWithLifecycle()
             val doubaoModelId by LocalStorageData.doubaoModelId.collectAsStateWithLifecycle()
 
-            OutlinedTextField(value = height.toString(), onValueChange = {
-                it.toDoubleOrNull()?.let { change ->
-                    LocalStorageData.height.update { change }
-                }
-            }, label = {
-                Text("身高(cm)")
-            }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+            NumberTextField(
+                value = height,
+                onValueChange = { newValue -> LocalStorageData.height.update { newValue } },
+                label = "身高(cm)",
+                modifier = Modifier.fillMaxWidth(),
+            )
 
-            OutlinedTextField(value = targetWeight.toString(), onValueChange = {
-                it.toDoubleOrNull()?.let { change ->
-                    LocalStorageData.targetWeight.update { change }
-                }
-            }, label = {
-                Text("目标体重(kg)")
-            }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+            NumberTextField(
+                value = targetWeight,
+                onValueChange = { newValue -> LocalStorageData.targetWeight.update { newValue } },
+                label = "目标体重(kg)",
+                modifier = Modifier.fillMaxWidth(),
+            )
 
             // 模型选择
             var expanded by remember { mutableStateOf(false) }
