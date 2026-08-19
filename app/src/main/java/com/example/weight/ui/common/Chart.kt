@@ -175,7 +175,7 @@ fun BMIIndexChart(
                                 Text(
                                     text = DecimalFormat("0.0").format(labelValue+0.1),
                                     fontSize = 12.sp,
-                                    color = Color.DarkGray,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier
                                         .absoluteOffset(x = spacerCenterXDp - 15.dp) // 微调位置，15dp是文字宽度的一半，使其居中
                                 )
@@ -194,7 +194,7 @@ fun BMIIndexChart(
                                 .width(10.dp)
                                 .height(10.dp))
                         Spacer(modifier = Modifier.width(5.dp))
-                        Text(text = bmiEnum.label, fontSize = 12.sp, color = Color.DarkGray)
+                        Text(text = bmiEnum.label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -226,7 +226,7 @@ fun BMIIndexChart(
                     .offset{animateOffset},
                 imageVector = Icons.Default.ArrowDropDown,
                 contentDescription = null,
-                tint = Color.Black
+                tint = MaterialTheme.colorScheme.onSurface
             )
         }
     }

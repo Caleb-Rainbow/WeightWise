@@ -19,6 +19,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
@@ -60,20 +62,25 @@ class MainViewModel(
 
     // 根据选中的范围，动态获取对应的数据 Flow
     // flatMapLatest 会取消前一个 Flow 的收集，并开始收集新的 Flow
+    // 先发 null 表示"加载中"，UI 用它区分首次加载（转圈）与真的没有数据（空状态）；
+    // 范围切换时的短暂 null 由 UI 用上一次数据兜底，不会闪烁
     @OptIn(ExperimentalCoroutinesApi::class)
-    val currentScopeData: Flow<List<DailyMinWeight>> =
+    val currentScopeData: Flow<List<DailyMinWeight>?> =
         selectedScope.flatMapLatest { scope ->
             val startTime = when (scope) {
                 StatisticsScope.LAST_7DAYS -> getStartTimeForLastDays(7)
                 StatisticsScope.LAST_14DAYS -> getStartTimeForLastDays(14)
                 StatisticsScope.LAST_1MONTH -> getStartTimeForLastMonths(1)
-                StatisticsScope.LAST_3MONTH -> getStartTimeForLastMonths(3)
-                StatisticsScope.LAST_6MONTH -> getStartTimeForLastMonths(6)
+                StatisticsScope.LAST_3MONTHS -> getStartTimeForLastMonths(3)
+                StatisticsScope.LAST_6MONTHS -> getStartTimeForLastMonths(6)
                 StatisticsScope.LAST_1YEARS -> getStartTimeForLastMonths(12)
                 StatisticsScope.LAST_2YEARS -> getStartTimeForLastMonths(24)
                 StatisticsScope.LAST_3YEARS -> getStartTimeForLastMonths(36)
             }
-            recordDao.getDailyMinWeightSince(startTime)
+            flow {
+                emit(null)
+                emitAll(recordDao.getDailyMinWeightSince(startTime))
+            }
         }
 
     init {

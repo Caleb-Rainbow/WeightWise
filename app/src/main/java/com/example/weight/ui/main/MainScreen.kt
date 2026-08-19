@@ -9,12 +9,12 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -31,11 +31,17 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.MonitorWeight
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
@@ -52,7 +58,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableDoubleStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -72,7 +80,6 @@ import com.example.weight.data.LocalStorageData
 import com.example.weight.data.record.DailyMinWeight
 import com.example.weight.data.record.Record
 import com.example.weight.ui.common.BottomXDateFormatter
-import com.example.weight.ui.common.ExposedOutlineTextFieldGenericListDropdownMenu
 import com.example.weight.ui.common.rememberMarker
 import com.example.weight.util.TimeUtils
 import com.example.weight.util.WeightPredictor
@@ -96,6 +103,7 @@ import com.patrykandpatrick.vico.compose.common.Fill
 import com.patrykandpatrick.vico.compose.common.vicoTheme
 import org.koin.androidx.compose.koinViewModel
 import java.text.DecimalFormat
+import java.util.Locale
 import kotlin.math.absoluteValue
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -132,57 +140,115 @@ fun MainScreen(modifier: Modifier = Modifier, viewModel: MainViewModel = koinVie
             )
         }
     ) { paddingValues ->
+        // null 表示范围切换的加载瞬间，用上一次数据兜底，避免内容闪烁
+        val currentScopeDataList by viewModel.currentScopeData.collectAsStateWithLifecycle(initialValue = null)
+        var cachedData by remember { mutableStateOf<List<DailyMinWeight>?>(null) }
+        val scopeData = currentScopeDataList ?: cachedData
+        LaunchedEffect(currentScopeDataList) {
+            val list = currentScopeDataList
+            if (list != null) {
+                cachedData = list
+                viewModel.setSelectedRecord(list.lastOrNull())
+            }
+        }
+
         Column(
             modifier = Modifier
                 .padding(paddingValues)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
         ) {
-            val currentScopeDataList by viewModel.currentScopeData.collectAsStateWithLifecycle(initialValue = emptyList())
-            LaunchedEffect(currentScopeDataList) {
-                viewModel.setSelectedRecord(currentScopeDataList.lastOrNull())
-            }
-            val maxWeightRecord = remember(currentScopeDataList) { currentScopeDataList.maxByOrNull { it.minWeight } }
-            val minWeightRecord = remember(currentScopeDataList) { currentScopeDataList.minByOrNull { it.minWeight } }
-            val predictionDataList by viewModel.predictionData.collectAsStateWithLifecycle(initialValue = emptyList())
+            when {
+                scopeData == null -> LoadingContent()
+                scopeData.isEmpty() -> EmptyContent(onAddRecord = viewModel::showAddDialog)
+                else -> {
+                    val maxWeightRecord = remember(scopeData) { scopeData.maxByOrNull { it.minWeight } }
+                    val minWeightRecord = remember(scopeData) { scopeData.minByOrNull { it.minWeight } }
+                    val predictionDataList by viewModel.predictionData.collectAsStateWithLifecycle(initialValue = emptyList())
 
-            SelectedRecordContent(record = uiState.selectedRecord)
-            GoalProgressContent(
-                modifier = Modifier
-                    .padding(horizontal = 10.dp)
-                    .padding(top = 15.dp)
-                    .fillMaxWidth(),
-                currentRecord = uiState.selectedRecord,
-                firstRecord = uiState.firstRecord,
-                recentDailyWeights = predictionDataList
-            )
-            StatisticChart(
-                currentScopeDataList = currentScopeDataList,
-                maxWeight = maxWeightRecord?.minWeight?.plus(1) ?: 0.0,
-                minWeight = minWeightRecord?.minWeight?.minus(1) ?: 0.0
-            ) {
-                viewModel.setSelectedRecord(it)
+                    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                        SelectedRecordContent(
+                            record = uiState.selectedRecord,
+                            selectedScope = viewModel.selectedScope.collectAsStateWithLifecycle().value,
+                            onScopeSelected = viewModel::selectScope
+                        )
+                        GoalProgressContent(
+                            modifier = Modifier
+                                .padding(top = 12.dp)
+                                .fillMaxWidth(),
+                            currentRecord = uiState.selectedRecord,
+                            firstRecord = uiState.firstRecord,
+                            recentDailyWeights = predictionDataList
+                        )
+                        StatisticChart(
+                            currentScopeDataList = scopeData,
+                            maxWeight = maxWeightRecord?.minWeight?.plus(1) ?: 0.0,
+                            minWeight = minWeightRecord?.minWeight?.minus(1) ?: 0.0
+                        ) {
+                            viewModel.setSelectedRecord(it)
+                        }
+                        StatsSummaryCard(
+                            modifier = Modifier
+                                .padding(top = 12.dp)
+                                .fillMaxWidth(),
+                            maxWeightRecord = maxWeightRecord,
+                            minWeightRecord = minWeightRecord,
+                            firstWeightRecord = scopeData.firstOrNull(),
+                            lastWeightRecord = scopeData.lastOrNull()
+                        )
+                        BMIContent(
+                            modifier = Modifier.padding(top = 12.dp),
+                            record = uiState.selectedRecord,
+                            bmi = bmi
+                        )
+                    }
+                }
             }
-            MinAndMaxDataContent(
-                modifier = Modifier
-                    .padding(horizontal = 10.dp)
-                    .padding(top = 20.dp),
-                maxWeightRecord = maxWeightRecord,
-                minWeightRecord = minWeightRecord,
-
-                )
-            BMIContent(
-                modifier = Modifier
-                    .padding(horizontal = 10.dp)
-                    .padding(top = 15.dp), record = uiState.selectedRecord, bmi = bmi
-            )
-            IndicatorChangesContent(
-                modifier = Modifier
-                    .padding(horizontal = 10.dp)
-                    .padding(top = 15.dp), firstWeightRecord = currentScopeDataList.firstOrNull(),
-                lastWeightRecord = currentScopeDataList.lastOrNull()
-            )
             Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+}
+
+/** 首次进入、数据库尚未发出第一份数据时的短暂加载态 */
+@Composable
+private fun LoadingContent() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(320.dp)
+    ) {
+        CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+    }
+}
+
+/** 无任何记录时的引导空状态：文案 + 主动作，而不是满屏 0.0 */
+@Composable
+private fun EmptyContent(onAddRecord: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 96.dp, start = 16.dp, end = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            imageVector = Icons.Default.MonitorWeight,
+            contentDescription = null,
+            modifier = Modifier.size(56.dp),
+            tint = MaterialTheme.colorScheme.primary
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(text = "开始记录体重吧", style = MaterialTheme.typography.headlineSmall)
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "每天称一称，看见变化的发生",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        Button(onClick = onAddRecord, modifier = Modifier.height(48.dp)) {
+            Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(text = "记第一笔体重")
         }
     }
 }
@@ -290,112 +356,124 @@ private fun GoalProgressContent(
         val targetWeight by LocalStorageData.targetWeight.collectAsStateWithLifecycle()
         val startWeight = firstRecord?.weight ?: 0.0
         val currentWeight = it.minWeight
+        if (targetWeight > 0) {
+            val goalReached = currentWeight <= targetWeight
 
-        // 核心逻辑：计算从起始到目标的进度百分比
-        val progress = remember(startWeight, currentWeight, targetWeight) {
-            val totalRange = startWeight - targetWeight
-            // 避免起始体重和目标体重相同导致的除零错误
-            if (totalRange.compareTo(0.0) == 0) {
-                return@remember if (currentWeight <= targetWeight) 1.0f else 0.0f
-            }
-            val traveled = startWeight - currentWeight
-            // 将进度限制在0.0到1.0之间，以正确显示进度条
-            (traveled / totalRange).toFloat().coerceIn(0.0f, 1.0f)
-        }
-        // 使用 animateFloatAsState 为进度条增加平滑的动画效果
-        val animatedProgress by animateFloatAsState(
-            targetValue = progress,
-            animationSpec = ProgressIndicatorDefaults.ProgressAnimationSpec
-        )
-
-        Card(
-            modifier = modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = Color.White
-            ),
-            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
-            border = BorderStroke(width = 1.dp, color = MaterialTheme.colorScheme.primary)
-        ) {
-            Column(
-                modifier = Modifier
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
-            ) {
-                // "距离目标还有 X kg，预计剩余 N 天" 的核心激励文本
-                val remainingWeight = (currentWeight - targetWeight).absoluteValue
-                // 基于近 90 天每日最低体重的加权回归趋势估算剩余天数，
-                // 趋势停滞、反向或数据不足时返回 null，不显示天数
-                val remainingDays = remember(recentDailyWeights, currentWeight, targetWeight) {
-                    WeightPredictor.estimateDaysToTarget(recentDailyWeights, currentWeight, targetWeight)
+            // 核心逻辑：计算从起始到目标的进度百分比
+            val progress = remember(startWeight, currentWeight, targetWeight) {
+                val totalRange = startWeight - targetWeight
+                // 避免起始体重和目标体重相同导致的除零错误
+                if (totalRange.compareTo(0.0) == 0) {
+                    return@remember if (currentWeight <= targetWeight) 1.0f else 0.0f
                 }
-                Text(
-                    text = buildAnnotatedString {
-                        append("距离目标还有 ")
-                        withStyle(
-                            style = SpanStyle(
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 18.sp,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        ) {
-                            append(String.format(java.util.Locale.CHINA, "%.1f", remainingWeight))
-                        }
-                        append(" kg")
-                        // 仅在能估算出天数时显示
-                        if (remainingDays != null && remainingWeight > 0) {
-                            withStyle(
-                                style = SpanStyle(
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 18.sp,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            ) {
-                                append(" ${remainingDays}")
-                            }
-                            append(" 天")
-                        }
-                    },
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                val traveled = startWeight - currentWeight
+                // 将进度限制在0.0到1.0之间，以正确显示进度条
+                (traveled / totalRange).toFloat().coerceIn(0.0f, 1.0f)
+            }
+            // 使用 animateFloatAsState 为进度条增加平滑的动画效果
+            val animatedProgress by animateFloatAsState(
+                targetValue = progress,
+                animationSpec = ProgressIndicatorDefaults.ProgressAnimationSpec
+            )
+            // 基于近 90 天每日最低体重的加权回归趋势估算剩余天数，
+            // 趋势停滞、反向或数据不足时返回 null，不显示天数
+            val remainingDays = remember(recentDailyWeights, currentWeight, targetWeight) {
+                WeightPredictor.estimateDaysToTarget(recentDailyWeights, currentWeight, targetWeight)
+            }
+
+            Card(
+                modifier = modifier,
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // 进度条本体
-                LinearWavyProgressIndicator(
-                    progress = { animatedProgress },
+            ) {
+                Column(
                     modifier = Modifier
-                        .fillMaxWidth(),
-                    trackColor = Color(0xFFDBF0FF)
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                // 进度条下方的 "起始" 和 "目标" 重量标签
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .padding(horizontal = 16.dp, vertical = 14.dp)
                 ) {
-                    Text(
-                        text = "起始: ${
-                            String.format(
-                                java.util.Locale.CHINA,
-                                "%.1f",
-                                startWeight
-                            )
-                        } kg",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    if (goalReached) {
+                        // 达成目标的庆祝态
+                        Text(
+                            text = "已达成目标体重",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.align(Alignment.CenterHorizontally)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        val lostWeight = startWeight - currentWeight
+                        Text(
+                            text = if (lostWeight > 0) {
+                                "相比起始体重已减轻 ${String.format(Locale.CHINA, "%.1f", lostWeight)} kg，继续保持"
+                            } else {
+                                "继续保持，稳住成果"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                            modifier = Modifier.align(Alignment.CenterHorizontally)
+                        )
+                    } else {
+                        // "距离目标还有 X kg，预计剩余 N 天" 的核心激励文本
+                        val remainingWeight = (currentWeight - targetWeight).absoluteValue
+                        Text(
+                            text = buildAnnotatedString {
+                                append("距离目标还有 ")
+                                withStyle(
+                                    style = SpanStyle(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 18.sp
+                                    )
+                                ) {
+                                    append(String.format(Locale.CHINA, "%.1f", remainingWeight))
+                                }
+                                append(" kg")
+                                // 仅在能估算出天数时显示
+                                if (remainingDays != null && remainingWeight > 0) {
+                                    append("，预计 ")
+                                    withStyle(
+                                        style = SpanStyle(
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 18.sp
+                                        )
+                                    ) {
+                                        append(" $remainingDays")
+                                    }
+                                    append(" 天")
+                                }
+                            },
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.align(Alignment.CenterHorizontally)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // 进度条本体
+                    LinearWavyProgressIndicator(
+                        progress = { animatedProgress },
+                        modifier = Modifier
+                            .fillMaxWidth(),
+                        trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f)
                     )
-                    Text(
-                        text = "目标: ${
-                            String.format(
-                                java.util.Locale.CHINA,
-                                "%.1f",
-                                targetWeight
-                            )
-                        } kg",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // 进度条下方的 "起始" 和 "目标" 重量标签
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "起始 ${String.format(Locale.CHINA, "%.1f", startWeight)} kg",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                        )
+                        Text(
+                            text = "目标 ${String.format(Locale.CHINA, "%.1f", targetWeight)} kg",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                        )
+                    }
                 }
             }
         }
@@ -403,9 +481,12 @@ private fun GoalProgressContent(
 }
 
 @Composable
-fun SelectedRecordContent(record: DailyMinWeight?) {
+fun SelectedRecordContent(
+    record: DailyMinWeight?,
+    selectedScope: StatisticsScope,
+    onScopeSelected: (StatisticsScope) -> Unit
+) {
     Row(
-        modifier = Modifier.padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -413,45 +494,87 @@ fun SelectedRecordContent(record: DailyMinWeight?) {
                 AnimatedContent(targetState = record?.minWeight ?: 0.0, transitionSpec = {
                     if (targetState > initialState) {
                         slideInVertically { height -> height } + fadeIn() togetherWith
-                                slideOutVertically { height -> -height } + fadeOut()
+                            slideOutVertically { height -> -height } + fadeOut()
                     } else {
                         slideInVertically { height -> -height } + fadeIn() togetherWith
-                                slideOutVertically { height -> height } + fadeOut()
+                            slideOutVertically { height -> height } + fadeOut()
                     }.using(
                         SizeTransform(clip = false)
                     )
                 }) {
-                    Text(text = it.toString(), fontSize = 30.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = String.format(Locale.CHINA, "%.1f", it),
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
-                Text(modifier = Modifier.align(Alignment.Bottom), text = "kg", fontSize = 18.sp)
+                Text(
+                    modifier = Modifier
+                        .align(Alignment.Bottom)
+                        .padding(bottom = 3.dp),
+                    text = "kg",
+                    fontSize = 16.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
             AnimatedVisibility(visible = record != null) {
                 record?.timestamp?.let {
                     Text(
                         text = TimeUtils.convertMillisToTime(it),
-                        fontSize = 14.sp,
-                        color = Color.DarkGray
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
         }
-        StatisticsScopeContent(modifier = Modifier.width(150.dp))
+        ScopeSelector(selected = selectedScope, onSelected = onScopeSelected)
     }
 }
 
+/** 轻量化的统计范围选择器：当前范围文字 + 下拉箭头，不与左侧体重数抢视觉 */
 @Composable
-private fun StatisticsScopeContent(modifier: Modifier, viewModel: MainViewModel = koinViewModel()) {
-    val selectedScope by viewModel.selectedScope.collectAsStateWithLifecycle()
-    val statisticsScope = remember { StatisticsScope.entries.toList() }
-    ExposedOutlineTextFieldGenericListDropdownMenu(
-        modifier = modifier,
-        hint = "统计范围",
-        initialDescription = selectedScope.label,
-        descriptionList = statisticsScope.map { it.label },
-        genericList = statisticsScope,
-        onSelected = {
-            viewModel.selectScope(it)
-        })
+private fun ScopeSelector(
+    selected: StatisticsScope,
+    onSelected: (StatisticsScope) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(20.dp))
+                .clickable(role = Role.Button, onClickLabel = "选择统计范围") { expanded = true }
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = selected.label,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Icon(
+                imageVector = Icons.Default.ArrowDropDown,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            StatisticsScope.entries.forEach { scope ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = scope.label,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = if (scope == selected) FontWeight.Bold else FontWeight.Normal
+                        )
+                    },
+                    onClick = {
+                        onSelected(scope)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -463,7 +586,6 @@ private fun StatisticChart(
 ) {
     // 根据收集到的数据构建 LineChart 所需的参数，当 currentScopeDataList 变化时重组
     val labels = remember(currentScopeDataList) { currentScopeDataList.map { it.recordDay } }
-
 
     // 当 chartData 不为空时才显示图表
     if (currentScopeDataList.isNotEmpty()) {
@@ -546,92 +668,81 @@ private fun WeightChart(
     )
 }
 
+/**
+ * 范围内统计汇总卡：最高 / 最低 / 变化 三列合一。
+ * 原来的"最高最低体重"卡与"指标变化"卡职责相同（范围内汇总），合并后每卡一个职责。
+ */
 @Composable
-private fun MinAndMaxDataContent(
+private fun StatsSummaryCard(
     modifier: Modifier,
     maxWeightRecord: DailyMinWeight?,
     minWeightRecord: DailyMinWeight?,
-) {
-    Card(modifier = modifier) {
-        Row(
-            modifier = Modifier
-                .padding(10.dp)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceAround
-        ) {
-            MaxAndMinRecordItem(record = maxWeightRecord, title = "最高体重")
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                VerticalDivider(Modifier.height(15.dp))
-                Text(
-                    text = DecimalFormat("#.#kg").format(maxWeightRecord?.minWeight?.minus(minWeightRecord?.minWeight ?: 0.0) ?: 0.0),
-                    fontSize = 12.sp,
-                    color = Color.Gray,
-                    lineHeight = 12.sp
-                )
-                VerticalDivider(Modifier.height(15.dp))
-            }
-            MaxAndMinRecordItem(record = minWeightRecord, title = "最低体重")
-        }
-    }
-}
-
-@Composable
-private fun MaxAndMinRecordItem(record: DailyMinWeight?, title: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text = buildAnnotatedString {
-            withStyle(style = SpanStyle(fontWeight = FontWeight.Bold, fontSize = 20.sp)) {
-                append(record?.minWeight?.toString() ?: "0.0")
-            }
-            append("kg")
-        })
-
-        Text(text = title, fontSize = 14.sp)
-        AnimatedVisibility(visible = record != null) {
-            record?.timestamp?.let {
-                Text(
-                    text = TimeUtils.convertMillisToDate(it),
-                    fontSize = 10.sp,
-                    color = Color.Gray,
-                    lineHeight = 10.sp
-                )
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-private fun IndicatorChangesContent(
-    modifier: Modifier,
     firstWeightRecord: DailyMinWeight?,
     lastWeightRecord: DailyMinWeight?
 ) {
     Card(modifier = modifier) {
-        Column(modifier = Modifier.padding(10.dp)) {
-            Text(text = "指标变化", style = MaterialTheme.typography.titleMediumEmphasized)
-            Row {
-                Text(
-                    text = DecimalFormat("+#.#;-#.#").format(
-                        lastWeightRecord?.minWeight?.minus(
-                            firstWeightRecord?.minWeight ?: 0.0
-                        ) ?: 0.0
-                    ),
-                    style = MaterialTheme.typography.titleLargeEmphasized
-                )
-                Text(
-                    modifier = Modifier.align(Alignment.Bottom),
-                    text = "kg",
-                    style = MaterialTheme.typography.bodySmallEmphasized
-                )
-            }
+        Row(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            StatItem(
+                modifier = Modifier.weight(1f),
+                value = String.format(Locale.CHINA, "%.1f", maxWeightRecord?.minWeight ?: 0.0),
+                label = "最高",
+                sub = maxWeightRecord?.timestamp?.let { TimeUtils.convertMillisToDate(it) }
+            )
+            VerticalDivider(Modifier.height(40.dp))
+            StatItem(
+                modifier = Modifier.weight(1f),
+                value = String.format(Locale.CHINA, "%.1f", minWeightRecord?.minWeight ?: 0.0),
+                label = "最低",
+                sub = minWeightRecord?.timestamp?.let { TimeUtils.convertMillisToDate(it) }
+            )
+            VerticalDivider(Modifier.height(40.dp))
+            val delta = lastWeightRecord?.minWeight?.minus(firstWeightRecord?.minWeight ?: 0.0) ?: 0.0
+            StatItem(
+                modifier = Modifier.weight(1f),
+                value = DecimalFormat("+#.#;-#.#").format(delta),
+                label = "变化",
+                sub = buildString {
+                    firstWeightRecord?.timestamp?.let { append(TimeUtils.convertMillisToDate(it).takeLast(5)) }
+                    append(" 至 ")
+                    lastWeightRecord?.timestamp?.let { append(TimeUtils.convertMillisToDate(it).takeLast(5)) }
+                },
+                valueColor = if (delta <= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+            )
+        }
+    }
+}
+
+@Composable
+private fun StatItem(
+    modifier: Modifier,
+    value: String,
+    label: String,
+    sub: String?,
+    valueColor: Color = Color.Unspecified
+) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = valueColor
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        if (sub != null) {
             Text(
-                text = "${TimeUtils.convertMillisToDate(firstWeightRecord?.timestamp ?: 0)} 至 ${
-                    TimeUtils.convertMillisToDate(
-                        lastWeightRecord?.timestamp ?: 0
-                    )
-                }",
-                style = MaterialTheme.typography.bodySmallEmphasized
+                text = sub,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1
             )
         }
     }
@@ -641,10 +752,9 @@ enum class StatisticsScope(val label: String) {
     LAST_7DAYS("近7天"),
     LAST_14DAYS("近14天"),
     LAST_1MONTH("近1月"),
-    LAST_3MONTH("近3月"),
-    LAST_6MONTH("近6月"),
+    LAST_3MONTHS("近3月"),
+    LAST_6MONTHS("近6月"),
     LAST_1YEARS("近1年"),
     LAST_2YEARS("近2年"),
     LAST_3YEARS("近3年"),
 }
-
