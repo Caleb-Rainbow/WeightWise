@@ -27,6 +27,12 @@ interface RecordDao {
     @Query("SELECT * FROM Record ORDER BY id DESC LIMIT 1")
     fun getLastData(): Record?
 
+    @Query("SELECT * FROM Record ORDER BY timestamp DESC LIMIT 1")
+    fun getLastDataFlow(): Flow<Record?>
+
+    @Query("SELECT COUNT(*) FROM Record")
+    fun getRecordCount(): Flow<Int>
+
     @Query("SELECT * FROM Record ORDER BY id asc LIMIT 1")
     fun getFirstData(): Record?
 

@@ -30,6 +30,12 @@ object TimeUtils {
             timeZone = TimeZone.getTimeZone("UTC")
         }
     }
+    private val formatDay: SimpleDateFormat by lazy {
+        SimpleDateFormat("dd", Locale.CHINA)
+    }
+    private val formatMonth: SimpleDateFormat by lazy {
+        SimpleDateFormat("MM月", Locale.CHINA)
+    }
 
     fun getCurrentTime(): String = format1.format(Date())
     fun getCurrentDate(): String = format2.format(Date())
@@ -37,6 +43,9 @@ object TimeUtils {
     fun convertDateToMillis(date: String): Long = format2.parse(date)?.time ?: 0
     fun convertMillisToDate(millis: Long): String = format2.format(Date(millis))
     fun convertMillisToTime(millis: Long): String = format4.format(Date(millis))
+    fun convertMillisToHM(millis: Long): String = format3.format(Date(millis))
+    fun convertMillisToDay(millis: Long): String = formatDay.format(Date(millis))
+    fun convertMillisToMonth(millis: Long): String = formatMonth.format(Date(millis))
 
     /**
      * DatePicker 的 selectedDateMillis 以 UTC 毫秒解释，
@@ -47,6 +56,13 @@ object TimeUtils {
 
     /** 将 DatePicker 返回的 UTC 毫秒（所选日期的 UTC 零点）格式化为日期字符串 */
     fun convertUtcMillisToDate(millis: Long): String = formatUtcDate.format(Date(millis))
+
+    /** 将 "yyyy-MM-dd" 日期字符串转换为 DatePicker 需要的 UTC 零点毫秒值 */
+    fun convertDateToUtcMillis(date: String): Long = try {
+        LocalDate.parse(date).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+    } catch (e: Exception) {
+        getTodayUtcMillis()
+    }
     fun getCurrentTimeFormat3() = format3.format(Date())
 
     /**
