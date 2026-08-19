@@ -15,6 +15,7 @@ import com.example.weight.util.TimeUtils
 import com.example.weight.util.TimeUtils.getStartTimeForLastDays
 import com.example.weight.util.TimeUtils.getStartTimeForLastMonths
 import com.example.weight.util.WeightPredictor
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -36,6 +37,7 @@ data class UiState(
     val selectedRecord: DailyMinWeight? = null,
     val firstRecord: Record? = null,
     val analyzeResponse: String = "",
+    val analyzeError: String? = null,//AI分析失败原因，null 表示无错误
 )
 
 data class DialogState(
@@ -201,7 +203,7 @@ class MainViewModel(
             it.copy(isShowAiAnalyzeBottomSheet = false)
         }
         _uiState.update {
-            it.copy(analyzeResponse = "")
+            it.copy(analyzeResponse = "", analyzeError = null)
         }
     }
 
@@ -225,24 +227,36 @@ class MainViewModel(
             showAiAnalyzeBottomSheet()
             // 3. 构建 Prompt
             val prompt = buildAnalysisPrompt(data, scope, bmi)
-            chatRepository.streamChat(
-                model = ChatBodyModel(
-                    messages = listOf(
-                        MessageModel(
-                            role = ChatMessageRole.USER.label,
-                            content = MessageContent.TextOnly(prompt)
+            // 重试或再次分析前清空上一次的结果与错误
+            _uiState.update { it.copy(analyzeResponse = "", analyzeError = null) }
+            try {
+                chatRepository.streamChat(
+                    model = ChatBodyModel(
+                        messages = listOf(
+                            MessageModel(
+                                role = ChatMessageRole.USER.label,
+                                content = MessageContent.TextOnly(prompt)
+                            )
                         )
-                    )
-                ), onMessage = { msg ->
-                    msg?.choices?.singleOrNull()?.delta?.content?.let { content ->
-                        if (dialogState.value.isLoading) {
-                            hideLoading()
+                    ), onMessage = { msg ->
+                        msg?.choices?.singleOrNull()?.delta?.content?.let { content ->
+                            if (dialogState.value.isLoading) {
+                                hideLoading()
+                            }
+                            _uiState.update {
+                                it.copy(analyzeResponse = it.analyzeResponse + content)
+                            }
                         }
-                        _uiState.update {
-                            it.copy(analyzeResponse = it.analyzeResponse + content)
-                        }
-                    }
-                })
+                    })
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                e.printStackTrace()
+                hideLoading()
+                _uiState.update {
+                    it.copy(analyzeError = e.message ?: "分析失败，请稍后重试")
+                }
+            }
         }
     }
 

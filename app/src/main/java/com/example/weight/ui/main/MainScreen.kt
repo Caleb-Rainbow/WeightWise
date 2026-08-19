@@ -112,18 +112,24 @@ fun MainScreen(modifier: Modifier = Modifier, viewModel: MainViewModel = koinVie
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val dialogState by viewModel.dialogState.collectAsStateWithLifecycle()
     val showMessageDialog = LocalShowMessageDialog.current
-    MainDialog()
-    AnalysisBottomSheet(
-        isLoading = dialogState.isLoading,
-        showSheet = dialogState.isShowAiAnalyzeBottomSheet,
-        analysisResult = uiState.analyzeResponse,
-        onDismissRequest = viewModel::hideAiAnalyzeBottomSheet
-    )
     val height by LocalStorageData.height.collectAsStateWithLifecycle()
     val bmi by remember(uiState.selectedRecord,height) {
         val height = height / 100
         mutableDoubleStateOf(uiState.selectedRecord?.minWeight?.div(height.times(height)) ?: 0.0)
     }
+    MainDialog()
+    AnalysisBottomSheet(
+        isLoading = dialogState.isLoading,
+        showSheet = dialogState.isShowAiAnalyzeBottomSheet,
+        analysisResult = uiState.analyzeResponse,
+        errorMessage = uiState.analyzeError,
+        onDismissRequest = viewModel::hideAiAnalyzeBottomSheet,
+        onRetry = {
+            viewModel.aiAnalyze(bmi = bmi) {
+                showMessageDialog("提示", it) {}
+            }
+        }
+    )
     Scaffold(
         modifier = modifier,
         bottomBar = {
