@@ -1,7 +1,6 @@
 package com.example.weight.ui.theme
 
 import androidx.compose.ui.graphics.vector.ImageVector
-import com.example.weight.ui.theme.myiconpack.CalendarCheck
 import kotlin.collections.List as ____KtList
 
 public object MyIconPack
@@ -13,6 +12,6 @@ public val MyIconPack.AllIcons: ____KtList<ImageVector>
     if (__AllIcons != null) {
       return __AllIcons!!
     }
-    __AllIcons= listOf(CalendarCheck)
+    __AllIcons= listOf()
     return __AllIcons!!
   }

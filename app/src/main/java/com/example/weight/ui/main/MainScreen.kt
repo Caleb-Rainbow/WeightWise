@@ -28,7 +28,6 @@ import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -68,8 +67,6 @@ import com.example.weight.data.record.Record
 import com.example.weight.ui.common.BottomXDateFormatter
 import com.example.weight.ui.common.ExposedOutlineTextFieldGenericListDropdownMenu
 import com.example.weight.ui.common.rememberMarker
-import com.example.weight.ui.theme.MyIconPack
-import com.example.weight.ui.theme.myiconpack.CalendarCheck
 import com.example.weight.util.TimeUtils
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
 import com.patrykandpatrick.vico.compose.cartesian.Scroll
@@ -95,7 +92,7 @@ import kotlin.math.absoluteValue
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun MainScreen(modifier: Modifier = Modifier, viewModel: MainViewModel = koinViewModel(),goSetting:()-> Unit = {},goRecord:()-> Unit={},goExercisePlan:()->Unit={},goJourneyCreation:()->Unit={},goJourneyProgress:()->Unit={},goDietRecord:()->Unit={}) {
+fun MainScreen(modifier: Modifier = Modifier, viewModel: MainViewModel = koinViewModel(),goSetting:()-> Unit = {},goRecord:()-> Unit={},goDietRecord:()->Unit={}) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val dialogState by viewModel.dialogState.collectAsStateWithLifecycle()
     val showMessageDialog = LocalShowMessageDialog.current
@@ -171,19 +168,6 @@ fun MainScreen(modifier: Modifier = Modifier, viewModel: MainViewModel = koinVie
                     .align(Alignment.BottomCenter)
                     .offset(y = (-10).dp), expanded = true, expandedShadowElevation = 2.dp
             ) {
-                IconButton(onClick = goExercisePlan){
-                    Icon(imageVector = MyIconPack.CalendarCheck, contentDescription = null)
-                }
-                val activeJourneyId by com.example.weight.data.LocalStorageData.activeJourneyId.collectAsStateWithLifecycle()
-                IconButton(onClick = {
-                    if (activeJourneyId > 0) {
-                        goJourneyProgress()
-                    } else {
-                        goJourneyCreation()
-                    }
-                }){
-                    Icon(imageVector = Icons.Default.Flag, contentDescription = null)
-                }
                 IconButton(onClick = goSetting) {
                     Icon(imageVector = Icons.Default.Settings, contentDescription = null)
                 }
