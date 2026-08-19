@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp.plugins)
+    alias(libs.plugins.koin.compiler)
     alias(libs.plugins.serialization)
     alias(libs.plugins.room)
     alias(libs.plugins.baselineprofile)
@@ -13,7 +14,7 @@ plugins {
 
 extensions.configure<ApplicationExtension>("android") {
     namespace = "com.example.weight"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.example.weight"
@@ -71,7 +72,6 @@ secrets {
     ignoreList.add("sdk.*")
 }
 ksp {
-    arg("KOIN_USE_COMPOSE_VIEWMODEL", "true")
     arg("room.generateKotlin", "true")
 }
 dependencies {
@@ -102,7 +102,6 @@ dependencies {
     implementation(libs.koin.androidx.compose)
     implementation(libs.koin.compose.viewmodel)
     implementation(libs.koin.annotations)
-    ksp(libs.koin.ksp.compiler)
     //serialization
     implementation(libs.kotlinx.serialization)
     implementation(libs.kotlinx.serialization.core)

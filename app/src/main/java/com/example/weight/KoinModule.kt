@@ -9,6 +9,7 @@ import com.example.weight.data.exercise.ExercisePlanDao
 import com.example.weight.data.exercise.JourneyDao
 import kotlinx.serialization.json.Json
 import org.koin.core.annotation.ComponentScan
+import org.koin.core.annotation.KoinApplication
 import org.koin.core.annotation.Module
 import org.koin.core.annotation.Single
 
@@ -42,3 +43,12 @@ class KoinModule {
         prettyPrint = true
     }
 }
+
+/**
+ * Koin 装配入口。
+ * koin-compiler-plugin 1.1.0+ 要求 @KoinApplication 与 @Module 分离，
+ * 并通过 @KoinApplication(modules=[...]) 显式装配模块；否则插件会把
+ * startKoin<T> 改写为 startKoinWith(emptyList())，启动即 NoDefinitionFoundException。
+ */
+@KoinApplication(modules = [KoinModule::class])
+class KoinApp

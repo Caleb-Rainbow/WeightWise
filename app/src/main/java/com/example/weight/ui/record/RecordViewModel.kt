@@ -8,7 +8,7 @@ import com.example.weight.data.record.Record
 import com.example.weight.data.record.RecordDao
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import org.koin.android.annotation.KoinViewModel
+import org.koin.core.annotation.KoinViewModel
 
 @KoinViewModel
 class RecordViewModel(private val recordDao: RecordDao): ViewModel() {
