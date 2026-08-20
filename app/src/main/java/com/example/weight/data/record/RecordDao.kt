@@ -15,6 +15,9 @@ interface RecordDao {
     @Insert
     suspend fun insert(record: Record)
 
+    @Insert
+    suspend fun insertAll(records: List<Record>)
+
     @Update
     suspend fun update(record: Record)
 

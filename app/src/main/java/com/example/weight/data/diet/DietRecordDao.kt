@@ -19,6 +19,9 @@ interface DietRecordDao {
     @Insert
     suspend fun insert(record: DietRecord): Long
 
+    @Insert
+    suspend fun insertAll(records: List<DietRecord>)
+
     @Update
     suspend fun update(record: DietRecord)
 

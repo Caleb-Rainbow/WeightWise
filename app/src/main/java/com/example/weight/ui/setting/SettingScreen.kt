@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
@@ -24,6 +26,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -36,7 +39,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.weight.LocalSnackBarShow
 import com.example.weight.data.LocalStorageData
+import com.example.weight.data.backup.BackupException
 import com.example.weight.data.backup.BackupRepository
+import com.example.weight.data.backup.ImportPreview
 import com.example.weight.data.chat.ChatModel
 import com.example.weight.ui.common.MyTopBar
 import com.example.weight.ui.common.NumberTextField
@@ -119,13 +124,14 @@ fun SettingScreen(modifier: Modifier = Modifier, goBack: () -> Unit) {
     }
 }
 
-/** 数据管理：全量备份导出等入口 */
+/** 数据管理：全量备份导出/导入等入口 */
 @Composable
 private fun DataManagementSection() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackBarShow = LocalSnackBarShow.current
     val backupRepository = koinInject<BackupRepository>()
+    var pendingImport by remember { mutableStateOf<ImportPreview?>(null) }
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
@@ -137,6 +143,27 @@ private fun DataManagementSection() {
                 snackBarShow("已导出 ${result.recordCount} 条体重记录、${result.dietCount} 条饮食记录")
             } catch (e: Exception) {
                 snackBarShow("导出失败：${e.message ?: "未知错误"}")
+            }
+        }
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            try {
+                val backup = backupRepository.parseBackup(context, uri)
+                val preview = backupRepository.previewImport(backup)
+                if (preview.newRecordCount == 0 && preview.newDietCount == 0) {
+                    snackBarShow("备份里没有新数据，均与现有记录重复")
+                } else {
+                    pendingImport = preview
+                }
+            } catch (e: BackupException) {
+                snackBarShow(e.message ?: "导入失败")
+            } catch (e: Exception) {
+                snackBarShow("导入失败：${e.message ?: "未知错误"}")
             }
         }
     }
@@ -162,10 +189,60 @@ private fun DataManagementSection() {
         Spacer(modifier = Modifier.width(8.dp))
         Text(text = "导出数据（JSON）")
     }
+    Spacer(modifier = Modifier.height(8.dp))
+    OutlinedButton(
+        onClick = { importLauncher.launch(arrayOf("application/json")) },
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Icon(
+            imageVector = Icons.Default.Restore,
+            contentDescription = null,
+            modifier = Modifier.width(18.dp),
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(text = "导入数据（JSON）")
+    }
     Text(
-        text = "导出全部体重与饮食记录及设置，饮食图片不入包",
+        text = "导出全部体重与饮食记录及设置；导入时重复记录自动跳过，饮食图片不入备份包",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(top = 4.dp),
     )
+
+    // 导入确认弹窗：展示去重后的数量，用户确认才写入
+    pendingImport?.let { preview ->
+        AlertDialog(
+            onDismissRequest = { pendingImport = null },
+            title = { Text("确认导入") },
+            text = {
+                Text(
+                    "将导入 ${preview.newRecordCount} 条体重记录" +
+                        "（跳过重复 ${preview.skippedRecordCount} 条）、" +
+                        "${preview.newDietCount} 条饮食记录" +
+                        "（跳过重复 ${preview.skippedDietCount} 条）。"
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val toImport = preview
+                    pendingImport = null
+                    scope.launch {
+                        try {
+                            val result = backupRepository.importBackup(context, toImport.backup)
+                            snackBarShow(
+                                "导入完成：新增 ${result.insertedRecords} 条体重、" +
+                                    "${result.insertedDietRecords} 条饮食" +
+                                    if (result.settingsApplied) "，设置已更新" else ""
+                            )
+                        } catch (e: Exception) {
+                            snackBarShow("导入失败：${e.message ?: "未知错误"}")
+                        }
+                    }
+                }) { Text("导入") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingImport = null }) { Text("取消") }
+            },
+        )
+    }
 }
