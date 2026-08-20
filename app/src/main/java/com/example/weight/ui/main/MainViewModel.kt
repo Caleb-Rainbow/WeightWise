@@ -12,22 +12,31 @@ import com.example.weight.data.chat.MessageModel
 import com.example.weight.data.record.DailyMinWeight
 import com.example.weight.data.record.Record
 import com.example.weight.data.record.RecordDao
+import com.example.weight.util.MilestoneCalculator
+import com.example.weight.util.RecordStreakCalculator
+import com.example.weight.util.StreakInfo
 import com.example.weight.util.TimeUtils
 import com.example.weight.util.TimeUtils.getStartTimeForLastDays
 import com.example.weight.util.WeightPredictor
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.emitAll
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.koin.core.annotation.KoinViewModel
+import java.time.LocalDate
 
 data class UiState(
     val selectedRecord: DailyMinWeight? = null,
@@ -73,6 +82,43 @@ class MainViewModel(
 
     init {
         observeFirstRecord()
+        observeMilestones()
+    }
+
+    /** 连续打卡信息：打卡日来自数据库 Flow，记录增删后自动重算 */
+    val streakInfo: StateFlow<StreakInfo> = recordDao.getRecordDaysFlow()
+        .map { RecordStreakCalculator.calculate(it, LocalDate.now()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), StreakInfo(0, 0, false))
+
+    /** 里程碑达成的一次性庆祝事件，UI 收到后弹 SnackBar */
+    private val _milestoneCelebration = Channel<String>(Channel.BUFFERED)
+    val milestoneCelebration = _milestoneCelebration.receiveAsFlow()
+
+    /**
+     * 监听起始/最新体重计算里程碑档数，仅在档数「净增」时庆祝：
+     * 首次发射（冷启动、导入数据）不庆祝，删除再恢复同档也不重复庆祝以外的方向均不触发。
+     */
+    private fun observeMilestones() {
+        viewModelScope.launch(Dispatchers.IO) {
+            var lastCount = 0
+            var initialized = false
+            kotlinx.coroutines.flow.combine(
+                recordDao.getFirstDataFlow(),
+                recordDao.getLastDataFlow(),
+            ) { first, last ->
+                if (first == null || last == null) 0
+                else MilestoneCalculator.calculateMilestoneCount(first.weight, last.weight)
+            }.collect { count ->
+                if (initialized && count > lastCount && count > 0) {
+                    _milestoneCelebration.send(
+                        "已累计减重 ${MilestoneCalculator.lossKgOfMilestone(count)}kg，" +
+                            "第 $count 个里程碑达成，继续加油！"
+                    )
+                }
+                lastCount = count
+                initialized = true
+            }
+        }
     }
 
     /** 预测目标达成天数用的固定窗口数据：最近 90 天每日最低体重，不随图表统计范围切换，保证预测稳定 */

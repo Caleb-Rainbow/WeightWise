@@ -76,11 +76,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.weight.LocalShowMessageDialog
+import com.example.weight.LocalSnackBarShow
 import com.example.weight.data.LocalStorageData
 import com.example.weight.data.record.DailyMinWeight
 import com.example.weight.data.record.Record
 import com.example.weight.ui.common.BottomXDateFormatter
 import com.example.weight.ui.common.rememberMarker
+import com.example.weight.util.StreakInfo
 import com.example.weight.util.TimeUtils
 import com.example.weight.util.WeightPredictor
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
@@ -111,7 +113,14 @@ import kotlin.math.absoluteValue
 fun MainScreen(modifier: Modifier = Modifier, viewModel: MainViewModel = koinViewModel(),goSetting:()-> Unit = {},goRecord:()-> Unit={},goDietRecord:()->Unit={}) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val dialogState by viewModel.dialogState.collectAsStateWithLifecycle()
+    val streakInfo by viewModel.streakInfo.collectAsStateWithLifecycle()
     val showMessageDialog = LocalShowMessageDialog.current
+    val snackBarShow = LocalSnackBarShow.current
+
+    // 里程碑达成时弹一次庆祝提示
+    LaunchedEffect(Unit) {
+        viewModel.milestoneCelebration.collect { snackBarShow(it) }
+    }
     val height by LocalStorageData.height.collectAsStateWithLifecycle()
     val bmi by remember(uiState.selectedRecord,height) {
         val height = height / 100
@@ -176,7 +185,8 @@ fun MainScreen(modifier: Modifier = Modifier, viewModel: MainViewModel = koinVie
                         SelectedRecordContent(
                             record = uiState.selectedRecord,
                             selectedScope = viewModel.selectedScope.collectAsStateWithLifecycle().value,
-                            onScopeSelected = viewModel::selectScope
+                            onScopeSelected = viewModel::selectScope,
+                            streakInfo = streakInfo
                         )
                         GoalProgressContent(
                             modifier = Modifier
@@ -490,7 +500,8 @@ private fun GoalProgressContent(
 fun SelectedRecordContent(
     record: DailyMinWeight?,
     selectedScope: StatisticsScope,
-    onScopeSelected: (StatisticsScope) -> Unit
+    onScopeSelected: (StatisticsScope) -> Unit,
+    streakInfo: StreakInfo = StreakInfo(0, 0, false)
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically
@@ -523,13 +534,30 @@ fun SelectedRecordContent(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            AnimatedVisibility(visible = record != null) {
-                record?.timestamp?.let {
-                    Text(
-                        text = TimeUtils.convertMillisToTime(it),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                AnimatedVisibility(visible = record != null) {
+                    record?.timestamp?.let {
+                        Text(
+                            text = TimeUtils.convertMillisToTime(it),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                // 至少连续 2 天才展示徽章，单天打卡没有激励意义
+                if (streakInfo.currentStreak >= 2) {
+                    if (record != null) Spacer(modifier = Modifier.width(8.dp))
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                    ) {
+                        Text(
+                            text = "🔥 连续 ${streakInfo.currentStreak} 天",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
                 }
             }
         }

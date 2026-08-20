@@ -74,4 +74,11 @@ interface RecordDao {
     @Query("SELECT * FROM Record ORDER BY timestamp ASC")
     suspend fun getAllOnce(): List<Record>
 
+    /** 全部打卡日（北京时间 yyyy-MM-dd，去重升序），供连续打卡计算 */
+    @Query(
+        "SELECT DISTINCT DATE(timestamp / 1000, 'unixepoch', '+8 hours') AS recordDay " +
+            "FROM Record ORDER BY recordDay ASC"
+    )
+    fun getRecordDaysFlow(): Flow<List<String>>
+
 }
