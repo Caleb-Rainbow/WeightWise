@@ -35,6 +35,7 @@ class WidgetRepository(private val recordDao: RecordDao) {
             recordDao.getDailyMinWeightSince(getStartTimeForLastDays(7)).first()
         val first: Record? = recordDao.getFirstData()
         val targetWeight = LocalStorageData.targetWeight.value
+        val configuredStartWeight = LocalStorageData.startWeight.value
         val currentWeight = current?.weight
         WeightWidgetData(
             currentWeight = currentWeight,
@@ -42,7 +43,10 @@ class WidgetRepository(private val recordDao: RecordDao) {
             targetWeight = targetWeight,
             progressPercent = if (currentWeight != null) {
                 GoalProgressCalculator.progressPercent(
-                    startWeight = first?.weight ?: currentWeight,
+                    // 与首页同口径：手动设置的起始体重优先，未设置时回落第一条记录
+                    startWeight = GoalProgressCalculator.effectiveStartWeight(
+                        configuredStartWeight, first?.weight
+                    ) ?: currentWeight,
                     currentWeight = currentWeight,
                     targetWeight = targetWeight,
                 )

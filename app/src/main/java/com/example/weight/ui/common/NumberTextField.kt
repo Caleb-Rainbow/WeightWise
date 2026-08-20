@@ -25,6 +25,7 @@ fun NumberTextField(
     onValueChange: (Double) -> Unit,
     label: String,
     modifier: Modifier = Modifier,
+    supportingText: String? = null,
 ) {
     var text by remember { mutableStateOf(value.formatPlain()) }
     var lastEmitted by remember { mutableStateOf(value) }
@@ -48,6 +49,7 @@ fun NumberTextField(
             }
         },
         label = { Text(label) },
+        supportingText = supportingText?.let { text -> { Text(text) } },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
         modifier = modifier,
     )

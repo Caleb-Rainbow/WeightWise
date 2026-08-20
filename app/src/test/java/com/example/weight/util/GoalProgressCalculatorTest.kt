@@ -37,4 +37,20 @@ class GoalProgressCalculatorTest {
     fun `百分比取整`() {
         assertEquals(50, GoalProgressCalculator.progressPercent(80.0, 76.0, 72.0))
     }
+
+    @Test
+    fun `手动设置的起始体重优先`() {
+        assertEquals(85.0, GoalProgressCalculator.effectiveStartWeight(85.0, 80.0))
+        assertEquals(85.0, GoalProgressCalculator.effectiveStartWeight(85.0, null))
+    }
+
+    @Test
+    fun `未手动设置回落第一条记录`() {
+        assertEquals(80.0, GoalProgressCalculator.effectiveStartWeight(0.0, 80.0))
+    }
+
+    @Test
+    fun `未设置且无记录返回null`() {
+        assertNull(GoalProgressCalculator.effectiveStartWeight(0.0, null))
+    }
 }

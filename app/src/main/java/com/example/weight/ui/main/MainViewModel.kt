@@ -13,6 +13,7 @@ import com.example.weight.data.record.DailyMinWeight
 import com.example.weight.data.record.Record
 import com.example.weight.data.record.RecordDao
 import com.example.weight.data.widget.WidgetUpdater
+import com.example.weight.util.GoalProgressCalculator
 import com.example.weight.util.MilestoneCalculator
 import com.example.weight.util.RecordStreakCalculator
 import com.example.weight.util.StreakInfo
@@ -99,6 +100,7 @@ class MainViewModel(
     /**
      * 监听起始/最新体重计算里程碑档数，仅在档数「净增」时庆祝：
      * 首次发射（冷启动、导入数据）不庆祝，删除再恢复同档也不重复庆祝以外的方向均不触发。
+     * 起始体重与首页进度卡同口径：手动设置优先，未设置时取第一条记录。
      */
     private fun observeMilestones() {
         viewModelScope.launch(Dispatchers.IO) {
@@ -107,9 +109,13 @@ class MainViewModel(
             kotlinx.coroutines.flow.combine(
                 recordDao.getFirstDataFlow(),
                 recordDao.getLastDataFlow(),
-            ) { first, last ->
-                if (first == null || last == null) 0
-                else MilestoneCalculator.calculateMilestoneCount(first.weight, last.weight)
+                LocalStorageData.startWeight,
+            ) { first, last, configuredStartWeight ->
+                val startWeight = GoalProgressCalculator.effectiveStartWeight(
+                    configuredStartWeight, first?.weight
+                )
+                if (startWeight == null || last == null) 0
+                else MilestoneCalculator.calculateMilestoneCount(startWeight, last.weight)
             }.collect { count ->
                 if (initialized && count > lastCount && count > 0) {
                     _milestoneCelebration.send(

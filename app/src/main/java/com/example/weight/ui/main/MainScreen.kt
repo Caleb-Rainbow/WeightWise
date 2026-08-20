@@ -69,8 +69,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -81,6 +83,7 @@ import com.example.weight.data.LocalStorageData
 import com.example.weight.data.record.DailyMinWeight
 import com.example.weight.data.record.Record
 import com.example.weight.ui.common.BottomXDateFormatter
+import com.example.weight.ui.common.TargetWeightLine
 import com.example.weight.ui.common.rememberMarker
 import com.example.weight.util.GoalProgressCalculator
 import com.example.weight.util.StreakInfo
@@ -93,16 +96,20 @@ import com.patrykandpatrick.vico.compose.cartesian.axis.VerticalAxis
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModelProducer
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianLayerRangeProvider
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianValueFormatter
-import com.patrykandpatrick.vico.compose.cartesian.data.lineSeries
+import com.patrykandpatrick.vico.compose.cartesian.data.lineModel
 import com.patrykandpatrick.vico.compose.cartesian.layer.LineCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLine
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.marker.CartesianMarker
 import com.patrykandpatrick.vico.compose.cartesian.marker.CartesianMarkerVisibilityListener
 import com.patrykandpatrick.vico.compose.cartesian.marker.DefaultCartesianMarker
+import com.patrykandpatrick.vico.compose.cartesian.marker.LineCartesianLayerMarkerTarget
 import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
 import com.patrykandpatrick.vico.compose.cartesian.rememberVicoScrollState
 import com.patrykandpatrick.vico.compose.common.Fill
+import com.patrykandpatrick.vico.compose.common.Insets
+import com.patrykandpatrick.vico.compose.common.component.rememberShapeComponent
+import com.patrykandpatrick.vico.compose.common.component.rememberTextComponent
 import com.patrykandpatrick.vico.compose.common.vicoTheme
 import org.koin.androidx.compose.koinViewModel
 import java.text.DecimalFormat
@@ -197,6 +204,16 @@ fun MainScreen(
                     val maxWeightRecord = remember(scopeData) { scopeData.maxByOrNull { it.minWeight } }
                     val minWeightRecord = remember(scopeData) { scopeData.minByOrNull { it.minWeight } }
                     val predictionDataList by viewModel.predictionData.collectAsStateWithLifecycle(initialValue = emptyList())
+                    val targetWeight by LocalStorageData.targetWeight.collectAsStateWithLifecycle()
+                    // Y 轴范围并入目标体重，保证目标参考虚线始终可见
+                    val chartMaxWeight = remember(maxWeightRecord, targetWeight) {
+                        val raw = maxWeightRecord?.minWeight ?: 0.0
+                        (if (targetWeight > 0) maxOf(raw, targetWeight) else raw).plus(1)
+                    }
+                    val chartMinWeight = remember(minWeightRecord, targetWeight) {
+                        val raw = minWeightRecord?.minWeight ?: 0.0
+                        (if (targetWeight > 0) minOf(raw, targetWeight) else raw).minus(1)
+                    }
 
                     Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                         SelectedRecordContent(
@@ -215,8 +232,8 @@ fun MainScreen(
                         )
                         StatisticChart(
                             currentScopeDataList = scopeData,
-                            maxWeight = maxWeightRecord?.minWeight?.plus(1) ?: 0.0,
-                            minWeight = minWeightRecord?.minWeight?.minus(1) ?: 0.0
+                            maxWeight = chartMaxWeight,
+                            minWeight = chartMinWeight
                         ) {
                             viewModel.setSelectedRecord(it)
                         }
@@ -387,7 +404,11 @@ private fun GoalProgressContent(
 ) {
     currentRecord?.let {
         val targetWeight by LocalStorageData.targetWeight.collectAsStateWithLifecycle()
-        val startWeight = firstRecord?.weight ?: 0.0
+        val configuredStartWeight by LocalStorageData.startWeight.collectAsStateWithLifecycle()
+        // 手动设置的起始体重优先，未设置时跟随第一条记录；设置页修改后此处实时重组
+        val startWeight =
+            GoalProgressCalculator.effectiveStartWeight(configuredStartWeight, firstRecord?.weight)
+                ?: 0.0
         val currentWeight = it.minWeight
         if (targetWeight > 0) {
             val goalReached = currentWeight <= targetWeight
@@ -630,14 +651,32 @@ private fun StatisticChart(
 ) {
     // 根据收集到的数据构建 LineChart 所需的参数，当 currentScopeDataList 变化时重组
     val labels = remember(currentScopeDataList) { currentScopeDataList.map { it.recordDay } }
+    // 7 日移动平均：对记录序列做 7 点滑动窗口平均，与图表按记录排布的横轴自洽；
+    // 数据不足 7 条时（如近7天范围内）均线无意义，不画
+    val movingAverage = remember(currentScopeDataList) {
+        if (currentScopeDataList.size < 7) emptyList()
+        else currentScopeDataList.indices.drop(6).map { i ->
+            currentScopeDataList.subList(i - 6, i + 1).map { it.minWeight }.average()
+        }
+    }
+    val targetWeight by LocalStorageData.targetWeight.collectAsStateWithLifecycle()
 
     // 当 chartData 不为空时才显示图表
     if (currentScopeDataList.isNotEmpty()) {
-        key(currentScopeDataList) {
+        key(currentScopeDataList, movingAverage, targetWeight) {
             val modelProducer = remember { CartesianChartModelProducer() }
             LaunchedEffect(Unit) {
                 modelProducer.runTransaction {
-                    lineSeries { series(currentScopeDataList.map { it.minWeight }) }
+                    lineModel {
+                        series(currentScopeDataList.map { it.minWeight })
+                        if (movingAverage.isNotEmpty()) {
+                            // 均线从第 7 个记录点起才有完整窗口，用显式 x 对齐横轴
+                            series(
+                                x = currentScopeDataList.indices.drop(6),
+                                y = movingAverage,
+                            )
+                        }
+                    }
                 }
             }
             WeightChart(
@@ -645,7 +684,9 @@ private fun StatisticChart(
                 modelProducer = modelProducer,
                 maxWeight = maxWeight,
                 minWeight = minWeight,
-                xLabels = labels
+                xLabels = labels,
+                showMovingAverage = movingAverage.isNotEmpty(),
+                targetWeight = targetWeight
             ) {
                 onMarkerClick(currentScopeDataList[it])
             }
@@ -661,8 +702,33 @@ private fun WeightChart(
     maxWeight: Double,
     minWeight: Double,
     lineColor: Color,
+    showMovingAverage: Boolean = false,
+    targetWeight: Double = 0.0,
     onMarkerClick: (Int) -> Unit = {}
 ) {
+    val movingAverageColor = MaterialTheme.colorScheme.secondary
+    val targetLineColor = MaterialTheme.colorScheme.tertiary
+    // 目标线标签带背景，避免和数据线重叠时看不清
+    val targetLabelComponent = rememberTextComponent(
+        style = TextStyle(color = targetLineColor, textAlign = TextAlign.Center),
+        padding = Insets(6.dp, 2.dp),
+        background = rememberShapeComponent(
+            fill = Fill(MaterialTheme.colorScheme.background.copy(alpha = 0.85f)),
+            shape = RoundedCornerShape(6.dp),
+        ),
+    )
+    val targetDecoration = if (targetWeight > 0) {
+        remember(targetWeight, targetLineColor, targetLabelComponent) {
+            TargetWeightLine(
+                y = targetWeight,
+                color = targetLineColor,
+                label = targetLabelComponent,
+                labelText = "目标 ${String.format(Locale.CHINA, "%.1f", targetWeight)}",
+            )
+        }
+    } else {
+        null
+    }
     CartesianChartHost(
         rememberCartesianChart(
             rememberLineCartesianLayer(
@@ -678,7 +744,12 @@ private fun WeightChart(
                                         )
                                     )
                                 ),
-                        )
+                        ),
+                        // 7 日均线：细实线、无面积填充，与主线拉开视觉层级
+                        LineCartesianLayer.rememberLine(
+                            fill = LineCartesianLayer.LineFill.single(Fill(movingAverageColor)),
+                            stroke = LineCartesianLayer.LineStroke.Continuous(thickness = 1.5.dp),
+                        ),
                     ),
                 rangeProvider = CartesianLayerRangeProvider.fixed(maxY = maxWeight, minY = minWeight),
             ),
@@ -687,8 +758,29 @@ private fun WeightChart(
                 valueFormatter = CartesianValueFormatter.decimal(decimalCount = 2, suffix = "kg"),
                 itemPlacer = remember { VerticalAxis.ItemPlacer.step(step = { 0.5 }) }),
             bottomAxis = HorizontalAxis.rememberBottom(valueFormatter = BottomXDateFormatter(labels = xLabels)),
+            decorations = listOfNotNull(targetDecoration),
             marker = rememberMarker(valueFormatter = remember {
-                DefaultCartesianMarker.ValueFormatter.default(decimalCount = 2, suffix = "kg")
+                // 有均线的点位同时显示当日体重与均值，颜色与各自曲线一致
+                DefaultCartesianMarker.ValueFormatter { _, targets ->
+                    val points =
+                        (targets.firstOrNull() as? LineCartesianLayerMarkerTarget)?.points.orEmpty()
+                    val weightPoint = points.firstOrNull { it.entry.seriesIndex == 0 }
+                    val averagePoint = points.firstOrNull { it.entry.seriesIndex == 1 }
+                    when {
+                        weightPoint == null -> ""
+                        averagePoint == null ->
+                            String.format(Locale.CHINA, "%.1fkg", weightPoint.entry.y)
+                        else -> buildAnnotatedString {
+                            withStyle(SpanStyle(color = weightPoint.color, fontWeight = FontWeight.Bold)) {
+                                append(String.format(Locale.CHINA, "%.1f", weightPoint.entry.y))
+                            }
+                            append("kg  均 ")
+                            withStyle(SpanStyle(color = averagePoint.color, fontWeight = FontWeight.Bold)) {
+                                append(String.format(Locale.CHINA, "%.1f", averagePoint.entry.y))
+                            }
+                        }
+                    }
+                }
             }),
             markerVisibilityListener = object : CartesianMarkerVisibilityListener {
                 override fun onShown(marker: CartesianMarker, targets: List<CartesianMarker.Target>) {

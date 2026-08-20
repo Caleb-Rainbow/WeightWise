@@ -52,14 +52,64 @@ import com.patrykandpatrick.vico.compose.common.component.ShapeComponent
 import com.patrykandpatrick.vico.compose.common.component.TextComponent
 import com.patrykandpatrick.vico.compose.common.component.rememberShapeComponent
 import com.patrykandpatrick.vico.compose.common.component.rememberTextComponent
+import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
+import com.patrykandpatrick.vico.compose.cartesian.CartesianDrawingContext
+import com.patrykandpatrick.vico.compose.cartesian.decoration.Decoration
+import com.patrykandpatrick.vico.compose.common.Position
 import java.text.DecimalFormat
 
 fun BottomXDateFormatter(labels: List<String>): CartesianValueFormatter =
     CartesianValueFormatter { _, value, _ ->
         labels.getOrNull(value.toInt()) ?: "无日期"
     }
+
+/**
+ * 目标体重参考线：横贯图表的虚线 + 右端标签，让「距离目标多远」在图上直接可见。
+ * Vico 的 [com.patrykandpatrick.vico.compose.cartesian.decoration.HorizontalLine] 基于
+ * LineComponent 绘制，不支持虚线，故仿其实现自绘（坐标换算逻辑一致）。
+ */
+internal data class TargetWeightLine(
+    val y: Double,
+    val color: Color,
+    val label: TextComponent?,
+    val labelText: String,
+    val thickness: Dp = 1.5.dp,
+    val dashLength: Dp = 6.dp,
+    val gapLength: Dp = 4.dp,
+) : Decoration {
+    private val paint = Paint()
+
+    override fun drawOverLayers(context: CartesianDrawingContext) {
+        with(context) {
+            val yRange = ranges.getYRange(null)
+            if (yRange.length <= 0 || y !in yRange.minY..yRange.minY + yRange.length) return
+            val canvasY =
+                layerBounds.bottom - ((y - yRange.minY) / yRange.length).toFloat() * layerBounds.height
+            paint.color = color
+            paint.strokeWidth = thickness.pixels
+            paint.pathEffect = PathEffect.dashPathEffect(floatArrayOf(dashLength.pixels, gapLength.pixels), 0f)
+            canvas.drawLine(Offset(layerBounds.left, canvasY), Offset(layerBounds.right, canvasY), paint)
+            if (label == null) return
+            // 标签贴图层右缘、优先放线上方；线贴近顶部时翻到下方，避免被裁剪
+            val labelHeight = label.getHeight(this, labelText)
+            val fitsAbove = canvasY - thickness.pixels - labelHeight >= layerBounds.top
+            label.draw(
+                context = context,
+                text = labelText,
+                x = if (isLtr) layerBounds.right else layerBounds.left,
+                y = if (fitsAbove) canvasY - thickness.pixels / 2 else canvasY + thickness.pixels / 2,
+                // Horizontal.Start/End 指文本从锚点向哪侧展开：贴右缘需 Start（右缘对齐向左展开）
+                horizontalPosition = if (isLtr) Position.Horizontal.Start else Position.Horizontal.End,
+                verticalPosition = if (fitsAbove) Position.Vertical.Top else Position.Vertical.Bottom,
+                maxWidth = layerBounds.width.toInt(),
+            )
+        }
+    }
+}
 
 @Composable
 internal fun rememberMarker(

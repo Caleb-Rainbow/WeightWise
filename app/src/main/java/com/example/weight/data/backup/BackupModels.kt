@@ -43,4 +43,6 @@ data class DietRecordBackup(
 data class SettingsBackup(
     val height: Double,
     val targetWeight: Double,
+    /** 手动设置的目标起始体重；0.0 表示未设置（跟随第一条记录），旧备份缺该字段时取默认值 */
+    val startWeight: Double = 0.0,
 )

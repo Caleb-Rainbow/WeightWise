@@ -29,6 +29,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,11 +45,19 @@ import com.example.weight.data.backup.BackupException
 import com.example.weight.data.backup.BackupRepository
 import com.example.weight.data.backup.ImportPreview
 import com.example.weight.data.chat.ChatModel
+import com.example.weight.data.record.RecordDao
+import com.example.weight.data.widget.WidgetUpdater
 import com.example.weight.ui.common.MyTopBar
 import com.example.weight.ui.common.NumberTextField
 import com.example.weight.util.TimeUtils
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.koin.compose.koinInject
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -64,13 +73,46 @@ fun SettingScreen(modifier: Modifier = Modifier, goBack: () -> Unit) {
         ) {
             val height by LocalStorageData.height.collectAsStateWithLifecycle()
             val targetWeight by LocalStorageData.targetWeight.collectAsStateWithLifecycle()
+            val startWeight by LocalStorageData.startWeight.collectAsStateWithLifecycle()
             val doubaoModelId by LocalStorageData.doubaoModelId.collectAsStateWithLifecycle()
+
+            // 未手动设置起始体重时，编辑框回显第一条记录的体重作为默认值
+            val recordDao = koinInject<RecordDao>()
+            var firstRecordWeight by remember { mutableStateOf<Double?>(null) }
+            LaunchedEffect(Unit) {
+                withContext(Dispatchers.IO) {
+                    firstRecordWeight = recordDao.getFirstData()?.weight
+                }
+            }
+
+            // 目标/起始体重直接影响小组件进度，改动后防抖半秒刷新一次；
+            // drop(1) 跳过进入页面时的初始值，避免无谓刷新
+            val widgetUpdater = koinInject<WidgetUpdater>()
+            LaunchedEffect(Unit) {
+                combine(
+                    LocalStorageData.targetWeight,
+                    LocalStorageData.startWeight,
+                ) { target, start -> target to start }
+                    .drop(1)
+                    .collectLatest {
+                        delay(500)
+                        widgetUpdater.notifyDataChanged()
+                    }
+            }
 
             NumberTextField(
                 value = height,
                 onValueChange = { newValue -> LocalStorageData.height.update { newValue } },
                 label = "身高(cm)",
                 modifier = Modifier.fillMaxWidth(),
+            )
+
+            NumberTextField(
+                value = if (startWeight > 0) startWeight else firstRecordWeight ?: 0.0,
+                onValueChange = { newValue -> LocalStorageData.startWeight.update { newValue } },
+                label = "起始体重(kg)",
+                modifier = Modifier.fillMaxWidth(),
+                supportingText = "默认取第一条记录体重，修改后实时生效；填 0 恢复默认",
             )
 
             NumberTextField(

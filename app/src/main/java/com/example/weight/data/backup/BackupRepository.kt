@@ -72,6 +72,7 @@ class BackupRepository(
             settings = SettingsBackup(
                 height = LocalStorageData.height.value,
                 targetWeight = LocalStorageData.targetWeight.value,
+                startWeight = LocalStorageData.startWeight.value,
             ),
         )
         val text = json.encodeToString(BackupFile.serializer(), backup)
@@ -126,10 +127,13 @@ class BackupRepository(
         }
 
         val settings = backup.settings
-        val settingsApplied = settings != null && (settings.height > 0.0 || settings.targetWeight > 0.0)
+        val settingsApplied = settings != null &&
+                (settings.height > 0.0 || settings.targetWeight > 0.0 || settings.startWeight > 0.0)
         if (settings != null) {
             if (settings.height > 0.0) LocalStorageData.height.update { settings.height }
             if (settings.targetWeight > 0.0) LocalStorageData.targetWeight.update { settings.targetWeight }
+            // 起始体重未设置（<=0）不覆盖本机已手动设置的值，与身高/目标体重口径一致
+            if (settings.startWeight > 0.0) LocalStorageData.startWeight.update { settings.startWeight }
         }
         // 体重数据变了，桌面小组件同步刷新
         if (recordDedup.toInsert.isNotEmpty()) {

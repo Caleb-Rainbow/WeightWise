@@ -26,4 +26,11 @@ object GoalProgressCalculator {
         if (targetWeight <= 0.0) return null
         return (progress(startWeight, currentWeight, targetWeight) * 100).toInt()
     }
+
+    /**
+     * 生效的起始体重：手动设置（>0）优先，否则回落到第一条记录的体重。
+     * 两者都没有（从未记过体重且未设置）返回 null。
+     */
+    fun effectiveStartWeight(configuredStartWeight: Double, firstRecordWeight: Double?): Double? =
+        if (configuredStartWeight > 0.0) configuredStartWeight else firstRecordWeight
 }
