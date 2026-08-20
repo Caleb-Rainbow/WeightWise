@@ -19,7 +19,8 @@ import java.io.FileOutputStream
  **/
 object ImageCompressor {
 
-    private const val DIR_NAME = "diet_images"
+    /** 饮食图片目录名。当前位于 filesDir；旧版本曾存于 cacheDir，由 DietImageMigrator 负责迁移 */
+    const val DIET_IMAGE_DIR = "diet_images"
     private const val DEFAULT_MAX_LONG_EDGE = 1024
     private const val DEFAULT_QUALITY = 80
 
@@ -112,14 +113,15 @@ object ImageCompressor {
     }
 
     /**
-     * 将 Bitmap 保存到应用内部缓存目录，返回 file:// URI 字符串
+     * 将 Bitmap 保存到应用内部持久目录（filesDir/diet_images），返回 file:// 绝对路径字符串。
+     * 不能存 cacheDir：系统清缓存会删掉图片，而饮食记录仍指向该路径
      */
-    suspend fun saveToCache(
+    suspend fun saveImage(
         context: Context,
         bitmap: Bitmap,
         quality: Int = DEFAULT_QUALITY,
     ): String = withContext(Dispatchers.IO) {
-        val dir = File(context.cacheDir, DIR_NAME)
+        val dir = File(context.filesDir, DIET_IMAGE_DIR)
         if (!dir.exists()) dir.mkdirs()
 
         val fileName = "${System.currentTimeMillis()}.jpg"
@@ -134,12 +136,12 @@ object ImageCompressor {
     }
 
     /**
-     * 删除缓存中的图片文件
+     * 删除已保存的饮食图片文件
      */
-    fun deleteCacheImage(imagePath: String) {
+    fun deleteImage(imagePath: String) {
         if (imagePath.isBlank()) return
         val file = File(imagePath)
-        if (file.exists() && file.absolutePath.contains(DIR_NAME)) {
+        if (file.exists() && file.absolutePath.contains(DIET_IMAGE_DIR)) {
             file.delete()
         }
     }

@@ -48,6 +48,12 @@ interface DietRecordDao {
     @Query("SELECT * FROM DietRecord WHERE date >= :sinceDate ORDER BY date ASC, timestamp ASC")
     suspend fun getRecordsSince(sinceDate: String): List<DietRecord>
 
+    @Query("SELECT * FROM DietRecord WHERE imageUri != ''")
+    suspend fun getRecordsWithImage(): List<DietRecord>
+
+    @Update
+    suspend fun updateAll(records: List<DietRecord>)
+
     @Query("SELECT * FROM DietRecord ORDER BY timestamp DESC")
     fun pagingSource(): PagingSource<Int, DietRecord>
 }

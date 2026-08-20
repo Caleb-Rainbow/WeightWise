@@ -290,7 +290,7 @@ class DietRecordViewModel(
         if (state.hasCapturedBitmap) {
             val bitmap = _cachedCompressionResult?.bitmap ?: _capturedBitmap
             if (bitmap != null && !bitmap.isRecycled) {
-                return ImageCompressor.saveToCache(context, bitmap)
+                return ImageCompressor.saveImage(context, bitmap)
             }
             return ""
         }
@@ -298,16 +298,16 @@ class DietRecordViewModel(
         return try {
             val bitmap = _cachedCompressionResult?.bitmap
                 ?: ImageCompressor.compressAndEncode(context, uri).bitmap
-            ImageCompressor.saveToCache(context, bitmap)
+            ImageCompressor.saveImage(context, bitmap)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to save image to cache", e)
+            Log.e(TAG, "Failed to save image", e)
             ""
         }
     }
 
     fun deleteRecord(record: DietRecord) {
         viewModelScope.launch(Dispatchers.IO) {
-            ImageCompressor.deleteCacheImage(record.imageUri)
+            ImageCompressor.deleteImage(record.imageUri)
             dietRecordDao.delete(record)
             loadTodayRecords()
         }
