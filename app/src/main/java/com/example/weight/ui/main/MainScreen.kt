@@ -762,5 +762,20 @@ enum class StatisticsScope(val label: String) {
     LAST_6MONTHS("近6月"),
     LAST_1YEARS("近1年"),
     LAST_2YEARS("近2年"),
-    LAST_3YEARS("近3年"),
+    LAST_3YEARS("近3年");
+
+    /**
+     * 该统计范围的起始时间戳（范围第一天的午夜）。
+     * 图表取数与 AI 分析取数共用这一映射，保证分析的数据范围与界面所选范围一致
+     */
+    fun startTimeMillis(): Long = when (this) {
+        LAST_7DAYS -> TimeUtils.getStartTimeForLastDays(7)
+        LAST_14DAYS -> TimeUtils.getStartTimeForLastDays(14)
+        LAST_1MONTH -> TimeUtils.getStartTimeForLastMonths(1)
+        LAST_3MONTHS -> TimeUtils.getStartTimeForLastMonths(3)
+        LAST_6MONTHS -> TimeUtils.getStartTimeForLastMonths(6)
+        LAST_1YEARS -> TimeUtils.getStartTimeForLastMonths(12)
+        LAST_2YEARS -> TimeUtils.getStartTimeForLastMonths(24)
+        LAST_3YEARS -> TimeUtils.getStartTimeForLastMonths(36)
+    }
 }

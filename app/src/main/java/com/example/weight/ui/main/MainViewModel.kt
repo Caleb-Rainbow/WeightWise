@@ -3,6 +3,7 @@ package com.example.weight.ui.main
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.weight.data.LocalStorageData
+import com.example.weight.data.chat.AnalysisPromptBuilder
 import com.example.weight.data.chat.ChatBodyModel
 import com.example.weight.data.chat.ChatMessageRole
 import com.example.weight.data.chat.ChatRepository
@@ -13,7 +14,6 @@ import com.example.weight.data.record.Record
 import com.example.weight.data.record.RecordDao
 import com.example.weight.util.TimeUtils
 import com.example.weight.util.TimeUtils.getStartTimeForLastDays
-import com.example.weight.util.TimeUtils.getStartTimeForLastMonths
 import com.example.weight.util.WeightPredictor
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -28,10 +28,6 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.koin.core.annotation.KoinViewModel
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 data class UiState(
     val selectedRecord: DailyMinWeight? = null,
@@ -69,19 +65,9 @@ class MainViewModel(
     @OptIn(ExperimentalCoroutinesApi::class)
     val currentScopeData: Flow<List<DailyMinWeight>?> =
         selectedScope.flatMapLatest { scope ->
-            val startTime = when (scope) {
-                StatisticsScope.LAST_7DAYS -> getStartTimeForLastDays(7)
-                StatisticsScope.LAST_14DAYS -> getStartTimeForLastDays(14)
-                StatisticsScope.LAST_1MONTH -> getStartTimeForLastMonths(1)
-                StatisticsScope.LAST_3MONTHS -> getStartTimeForLastMonths(3)
-                StatisticsScope.LAST_6MONTHS -> getStartTimeForLastMonths(6)
-                StatisticsScope.LAST_1YEARS -> getStartTimeForLastMonths(12)
-                StatisticsScope.LAST_2YEARS -> getStartTimeForLastMonths(24)
-                StatisticsScope.LAST_3YEARS -> getStartTimeForLastMonths(36)
-            }
             flow {
                 emit(null)
-                emitAll(recordDao.getDailyMinWeightSince(startTime))
+                emitAll(recordDao.getDailyMinWeightSince(scope.startTimeMillis()))
             }
         }
 
@@ -212,13 +198,8 @@ class MainViewModel(
         val scope = selectedScope.value
         showLoading()
         viewModelScope.launch(Dispatchers.IO) {
-            //todo 2.获取范围数据
-            val startTime = when (scope) {
-                StatisticsScope.LAST_7DAYS -> getStartTimeForLastDays(7)
-                StatisticsScope.LAST_14DAYS -> getStartTimeForLastDays(14)
-                else -> getStartTimeForLastMonths(1)
-            }
-            val data = recordDao.getRecordWeightSince(startTime)
+            //todo 2.按当前所选范围取数，与图表口径一致，避免“标签写着近3年、数据只有1月”的错位
+            val data = recordDao.getRecordWeightSince(scope.startTimeMillis())
             if (data.size < 2) {
                 hideLoading()
                 onFail("数据量不足，至少需要两条记录才能进行分析哦。")
@@ -226,7 +207,13 @@ class MainViewModel(
             }
             showAiAnalyzeBottomSheet()
             // 3. 构建 Prompt
-            val prompt = buildAnalysisPrompt(data, scope, bmi)
+            val prompt = AnalysisPromptBuilder.build(
+                records = data,
+                scopeLabel = scope.label,
+                bmi = bmi,
+                heightCm = LocalStorageData.height.value,
+                targetWeight = LocalStorageData.targetWeight.value,
+            )
             // 重试或再次分析前清空上一次的结果与错误
             _uiState.update { it.copy(analyzeResponse = "", analyzeError = null) }
             try {
@@ -258,51 +245,5 @@ class MainViewModel(
                 }
             }
         }
-    }
-
-    /**
-     * 构建用于AI分析的高质量Prompt
-     * @param records 从数据库获取的记录列表
-     * @param scope 用户选择的时间范围
-     * @return 格式化后的完整Prompt字符串
-     */
-    private fun buildAnalysisPrompt(records: List<Record>, scope: StatisticsScope, bmi: Double): String {
-        val height = LocalStorageData.height.value
-        val targetWeight = LocalStorageData.targetWeight.value
-
-        // 如果数据为空，提前拦截或在 Prompt 中特殊处理（建议在函数外拦截）
-        val recordsString = records.joinToString("\n") { record ->
-            val date = Instant.ofEpochMilli(record.timestamp)
-                .atZone(ZoneId.systemDefault())
-                .toLocalDate()
-                .format(DateTimeFormatter.ISO_LOCAL_DATE)
-            val logText = if (record.log.isNotBlank()) " [日志: ${record.log}]" else ""
-            "- $date: ${String.format(Locale.CHINA, "%.1f", record.weight)}kg$logText"
-        }
-
-        return """
-你是一位专业、温暖且富有同理心的体重管理顾问。请根据用户的体重记录和日志，为TA提供一份简单易懂、具有鼓励性的分析反馈。
-
-【用户档案】
-- 身高：${height}cm
-- 目标体重：${targetWeight}kg
-- 当前BMI：$bmi
-- 数据时间范围：${scope.label}
-
-【打卡数据】
-$recordsString
-
-【回复要求】
-请以亲切的朋友口吻直接与用户对话（称呼“你”），字数控制在300字左右，并严格按以下三个段落结构输出：
-
-1. 阶段总结：用一两句话概括用户在这段时间（${scope.label}）的体重变化趋势（如：稳步下降、遇到平台期、轻微波动等），并给予情绪上的肯定或安抚。
-2. 数据洞察：结合体重数值的变化和用户的[日志]内容，分析可能的原因。如果日志提到了饮食/运动/情绪，请指出它们与体重变化的关联；如果没有日志，请基于纯数值趋势进行合理推断。
-3. 行动建议：基于现状，给出1到2个具体、微小且容易执行的日常建议，帮助用户向 ${targetWeight}kg 的目标迈进。
-
-【严格限制条件】
-- 必须使用纯文本，绝对不要输出任何代码块、Markdown复杂表格或特殊图标。
-- 语言必须通俗易懂，绝对不要使用生僻的医学术语。
-- 不要机械地罗列或复述用户的数据，你的重点是“解读数据背后的意义”。
-""".trimIndent()
     }
 }
