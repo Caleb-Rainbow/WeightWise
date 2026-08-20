@@ -1,0 +1,46 @@
+package com.example.weight.data.backup
+
+import kotlinx.serialization.Serializable
+
+/**
+ * 全量备份文件结构（JSON）。
+ * 饮食图片文件不入包，仅保留文件名；恢复后图片缺失时界面按无图展示。
+ */
+@Serializable
+data class BackupFile(
+    val schemaVersion: Int = SCHEMA_VERSION,
+    val app: String = "WeightWise",
+    val exportedAt: Long,
+    val records: List<RecordBackup>,
+    val dietRecords: List<DietRecordBackup>,
+    val settings: SettingsBackup,
+) {
+    companion object {
+        const val SCHEMA_VERSION = 1
+    }
+}
+
+@Serializable
+data class RecordBackup(
+    val weight: Double,
+    val log: String = "",
+    val timestamp: Long,
+)
+
+@Serializable
+data class DietRecordBackup(
+    val date: String,
+    val timestamp: Long,
+    val mealType: String,
+    val imageFileName: String = "",
+    val userInput: String = "",
+    val recognizedFoodJson: String = "",
+    val estimatedCalories: Int = 0,
+    val trafficLight: String = "",
+)
+
+@Serializable
+data class SettingsBackup(
+    val height: Double,
+    val targetWeight: Double,
+)

@@ -71,4 +71,7 @@ interface RecordDao {
     @Query("SELECT * FROM Record WHERE timestamp >= :startTimeMillis")
     suspend fun getRecordWeightSince(startTimeMillis: Long): List<Record>
 
+    @Query("SELECT * FROM Record ORDER BY timestamp ASC")
+    suspend fun getAllOnce(): List<Record>
+
 }

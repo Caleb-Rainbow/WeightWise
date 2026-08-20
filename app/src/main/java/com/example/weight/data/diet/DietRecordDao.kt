@@ -56,6 +56,9 @@ interface DietRecordDao {
 
     @Query("SELECT * FROM DietRecord ORDER BY timestamp DESC")
     fun pagingSource(): PagingSource<Int, DietRecord>
+
+    @Query("SELECT * FROM DietRecord ORDER BY timestamp ASC")
+    suspend fun getAllOnce(): List<DietRecord>
 }
 
 data class TrafficLightCount(val trafficLight: String, val count: Int)
