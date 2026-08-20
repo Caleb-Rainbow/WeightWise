@@ -20,8 +20,8 @@ extensions.configure<ApplicationExtension>("android") {
         applicationId = "com.example.weight"
         minSdk = 29
         targetSdk = 36
-        versionCode = 13
-        versionName = "1.3.0"
+        versionCode = 14
+        versionName = "1.4.0"
         ndk.abiFilters.add("arm64-v8a")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

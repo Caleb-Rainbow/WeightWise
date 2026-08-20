@@ -17,6 +17,9 @@ object AnalysisPromptBuilder {
     /** 逐日热量明细的天数上限；超出后按月聚合日均，避免近 3 年档位把 Prompt 撑爆 */
     private const val DAILY_DETAIL_LIMIT_DAYS = 62
 
+    /** 逐条体重记录的条数上限；超出后（如年报）按月聚合，避免 Prompt 过长 */
+    private const val RECORD_DETAIL_LIMIT = 62
+
     /**
      * @param records 数据库中按所选范围取出的记录列表（时间不限序）
      * @param scopeLabel 界面所选时间范围的展示名，须与取数范围一致，避免 AI 基于错误前提分析
@@ -34,14 +37,7 @@ object AnalysisPromptBuilder {
         genderLabel: String = "",
         activityLabel: String = "",
     ): String {
-        val recordsString = records.joinToString("\n") { record ->
-            val date = Instant.ofEpochMilli(record.timestamp)
-                .atZone(ZoneId.systemDefault())
-                .toLocalDate()
-                .format(DateTimeFormatter.ISO_LOCAL_DATE)
-            val logText = if (record.log.isNotBlank()) " [日志: ${record.log}]" else ""
-            "- $date: ${String.format(Locale.CHINA, "%.1f", record.weight)}kg$logText"
-        }
+        val recordsString = recordsText(records)
 
         val profileExtras = buildList {
             if (age > 0) add("- 年龄：${age}岁")
@@ -82,6 +78,38 @@ $caloriesSection【回复要求】
 - 语言必须通俗易懂，绝对不要使用生僻的医学术语。
 - 不要机械地罗列或复述用户的数据，你的重点是“解读数据背后的意义”。
 """.trimIndent()
+    }
+
+    /** 逐条明细；记录超过 [RECORD_DETAIL_LIMIT] 条改按月聚合（打卡天数/日均/最高/最低），控制 Prompt 长度 */
+    private fun recordsText(records: List<Record>): String {
+        if (records.size <= RECORD_DETAIL_LIMIT) {
+            return records.joinToString("\n") { record ->
+                val date = Instant.ofEpochMilli(record.timestamp)
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalDate()
+                    .format(DateTimeFormatter.ISO_LOCAL_DATE)
+                val logText = if (record.log.isNotBlank()) " [日志: ${record.log}]" else ""
+                "- $date: ${String.format(Locale.CHINA, "%.1f", record.weight)}kg$logText"
+            }
+        }
+        return records
+            .groupBy { record ->
+                Instant.ofEpochMilli(record.timestamp)
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalDate()
+                    .toString()
+                    .take(7)
+            }
+            .map { (month, monthRecords) ->
+                val days = monthRecords
+                    .map { Instant.ofEpochMilli(it.timestamp).atZone(ZoneId.systemDefault()).toLocalDate() }
+                    .distinct()
+                    .size
+                val weights = monthRecords.map { it.weight }
+                "- $month: 打卡 $days 天，平均 ${String.format(Locale.CHINA, "%.1f", weights.average())}kg，" +
+                    "最高 ${String.format(Locale.CHINA, "%.1f", weights.max())}kg，最低 ${String.format(Locale.CHINA, "%.1f", weights.min())}kg"
+            }
+            .joinToString("\n")
     }
 
     /** 逐日明细；范围超过 [DAILY_DETAIL_LIMIT_DAYS] 天改按月聚合日均，控制 Prompt 长度 */

@@ -58,6 +58,25 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import com.patrykandpatrick.vico.compose.cartesian.CartesianDrawingContext
+import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
+import com.patrykandpatrick.vico.compose.cartesian.Scroll
+import com.patrykandpatrick.vico.compose.cartesian.axis.HorizontalAxis
+import com.patrykandpatrick.vico.compose.cartesian.axis.VerticalAxis
+import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModelProducer
+import com.patrykandpatrick.vico.compose.cartesian.data.CartesianLayerRangeProvider
+import com.patrykandpatrick.vico.compose.cartesian.layer.LineCartesianLayer
+import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLine
+import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
+import com.patrykandpatrick.vico.compose.cartesian.marker.CartesianMarkerVisibilityListener
+import com.patrykandpatrick.vico.compose.cartesian.marker.LineCartesianLayerMarkerTarget
+import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
+import com.patrykandpatrick.vico.compose.cartesian.rememberVicoScrollState
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.graphics.Brush.Companion.verticalGradient
+import java.util.Locale
 import com.patrykandpatrick.vico.compose.cartesian.decoration.Decoration
 import com.patrykandpatrick.vico.compose.common.Position
 import java.text.DecimalFormat
@@ -313,4 +332,118 @@ private fun Preview(){
     Box (modifier = Modifier.background(Color.White)){
         BMIIndexChart(modifier = Modifier.padding(10.dp))
     }
+}
+
+/**
+ * 体重趋势折线图：主线（渐变面积填充）+ 可选 7 日均线（细实线）+ 目标体重虚线。
+ * 从首页抽出，供首页与报告页共用；marker 点击联动回调由调用方决定用途。
+ */
+@Composable
+fun WeightChart(
+    modelProducer: CartesianChartModelProducer,
+    modifier: Modifier = Modifier,
+    xLabels: List<String> = emptyList(),
+    maxWeight: Double,
+    minWeight: Double,
+    lineColor: Color,
+    showMovingAverage: Boolean = false,
+    targetWeight: Double = 0.0,
+    onMarkerClick: (Int) -> Unit = {}
+) {
+    val movingAverageColor = MaterialTheme.colorScheme.secondary
+    val targetLineColor = MaterialTheme.colorScheme.tertiary
+    // 目标线标签带背景，避免和数据线重叠时看不清
+    val targetLabelComponent = rememberTextComponent(
+        style = TextStyle(color = targetLineColor, textAlign = TextAlign.Center),
+        padding = Insets(6.dp, 2.dp),
+        background = rememberShapeComponent(
+            fill = Fill(MaterialTheme.colorScheme.background.copy(alpha = 0.85f)),
+            shape = RoundedCornerShape(6.dp),
+        ),
+    )
+    val targetDecoration = if (targetWeight > 0) {
+        remember(targetWeight, targetLineColor, targetLabelComponent) {
+            TargetWeightLine(
+                y = targetWeight,
+                color = targetLineColor,
+                label = targetLabelComponent,
+                labelText = "目标 ${String.format(Locale.CHINA, "%.1f", targetWeight)}",
+            )
+        }
+    } else {
+        null
+    }
+    CartesianChartHost(
+        rememberCartesianChart(
+            rememberLineCartesianLayer(
+                lineProvider =
+                LineCartesianLayer.LineProvider.series(
+                    LineCartesianLayer.rememberLine(
+                        fill = LineCartesianLayer.LineFill.single(Fill(lineColor)),
+                        areaFill =
+                        LineCartesianLayer.AreaFill.single(
+                            Fill(
+                                verticalGradient(
+                                    listOf(lineColor.copy(alpha = 0.4f), Color.Transparent)
+                                )
+                            )
+                        ),
+                    ),
+                    // 7 日均线：细实线、无面积填充，与主线拉开视觉层级
+                    LineCartesianLayer.rememberLine(
+                        fill = LineCartesianLayer.LineFill.single(Fill(movingAverageColor)),
+                        stroke = LineCartesianLayer.LineStroke.Continuous(thickness = 1.5.dp),
+                    ),
+                ),
+                rangeProvider = CartesianLayerRangeProvider.fixed(maxY = maxWeight, minY = minWeight),
+            ),
+            startAxis = VerticalAxis.rememberStart(
+                title = {"体重"},
+                valueFormatter = CartesianValueFormatter.decimal(decimalCount = 2, suffix = "kg"),
+                itemPlacer = remember { VerticalAxis.ItemPlacer.step(step = { 0.5 }) }),
+            bottomAxis = HorizontalAxis.rememberBottom(valueFormatter = BottomXDateFormatter(labels = xLabels)),
+            decorations = listOfNotNull(targetDecoration),
+            marker = rememberMarker(valueFormatter = remember {
+                // 有均线的点位同时显示当日体重与均值，颜色与各自曲线一致
+                DefaultCartesianMarker.ValueFormatter { _, targets ->
+                    val points =
+                        (targets.firstOrNull() as? LineCartesianLayerMarkerTarget)?.points.orEmpty()
+                    val weightPoint = points.firstOrNull { it.entry.seriesIndex == 0 }
+                    val averagePoint = points.firstOrNull { it.entry.seriesIndex == 1 }
+                    when {
+                        weightPoint == null -> ""
+                        averagePoint == null ->
+                            String.format(Locale.CHINA, "%.1fkg", weightPoint.entry.y)
+                        else -> buildAnnotatedString {
+                            withStyle(SpanStyle(color = weightPoint.color, fontWeight = FontWeight.Bold)) {
+                                append(String.format(Locale.CHINA, "%.1f", weightPoint.entry.y))
+                            }
+                            append("kg  均 ")
+                            withStyle(SpanStyle(color = averagePoint.color, fontWeight = FontWeight.Bold)) {
+                                append(String.format(Locale.CHINA, "%.1f", averagePoint.entry.y))
+                            }
+                        }
+                    }
+                }
+            }),
+            markerVisibilityListener = object : CartesianMarkerVisibilityListener {
+                override fun onShown(marker: CartesianMarker, targets: List<CartesianMarker.Target>) {
+                    super.onShown(marker, targets)
+                    targets.singleOrNull()?.let {
+                        onMarkerClick(it.x.toInt())
+                    }
+                }
+
+                override fun onUpdated(marker: CartesianMarker, targets: List<CartesianMarker.Target>) {
+                    super.onUpdated(marker, targets)
+                    targets.singleOrNull()?.let {
+                        onMarkerClick(it.x.toInt())
+                    }
+                }
+            }
+        ),
+        modelProducer = modelProducer,
+        modifier = modifier.height(220.dp),
+        scrollState = rememberVicoScrollState(scrollEnabled = true, initialScroll = Scroll.Absolute.End),
+    )
 }

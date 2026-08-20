@@ -71,8 +71,34 @@ interface RecordDao {
     )
     fun getDailyMinWeightSince(startTimeMillis: Long): Flow<List<DailyMinWeight>>
 
+    /** 周期报告取数：[startMillis] 含、[endMillis] 排他（周期结束次日零点），保证翻历史周期不混入之后的数据 */
+    @Query(
+        """
+    SELECT
+        t.weight AS minWeight,
+        t.recordDay,
+        t.timestamp
+    FROM (
+        SELECT
+            weight,
+            DATE(timestamp / 1000, 'unixepoch', '+8 hours') AS recordDay,
+            timestamp,
+            ROW_NUMBER() OVER (PARTITION BY DATE(timestamp / 1000, 'unixepoch', '+8 hours') ORDER BY weight ASC, timestamp ASC) as rn
+        FROM Record
+        WHERE timestamp >= :startMillis AND timestamp < :endMillis
+    ) AS t
+    WHERE t.rn = 1
+    ORDER BY t.recordDay ASC
+"""
+    )
+    fun getDailyMinWeightBetween(startMillis: Long, endMillis: Long): Flow<List<DailyMinWeight>>
+
     @Query("SELECT * FROM Record WHERE timestamp >= :startTimeMillis")
     suspend fun getRecordWeightSince(startTimeMillis: Long): List<Record>
+
+    /** 周期报告 AI 总结取数：[startMillis] 含、[endMillis] 排他，取原始记录（含日志） */
+    @Query("SELECT * FROM Record WHERE timestamp >= :startMillis AND timestamp < :endMillis ORDER BY timestamp ASC")
+    suspend fun getRecordWeightBetween(startMillis: Long, endMillis: Long): List<Record>
 
     @Query("SELECT * FROM Record ORDER BY timestamp ASC")
     suspend fun getAllOnce(): List<Record>

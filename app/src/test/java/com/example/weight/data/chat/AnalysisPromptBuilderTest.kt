@@ -114,6 +114,30 @@ class AnalysisPromptBuilderTest {
     }
 
     @Test
+    fun `超过62条时体重记录按月聚合`() {
+        // 构造 63 条记录（每天一条，跨 6、7、8 三月），触发按月聚合
+        val records = (0 until 63).map { offset ->
+            val date = LocalDate.of(2026, 6, 1).plusDays(offset.toLong())
+            Record(
+                weight = 80.0,
+                log = "",
+                timestamp = date.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            )
+        }
+        val prompt = AnalysisPromptBuilder.build(
+            records = records,
+            scopeLabel = "2026年",
+            bmi = 25.0,
+            heightCm = 175.0,
+            targetWeight = 70.0,
+        )
+        assertTrue("应按月输出聚合行", "- 2026-06: 打卡 30 天，平均 80.0kg，最高 80.0kg，最低 80.0kg" in prompt)
+        assertTrue("应按月输出聚合行", "- 2026-07: 打卡 31 天，平均 80.0kg，最高 80.0kg，最低 80.0kg" in prompt)
+        assertTrue("应按月输出聚合行", "- 2026-08: 打卡 2 天，平均 80.0kg，最高 80.0kg，最低 80.0kg" in prompt)
+        assertFalse("不应再输出逐条日期明细", "日志:" in prompt)
+    }
+
+    @Test
     fun `个人档案补充字段写入且未设置时不写入`() {
         val withProfile = AnalysisPromptBuilder.build(
             records = listOf(record(75.0), record(74.6)),

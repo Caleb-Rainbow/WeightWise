@@ -48,6 +48,29 @@ interface DietRecordDao {
     """)
     suspend fun getTrafficLightSummary(date: String): List<TrafficLightCount>
 
+    /** 周期报告取数：[startDate] 含、[endDate] 排他（周期结束次日，yyyy-MM-dd 字典序比较） */
+    @Query(
+        """
+        SELECT date, SUM(estimatedCalories) AS calories
+        FROM DietRecord
+        WHERE date >= :startDate AND date < :endDate
+        GROUP BY date
+        ORDER BY date ASC
+        """
+    )
+    fun getDailyCaloriesBetween(startDate: String, endDate: String): Flow<List<DailyCalories>>
+
+    /** 周期内红绿灯评级分布（date 为 yyyy-MM-dd，endDate 排他） */
+    @Query(
+        """
+        SELECT trafficLight, COUNT(*) as count
+        FROM DietRecord
+        WHERE date >= :startDate AND date < :endDate
+        GROUP BY trafficLight
+    """
+    )
+    fun getTrafficLightBetween(startDate: String, endDate: String): Flow<List<TrafficLightCount>>
+
     @Query("SELECT * FROM DietRecord WHERE date >= :sinceDate ORDER BY date ASC, timestamp ASC")
     suspend fun getRecordsSince(sinceDate: String): List<DietRecord>
 

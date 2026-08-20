@@ -25,6 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,6 +45,7 @@ import com.example.weight.ui.common.prependNavTransitionSpec
 import com.example.weight.ui.diet.DietRecordScreen
 import com.example.weight.ui.main.MainScreen
 import com.example.weight.ui.record.RecordScreen
+import com.example.weight.ui.report.ReportScreen
 import com.example.weight.ui.setting.SettingScreen
 import com.example.weight.ui.theme.AppTheme
 import com.patrykandpatrick.vico.compose.common.ProvideVicoTheme
@@ -56,10 +58,14 @@ class MainActivity : ComponentActivity() {
     /** 来自通知/小组件的「直达记体重」请求；消费后由 UI 回调清零 */
     private var openAddDialogRequest by mutableStateOf(false)
 
+    /** 来自周报推送通知的「直达报告页」请求；消费后由 UI 回调清零 */
+    private var openReportRequest by mutableStateOf(false)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         openAddDialogRequest = intent.getBooleanExtra(EXTRA_OPEN_ADD_DIALOG, false)
+        openReportRequest = intent.getBooleanExtra(EXTRA_OPEN_REPORT, false)
         setContent {
             AppTheme {
                 ProvideVicoTheme(rememberM3VicoTheme()) {
@@ -67,6 +73,8 @@ class MainActivity : ComponentActivity() {
                         MainNav3(
                             openAddDialogRequest = openAddDialogRequest,
                             onOpenAddDialogConsumed = { openAddDialogRequest = false },
+                            openReportRequest = openReportRequest,
+                            onOpenReportConsumed = { openReportRequest = false },
                         )
                     }
                 }
@@ -79,11 +87,17 @@ class MainActivity : ComponentActivity() {
         if (intent.getBooleanExtra(EXTRA_OPEN_ADD_DIALOG, false)) {
             openAddDialogRequest = true
         }
+        if (intent.getBooleanExtra(EXTRA_OPEN_REPORT, false)) {
+            openReportRequest = true
+        }
     }
 
     companion object {
         /** 通知/桌面小组件点击时携带的 extra：打开后直接弹记体重对话框 */
         const val EXTRA_OPEN_ADD_DIALOG = "open_add_dialog"
+
+        /** 周报推送通知点击时携带的 extra：打开后直达报告页 */
+        const val EXTRA_OPEN_REPORT = "open_report"
     }
 }
 
@@ -99,12 +113,24 @@ object Record : NavKey
 @Serializable
 object DietRecord : NavKey
 
+@Serializable
+object Report : NavKey
+
 @Composable
 private fun MainNav3(
     openAddDialogRequest: Boolean,
     onOpenAddDialogConsumed: () -> Unit,
+    openReportRequest: Boolean,
+    onOpenReportConsumed: () -> Unit,
 ) {
     val backStack = rememberNavBackStack(Main)
+    // 周报推送通知的「直达报告页」深链
+    LaunchedEffect(openReportRequest) {
+        if (openReportRequest) {
+            backStack.add(Report)
+            onOpenReportConsumed()
+        }
+    }
     NavDisplay(
         backStack = backStack, transitionSpec = navTransitionSpec,
         popTransitionSpec = navPopTransitionSpec,
@@ -119,6 +145,8 @@ private fun MainNav3(
                         backStack.add(Record)
                     }, goDietRecord = {
                         backStack.add(DietRecord)
+                    }, goReport = {
+                        backStack.add(Report)
                     })
             }
             entry<Setting> {
@@ -133,6 +161,11 @@ private fun MainNav3(
             }
             entry<DietRecord> {
                 DietRecordScreen(goBack = {
+                    backStack.removeAt(backStack.lastIndex)
+                })
+            }
+            entry<Report> {
+                ReportScreen(goBack = {
                     backStack.removeAt(backStack.lastIndex)
                 })
             }

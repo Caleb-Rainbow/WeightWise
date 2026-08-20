@@ -32,7 +32,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.MonitorWeight
 import androidx.compose.material.icons.filled.Settings
@@ -64,52 +64,27 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush.Companion.verticalGradient
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.weight.LocalShowMessageDialog
 import com.example.weight.LocalSnackBarShow
 import com.example.weight.data.LocalStorageData
 import com.example.weight.data.record.DailyMinWeight
 import com.example.weight.data.record.Record
-import com.example.weight.ui.common.BottomXDateFormatter
-import com.example.weight.ui.common.TargetWeightLine
-import com.example.weight.ui.common.rememberMarker
+import com.example.weight.ui.common.WeightChart
 import com.example.weight.util.GoalProgressCalculator
 import com.example.weight.util.StreakInfo
 import com.example.weight.util.TimeUtils
 import com.example.weight.util.WeightPredictor
-import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
-import com.patrykandpatrick.vico.compose.cartesian.Scroll
-import com.patrykandpatrick.vico.compose.cartesian.axis.HorizontalAxis
-import com.patrykandpatrick.vico.compose.cartesian.axis.VerticalAxis
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModelProducer
-import com.patrykandpatrick.vico.compose.cartesian.data.CartesianLayerRangeProvider
-import com.patrykandpatrick.vico.compose.cartesian.data.CartesianValueFormatter
 import com.patrykandpatrick.vico.compose.cartesian.data.lineModel
-import com.patrykandpatrick.vico.compose.cartesian.layer.LineCartesianLayer
-import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLine
-import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
-import com.patrykandpatrick.vico.compose.cartesian.marker.CartesianMarker
-import com.patrykandpatrick.vico.compose.cartesian.marker.CartesianMarkerVisibilityListener
-import com.patrykandpatrick.vico.compose.cartesian.marker.DefaultCartesianMarker
-import com.patrykandpatrick.vico.compose.cartesian.marker.LineCartesianLayerMarkerTarget
-import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
-import com.patrykandpatrick.vico.compose.cartesian.rememberVicoScrollState
-import com.patrykandpatrick.vico.compose.common.Fill
-import com.patrykandpatrick.vico.compose.common.Insets
-import com.patrykandpatrick.vico.compose.common.component.rememberShapeComponent
-import com.patrykandpatrick.vico.compose.common.component.rememberTextComponent
 import com.patrykandpatrick.vico.compose.common.vicoTheme
 import org.koin.androidx.compose.koinViewModel
 import java.text.DecimalFormat
@@ -124,13 +99,13 @@ fun MainScreen(
     goSetting: () -> Unit = {},
     goRecord: () -> Unit = {},
     goDietRecord: () -> Unit = {},
+    goReport: () -> Unit = {},
     openAddDialogRequest: Boolean = false,
     onOpenAddDialogConsumed: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val dialogState by viewModel.dialogState.collectAsStateWithLifecycle()
     val streakInfo by viewModel.streakInfo.collectAsStateWithLifecycle()
-    val showMessageDialog = LocalShowMessageDialog.current
     val snackBarShow = LocalSnackBarShow.current
 
     // 里程碑达成时弹一次庆祝提示
@@ -151,18 +126,6 @@ fun MainScreen(
         mutableDoubleStateOf(uiState.selectedRecord?.minWeight?.div(height.times(height)) ?: 0.0)
     }
     MainDialog()
-    AnalysisBottomSheet(
-        isLoading = dialogState.isLoading,
-        showSheet = dialogState.isShowAiAnalyzeBottomSheet,
-        analysisResult = uiState.analyzeResponse,
-        errorMessage = uiState.analyzeError,
-        onDismissRequest = viewModel::hideAiAnalyzeBottomSheet,
-        onRetry = {
-            viewModel.aiAnalyze(bmi = bmi) {
-                showMessageDialog("提示", it) {}
-            }
-        }
-    )
     Scaffold(
         modifier = modifier,
         bottomBar = {
@@ -171,11 +134,7 @@ fun MainScreen(
                 onAddRecord = viewModel::showAddDialog,
                 onDietRecord = goDietRecord,
                 onRecord = goRecord,
-                onAiAnalyze = {
-                    viewModel.aiAnalyze(bmi = bmi) {
-                        showMessageDialog("提示", it) {}
-                    }
-                }
+                onReport = goReport
             )
         }
     ) { paddingValues ->
@@ -313,7 +272,7 @@ private fun MainBottomToolbar(
     onAddRecord: () -> Unit,
     onDietRecord: () -> Unit,
     onRecord: () -> Unit,
-    onAiAnalyze: () -> Unit,
+    onReport: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -360,7 +319,11 @@ private fun MainBottomToolbar(
                 icon = Icons.AutoMirrored.Filled.ReceiptLong,
                 onClick = onRecord
             )
-            MainToolbarItem(label = "分析", icon = Icons.Default.AutoAwesome, onClick = onAiAnalyze)
+            MainToolbarItem(
+                label = "报告",
+                icon = Icons.Default.Insights,
+                onClick = onReport
+            )
         }
     }
 }
@@ -692,116 +655,6 @@ private fun StatisticChart(
             }
         }
     }
-}
-
-@Composable
-private fun WeightChart(
-    modelProducer: CartesianChartModelProducer,
-    modifier: Modifier = Modifier,
-    xLabels: List<String> = emptyList(),
-    maxWeight: Double,
-    minWeight: Double,
-    lineColor: Color,
-    showMovingAverage: Boolean = false,
-    targetWeight: Double = 0.0,
-    onMarkerClick: (Int) -> Unit = {}
-) {
-    val movingAverageColor = MaterialTheme.colorScheme.secondary
-    val targetLineColor = MaterialTheme.colorScheme.tertiary
-    // 目标线标签带背景，避免和数据线重叠时看不清
-    val targetLabelComponent = rememberTextComponent(
-        style = TextStyle(color = targetLineColor, textAlign = TextAlign.Center),
-        padding = Insets(6.dp, 2.dp),
-        background = rememberShapeComponent(
-            fill = Fill(MaterialTheme.colorScheme.background.copy(alpha = 0.85f)),
-            shape = RoundedCornerShape(6.dp),
-        ),
-    )
-    val targetDecoration = if (targetWeight > 0) {
-        remember(targetWeight, targetLineColor, targetLabelComponent) {
-            TargetWeightLine(
-                y = targetWeight,
-                color = targetLineColor,
-                label = targetLabelComponent,
-                labelText = "目标 ${String.format(Locale.CHINA, "%.1f", targetWeight)}",
-            )
-        }
-    } else {
-        null
-    }
-    CartesianChartHost(
-        rememberCartesianChart(
-            rememberLineCartesianLayer(
-                lineProvider =
-                    LineCartesianLayer.LineProvider.series(
-                        LineCartesianLayer.rememberLine(
-                            fill = LineCartesianLayer.LineFill.single(Fill(lineColor)),
-                            areaFill =
-                                LineCartesianLayer.AreaFill.single(
-                                    Fill(
-                                        verticalGradient(
-                                            listOf(lineColor.copy(alpha = 0.4f), Color.Transparent)
-                                        )
-                                    )
-                                ),
-                        ),
-                        // 7 日均线：细实线、无面积填充，与主线拉开视觉层级
-                        LineCartesianLayer.rememberLine(
-                            fill = LineCartesianLayer.LineFill.single(Fill(movingAverageColor)),
-                            stroke = LineCartesianLayer.LineStroke.Continuous(thickness = 1.5.dp),
-                        ),
-                    ),
-                rangeProvider = CartesianLayerRangeProvider.fixed(maxY = maxWeight, minY = minWeight),
-            ),
-            startAxis = VerticalAxis.rememberStart(
-                title = {"体重"},
-                valueFormatter = CartesianValueFormatter.decimal(decimalCount = 2, suffix = "kg"),
-                itemPlacer = remember { VerticalAxis.ItemPlacer.step(step = { 0.5 }) }),
-            bottomAxis = HorizontalAxis.rememberBottom(valueFormatter = BottomXDateFormatter(labels = xLabels)),
-            decorations = listOfNotNull(targetDecoration),
-            marker = rememberMarker(valueFormatter = remember {
-                // 有均线的点位同时显示当日体重与均值，颜色与各自曲线一致
-                DefaultCartesianMarker.ValueFormatter { _, targets ->
-                    val points =
-                        (targets.firstOrNull() as? LineCartesianLayerMarkerTarget)?.points.orEmpty()
-                    val weightPoint = points.firstOrNull { it.entry.seriesIndex == 0 }
-                    val averagePoint = points.firstOrNull { it.entry.seriesIndex == 1 }
-                    when {
-                        weightPoint == null -> ""
-                        averagePoint == null ->
-                            String.format(Locale.CHINA, "%.1fkg", weightPoint.entry.y)
-                        else -> buildAnnotatedString {
-                            withStyle(SpanStyle(color = weightPoint.color, fontWeight = FontWeight.Bold)) {
-                                append(String.format(Locale.CHINA, "%.1f", weightPoint.entry.y))
-                            }
-                            append("kg  均 ")
-                            withStyle(SpanStyle(color = averagePoint.color, fontWeight = FontWeight.Bold)) {
-                                append(String.format(Locale.CHINA, "%.1f", averagePoint.entry.y))
-                            }
-                        }
-                    }
-                }
-            }),
-            markerVisibilityListener = object : CartesianMarkerVisibilityListener {
-                override fun onShown(marker: CartesianMarker, targets: List<CartesianMarker.Target>) {
-                    super.onShown(marker, targets)
-                    targets.singleOrNull()?.let {
-                        onMarkerClick(it.x.toInt())
-                    }
-                }
-
-                override fun onUpdated(marker: CartesianMarker, targets: List<CartesianMarker.Target>) {
-                    super.onUpdated(marker, targets)
-                    targets.singleOrNull()?.let {
-                        onMarkerClick(it.x.toInt())
-                    }
-                }
-            }
-        ),
-        modelProducer = modelProducer,
-        modifier = modifier.height(220.dp),
-        scrollState = rememberVicoScrollState(scrollEnabled = true, initialScroll = Scroll.Absolute.End),
-    )
 }
 
 /**

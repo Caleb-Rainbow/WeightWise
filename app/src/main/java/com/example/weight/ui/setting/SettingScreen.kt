@@ -3,6 +3,8 @@ package com.example.weight.ui.setting
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -73,6 +75,7 @@ fun SettingScreen(modifier: Modifier = Modifier, goBack: () -> Unit) {
         Column(
             modifier = Modifier
                 .padding(paddingValues)
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 15.dp)
         ) {
             val height by LocalStorageData.height.collectAsStateWithLifecycle()
@@ -174,6 +177,9 @@ fun SettingScreen(modifier: Modifier = Modifier, goBack: () -> Unit) {
             Text(text = "提醒", style = MaterialTheme.typography.labelLarge)
             Spacer(modifier = Modifier.height(4.dp))
             ReminderSettingSection()
+
+            Spacer(modifier = Modifier.height(16.dp))
+            WeeklyReportPushSection()
 
             DataManagementSection()
         }

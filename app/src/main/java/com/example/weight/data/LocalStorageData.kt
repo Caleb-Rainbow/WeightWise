@@ -36,6 +36,11 @@ object LocalStorageData : MMKVOwner(mmapID = "settings") {
     /** 提醒时间，HH:mm 24 小时制 */
     val reminderTime by mmkvString(default = "07:30").asStateFlow()
 
+    /*--------周报推送---------*/
+    val weeklyReportPushEnabled by mmkvBool(default = false).asStateFlow()
+    /** 推送时间（每周一），HH:mm 24 小时制 */
+    val weeklyReportPushTime by mmkvString(default = "08:00").asStateFlow()
+
     /*--------AI 提供商相关---------*/
     val doubaoModelId by mmkvString(default = "doubao-seed-2-0-lite-260215").asStateFlow()
 }

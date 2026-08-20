@@ -3,19 +3,10 @@ package com.example.weight.ui.main
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.weight.data.LocalStorageData
-import com.example.weight.data.chat.AnalysisPromptBuilder
-import com.example.weight.data.chat.ChatBodyModel
-import com.example.weight.data.chat.ChatMessageRole
-import com.example.weight.data.chat.ChatRepository
-import com.example.weight.data.chat.MessageContent
-import com.example.weight.data.chat.MessageModel
-import com.example.weight.data.diet.DietRecordDao
 import com.example.weight.data.record.DailyMinWeight
 import com.example.weight.data.record.Record
 import com.example.weight.data.record.RecordDao
 import com.example.weight.data.widget.WidgetUpdater
-import com.example.weight.util.ActivityLevel
-import com.example.weight.util.Gender
 import com.example.weight.util.GoalProgressCalculator
 import com.example.weight.util.MilestoneCalculator
 import com.example.weight.util.RecordStreakCalculator
@@ -23,7 +14,6 @@ import com.example.weight.util.StreakInfo
 import com.example.weight.util.TimeUtils
 import com.example.weight.util.TimeUtils.getStartTimeForLastDays
 import com.example.weight.util.WeightPredictor
-import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
@@ -46,22 +36,16 @@ import java.time.LocalDate
 data class UiState(
     val selectedRecord: DailyMinWeight? = null,
     val firstRecord: Record? = null,
-    val analyzeResponse: String = "",
-    val analyzeError: String? = null,//AI分析失败原因，null 表示无错误
 )
 
 data class DialogState(
     val isShowAddDialog: Boolean = false,//添加体重弹窗
     val isShowSetHeightDialog: Boolean = false,//设置身高弹窗
-    val isShowAiAnalyzeBottomSheet: Boolean = false,//AI分析弹窗
-    val isLoading: Boolean = false,//加载中
 )
 
 @KoinViewModel
 class MainViewModel(
     private val recordDao: RecordDao,
-    private val dietRecordDao: DietRecordDao,
-    private val chatRepository: ChatRepository,
     private val widgetUpdater: WidgetUpdater,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(UiState())
@@ -221,95 +205,6 @@ class MainViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             _uiState.update {
                 it.copy(firstRecord = recordDao.getFirstData())
-            }
-        }
-    }
-
-    fun showLoading() {
-        _dialogState.update {
-            it.copy(isLoading = true)
-        }
-    }
-
-    fun hideLoading() {
-        _dialogState.update {
-            it.copy(isLoading = false)
-        }
-    }
-
-    fun showAiAnalyzeBottomSheet() {
-        _dialogState.update {
-            it.copy(isShowAiAnalyzeBottomSheet = true)
-        }
-    }
-
-    fun hideAiAnalyzeBottomSheet() {
-        _dialogState.update {
-            it.copy(isShowAiAnalyzeBottomSheet = false)
-        }
-        _uiState.update {
-            it.copy(analyzeResponse = "", analyzeError = null)
-        }
-    }
-
-    fun aiAnalyze(bmi: Double, onFail: (String) -> Unit) {
-        //todo 1.获取当前用户选择的时间范围
-        val scope = selectedScope.value
-        showLoading()
-        viewModelScope.launch(Dispatchers.IO) {
-            //todo 2.按当前所选范围取数，与图表口径一致，避免“标签写着近3年、数据只有1月”的错位
-            val data = recordDao.getRecordWeightSince(scope.startTimeMillis())
-            if (data.size < 2) {
-                hideLoading()
-                onFail("数据量不足，至少需要两条记录才能进行分析哦。")
-                return@launch
-            }
-            showAiAnalyzeBottomSheet()
-            // 3. 构建 Prompt：饮食热量按同一范围取数（date 为 yyyy-MM-dd 字符串，可字典序比较）
-            val sinceDate = TimeUtils.convertMillisToDate(scope.startTimeMillis())
-            val dailyCalories = dietRecordDao.getDailyCaloriesSince(sinceDate)
-            val gender = Gender.entries.find { it.name == LocalStorageData.gender.value }
-            val activityLevel = ActivityLevel.entries.find { it.name == LocalStorageData.activityLevel.value }
-            val prompt = AnalysisPromptBuilder.build(
-                records = data,
-                scopeLabel = scope.label,
-                bmi = bmi,
-                heightCm = LocalStorageData.height.value,
-                targetWeight = LocalStorageData.targetWeight.value,
-                dailyCalories = dailyCalories,
-                age = LocalStorageData.age.value,
-                genderLabel = gender?.displayName ?: "",
-                activityLabel = activityLevel?.displayName ?: "",
-            )
-            // 重试或再次分析前清空上一次的结果与错误
-            _uiState.update { it.copy(analyzeResponse = "", analyzeError = null) }
-            try {
-                chatRepository.streamChat(
-                    model = ChatBodyModel(
-                        messages = listOf(
-                            MessageModel(
-                                role = ChatMessageRole.USER.label,
-                                content = MessageContent.TextOnly(prompt)
-                            )
-                        )
-                    ), onMessage = { msg ->
-                        msg?.choices?.singleOrNull()?.delta?.content?.let { content ->
-                            if (dialogState.value.isLoading) {
-                                hideLoading()
-                            }
-                            _uiState.update {
-                                it.copy(analyzeResponse = it.analyzeResponse + content)
-                            }
-                        }
-                    })
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                e.printStackTrace()
-                hideLoading()
-                _uiState.update {
-                    it.copy(analyzeError = e.message ?: "分析失败，请稍后重试")
-                }
             }
         }
     }
