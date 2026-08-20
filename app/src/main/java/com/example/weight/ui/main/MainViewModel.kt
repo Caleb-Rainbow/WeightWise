@@ -9,10 +9,13 @@ import com.example.weight.data.chat.ChatMessageRole
 import com.example.weight.data.chat.ChatRepository
 import com.example.weight.data.chat.MessageContent
 import com.example.weight.data.chat.MessageModel
+import com.example.weight.data.diet.DietRecordDao
 import com.example.weight.data.record.DailyMinWeight
 import com.example.weight.data.record.Record
 import com.example.weight.data.record.RecordDao
 import com.example.weight.data.widget.WidgetUpdater
+import com.example.weight.util.ActivityLevel
+import com.example.weight.util.Gender
 import com.example.weight.util.GoalProgressCalculator
 import com.example.weight.util.MilestoneCalculator
 import com.example.weight.util.RecordStreakCalculator
@@ -57,6 +60,7 @@ data class DialogState(
 @KoinViewModel
 class MainViewModel(
     private val recordDao: RecordDao,
+    private val dietRecordDao: DietRecordDao,
     private val chatRepository: ChatRepository,
     private val widgetUpdater: WidgetUpdater,
 ) : ViewModel() {
@@ -261,13 +265,21 @@ class MainViewModel(
                 return@launch
             }
             showAiAnalyzeBottomSheet()
-            // 3. 构建 Prompt
+            // 3. 构建 Prompt：饮食热量按同一范围取数（date 为 yyyy-MM-dd 字符串，可字典序比较）
+            val sinceDate = TimeUtils.convertMillisToDate(scope.startTimeMillis())
+            val dailyCalories = dietRecordDao.getDailyCaloriesSince(sinceDate)
+            val gender = Gender.entries.find { it.name == LocalStorageData.gender.value }
+            val activityLevel = ActivityLevel.entries.find { it.name == LocalStorageData.activityLevel.value }
             val prompt = AnalysisPromptBuilder.build(
                 records = data,
                 scopeLabel = scope.label,
                 bmi = bmi,
                 heightCm = LocalStorageData.height.value,
                 targetWeight = LocalStorageData.targetWeight.value,
+                dailyCalories = dailyCalories,
+                age = LocalStorageData.age.value,
+                genderLabel = gender?.displayName ?: "",
+                activityLabel = activityLevel?.displayName ?: "",
             )
             // 重试或再次分析前清空上一次的结果与错误
             _uiState.update { it.copy(analyzeResponse = "", analyzeError = null) }

@@ -50,6 +50,15 @@ fun BMIContent(modifier: Modifier, record: DailyMinWeight?, bmi: Double) {
             BMIIndexChart(
                 modifier = Modifier.padding(top = 12.dp), currentBMI = bmi
             )
+            // 无选中记录（bmi=0）时 fromBMIValue 返回 null，不显示解读
+            bmiLeave?.let { leave ->
+                Text(
+                    text = leave.advice,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = leave.color,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
         }
     }
 }

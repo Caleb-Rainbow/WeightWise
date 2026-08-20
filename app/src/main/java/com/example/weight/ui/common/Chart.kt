@@ -291,11 +291,11 @@ private fun BMIIndexItem(modifier: Modifier, color: Color = Color(0xff3aadcd), l
             .height(15.dp)
     )
 }
-enum class BMI(val start: Double, val end: Double, val label: String,val color: Color){
-    LOW(start = 10.0, end = 18.4, label = "偏低", color = Color(0xff3aadcd)),
-    STANDARD(start = 18.5, end = 23.9, label = "标准", color = Color(0xff2abc6d)),
-    OVERWEIGHT(start = 24.0, end = 27.9, label = "偏高", color = Color(0xffffb700)),
-    OBESE(start = 28.0, end = 38.0, label = "过高", color = Color(0xffff8e00));
+enum class BMI(val start: Double, val end: Double, val label: String, val color: Color, val advice: String){
+    LOW(start = 10.0, end = 18.4, label = "偏低", color = Color(0xff3aadcd), advice = "体重偏轻，注意均衡营养、适度增肌"),
+    STANDARD(start = 18.5, end = 23.9, label = "标准", color = Color(0xff2abc6d), advice = "体重处于健康区间，继续保持"),
+    OVERWEIGHT(start = 24.0, end = 27.9, label = "偏高", color = Color(0xffffb700), advice = "体重略超标准，留意饮食与运动"),
+    OBESE(start = 28.0, end = 38.0, label = "过高", color = Color(0xffff8e00), advice = "超出健康范围较多，建议系统管理体重");
 
     companion object {
         fun fromBMIValue(bmi: Double): BMI? {

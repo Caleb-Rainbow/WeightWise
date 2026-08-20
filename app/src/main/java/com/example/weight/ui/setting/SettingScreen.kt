@@ -49,7 +49,11 @@ import com.example.weight.data.record.RecordDao
 import com.example.weight.data.widget.WidgetUpdater
 import com.example.weight.ui.common.MyTopBar
 import com.example.weight.ui.common.NumberTextField
+import com.example.weight.util.ActivityLevel
+import com.example.weight.util.CalorieCalculator
+import com.example.weight.util.Gender
 import com.example.weight.util.TimeUtils
+import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -107,6 +111,15 @@ fun SettingScreen(modifier: Modifier = Modifier, goBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
             )
 
+            // 最新体重，用于档案热量预览
+            var latestWeight by remember { mutableStateOf<Double?>(null) }
+            LaunchedEffect(Unit) {
+                withContext(Dispatchers.IO) {
+                    latestWeight = recordDao.getLastData()?.weight
+                }
+            }
+            ProfileSection(latestWeight = latestWeight)
+
             NumberTextField(
                 value = if (startWeight > 0) startWeight else firstRecordWeight ?: 0.0,
                 onValueChange = { newValue -> LocalStorageData.startWeight.update { newValue } },
@@ -163,6 +176,107 @@ fun SettingScreen(modifier: Modifier = Modifier, goBack: () -> Unit) {
             ReminderSettingSection()
 
             DataManagementSection()
+        }
+    }
+}
+
+/** 个人档案：年龄/性别/活动水平，齐全时展示基础代谢与建议摄入预览 */
+@Composable
+private fun ProfileSection(latestWeight: Double?) {
+    val age by LocalStorageData.age.collectAsStateWithLifecycle()
+    val gender by LocalStorageData.gender.collectAsStateWithLifecycle()
+    val activityLevel by LocalStorageData.activityLevel.collectAsStateWithLifecycle()
+    val height by LocalStorageData.height.collectAsStateWithLifecycle()
+    val targetWeight by LocalStorageData.targetWeight.collectAsStateWithLifecycle()
+
+    NumberTextField(
+        value = age.toDouble(),
+        onValueChange = { newValue -> LocalStorageData.age.update { newValue.toInt() } },
+        label = "年龄(岁)",
+        modifier = Modifier.fillMaxWidth(),
+        supportingText = "结合性别与活动水平，估算每日建议摄入量；填 0 恢复默认",
+    )
+
+    val selectedGender = Gender.entries.find { it.name == gender }
+    DropdownSelector(
+        label = "性别",
+        selectedText = selectedGender?.displayName,
+        options = Gender.entries.map { it.name to it.displayName },
+        onSelect = { value -> LocalStorageData.gender.update { value } },
+    )
+
+    val selectedActivity = ActivityLevel.entries.find { it.name == activityLevel }
+    DropdownSelector(
+        label = "活动水平",
+        selectedText = selectedActivity?.displayName,
+        options = ActivityLevel.entries.map { it.name to it.displayName },
+        onSelect = { value -> LocalStorageData.activityLevel.update { value } },
+    )
+
+    if (latestWeight != null && selectedGender != null && selectedActivity != null && age > 0) {
+        val bmrValue = CalorieCalculator.bmr(selectedGender, latestWeight, height, age)
+        val intake = CalorieCalculator.recommendedIntake(
+            gender = selectedGender,
+            weightKg = latestWeight,
+            heightCm = height,
+            age = age,
+            activityLevel = selectedActivity,
+            targetWeightKg = targetWeight,
+        )
+        if (bmrValue != null && intake != null) {
+            Text(
+                "基础代谢约 ${bmrValue.roundToInt()} kcal · 每日建议摄入 $intake kcal（已结合目标体重调整）",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp, bottom = 4.dp),
+            )
+        }
+    }
+}
+
+/** 只读下拉选择器，仿模型选择的交互；options 为 (存储值, 展示名) 列表，含「未设置」清除项 */
+@Composable
+private fun DropdownSelector(
+    label: String,
+    selectedText: String?,
+    options: List<Pair<String, String>>,
+    onSelect: (String) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+    ) {
+        OutlinedTextField(
+            value = selectedText ?: "请选择",
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            DropdownMenuItem(
+                text = { Text("未设置") },
+                onClick = {
+                    onSelect("")
+                    expanded = false
+                },
+            )
+            options.forEach { (value, displayName) ->
+                DropdownMenuItem(
+                    text = { Text(displayName) },
+                    onClick = {
+                        onSelect(value)
+                        expanded = false
+                    },
+                )
+            }
         }
     }
 }

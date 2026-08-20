@@ -6,6 +6,7 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.weight.data.LocalStorageData
 import com.example.weight.data.chat.ChatRepository
 import com.example.weight.data.diet.AiDietResponse
 import com.example.weight.data.diet.DietRecord
@@ -14,6 +15,10 @@ import com.example.weight.data.diet.DietPromptBuilder
 import com.example.weight.data.diet.FallbackDietAnalyzer
 import com.example.weight.data.diet.Macros
 import com.example.weight.data.diet.RecognizedFoodItem
+import com.example.weight.data.record.RecordDao
+import com.example.weight.util.ActivityLevel
+import com.example.weight.util.CalorieCalculator
+import com.example.weight.util.Gender
 import com.example.weight.util.ImageCompressor
 import com.example.weight.util.TimeUtils
 import kotlinx.coroutines.Dispatchers
@@ -22,6 +27,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -55,11 +61,23 @@ data class DietRecordUiState(
     val aiAdvice: String = "",
     val todayRecords: List<DietRecord> = emptyList(),
     val todayTotalCalories: Int = 0,
+    /** 每日建议摄入（kcal）；档案不全或无体重记录时为 null，界面展示降级形态 */
+    val recommendedCalories: Int? = null,
+)
+
+/** 档案快照：建议摄入计算的输入集合 */
+private data class ProfileSnapshot(
+    val heightCm: Double,
+    val age: Int,
+    val gender: Gender?,
+    val activityLevel: ActivityLevel?,
+    val targetWeightKg: Double,
 )
 
 @KoinViewModel
 class DietRecordViewModel(
     private val dietRecordDao: DietRecordDao,
+    private val recordDao: RecordDao,
     private val chatRepository: ChatRepository,
     private val json: Json,
 ) : ViewModel() {
@@ -87,6 +105,42 @@ class DietRecordViewModel(
     init {
         loadTodayRecords()
         observeTodayCalories()
+        observeRecommendedIntake()
+    }
+
+    /** 档案设置或最新体重变化时重算每日建议摄入，档案不全或无体重记录时回退 null */
+    private fun observeRecommendedIntake() {
+        viewModelScope.launch {
+            val profileFlow = combine(
+                LocalStorageData.height,
+                LocalStorageData.age,
+                LocalStorageData.gender,
+                LocalStorageData.activityLevel,
+                LocalStorageData.targetWeight,
+            ) { height, age, gender, activityLevel, targetWeight ->
+                ProfileSnapshot(
+                    heightCm = height,
+                    age = age,
+                    gender = Gender.entries.find { it.name == gender },
+                    activityLevel = ActivityLevel.entries.find { it.name == activityLevel },
+                    targetWeightKg = targetWeight,
+                )
+            }
+            combine(profileFlow, recordDao.getLastDataFlow()) { profile, lastRecord ->
+                val weightKg = lastRecord?.weight
+                if (weightKg == null) null
+                else CalorieCalculator.recommendedIntake(
+                    gender = profile.gender,
+                    weightKg = weightKg,
+                    heightCm = profile.heightCm,
+                    age = profile.age,
+                    activityLevel = profile.activityLevel,
+                    targetWeightKg = profile.targetWeightKg,
+                )
+            }.collect { recommended ->
+                _uiState.update { it.copy(recommendedCalories = recommended) }
+            }
+        }
     }
 
     fun onImageSelected(uri: Uri) {

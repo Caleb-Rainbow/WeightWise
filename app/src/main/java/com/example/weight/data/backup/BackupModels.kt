@@ -45,4 +45,8 @@ data class SettingsBackup(
     val targetWeight: Double,
     /** 手动设置的目标起始体重；0.0 表示未设置（跟随第一条记录），旧备份缺该字段时取默认值 */
     val startWeight: Double = 0.0,
+    /** 个人档案（热量建议用）；0 / 空串表示未设置，旧备份缺字段时取默认值 */
+    val age: Int = 0,
+    val gender: String = "",
+    val activityLevel: String = "",
 )

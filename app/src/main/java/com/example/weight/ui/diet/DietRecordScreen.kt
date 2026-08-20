@@ -46,9 +46,11 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.ProgressIndicatorDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
@@ -76,6 +78,8 @@ import com.example.weight.ui.common.AppPermissions
 import com.example.weight.ui.common.MyTopBar
 import com.example.weight.ui.common.PermissionOutcome
 import com.example.weight.ui.common.rememberPermissionRequester
+import com.example.weight.util.CalorieCalculator
+import com.example.weight.util.IntakeStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.koin.androidx.compose.koinViewModel
@@ -316,6 +320,7 @@ fun DietRecordScreen(
                 TodaySummarySection(
                     todayCalories = state.todayTotalCalories,
                     todayRecords = state.todayRecords,
+                    recommendedCalories = state.recommendedCalories,
                     onDeleteRecord = { viewModel.deleteRecord(it) },
                 )
             }
@@ -630,6 +635,7 @@ private fun AiResultSection(
 private fun TodaySummarySection(
     todayCalories: Int,
     todayRecords: List<DietRecord>,
+    recommendedCalories: Int?,
     onDeleteRecord: (DietRecord) -> Unit,
 ) {
     Card(
@@ -645,11 +651,20 @@ private fun TodaySummarySection(
             )
             Spacer(modifier = Modifier.height(8.dp))
 
-            Text(
-                "已摄入: $todayCalories kcal",
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium,
-            )
+            if (recommendedCalories != null && recommendedCalories > 0) {
+                IntakeProgressContent(intake = todayCalories, recommended = recommendedCalories)
+            } else {
+                Text(
+                    "已摄入: $todayCalories kcal",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                )
+                Text(
+                    "补全设置中的年龄、性别与活动水平后，可获得个性化建议摄入量",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
 
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -716,6 +731,84 @@ private fun TodaySummarySection(
             }
         }
     }
+}
+
+/** 已摄入/建议摄入进度条：进度封顶 100%，超支用状态色与文案表达 */
+@Composable
+private fun IntakeProgressContent(intake: Int, recommended: Int) {
+    val status = CalorieCalculator.intakeStatus(intake, recommended)
+    val statusColor = when (status) {
+        IntakeStatus.ENOUGH -> TrafficLightColorMap.getValue("GREEN")
+        IntakeStatus.NEAR_LIMIT -> TrafficLightColorMap.getValue("YELLOW")
+        IntakeStatus.OVER -> TrafficLightColorMap.getValue("RED")
+    }
+    val remaining = recommended - intake
+    val statusDetail = when (status) {
+        IntakeStatus.ENOUGH -> "还可摄入 $remaining kcal"
+        IntakeStatus.NEAR_LIMIT -> "今日额度快用完了"
+        IntakeStatus.OVER -> "已超出建议 ${-remaining} kcal"
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("已摄入 ", style = MaterialTheme.typography.bodyLarge)
+            Text(
+                "$intake",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = statusColor,
+            )
+            Text(
+                " / 建议 $recommended kcal",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .background(statusColor, CircleShape)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                status.label,
+                style = MaterialTheme.typography.bodySmall,
+                color = statusColor,
+                fontWeight = FontWeight.Medium,
+            )
+        }
+    }
+
+    Spacer(modifier = Modifier.height(8.dp))
+
+    val progress = (intake.toFloat() / recommended).coerceIn(0f, 1f)
+    val animatedProgress by animateFloatAsState(
+        targetValue = progress,
+        animationSpec = ProgressIndicatorDefaults.ProgressAnimationSpec,
+        label = "intakeProgress",
+    )
+    LinearProgressIndicator(
+        progress = { animatedProgress },
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(8.dp)
+            .clip(RoundedCornerShape(4.dp)),
+        color = statusColor,
+        trackColor = statusColor.copy(alpha = 0.15f),
+    )
+
+    Spacer(modifier = Modifier.height(4.dp))
+
+    Text(
+        statusDetail,
+        style = MaterialTheme.typography.bodySmall,
+        color = statusColor,
+    )
 }
 
 @Composable

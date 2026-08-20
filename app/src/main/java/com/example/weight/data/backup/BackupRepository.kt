@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import org.koin.core.annotation.Single
+import com.example.weight.util.ActivityLevel
+import com.example.weight.util.Gender
 import com.example.weight.util.ImageCompressor
 import com.example.weight.util.TimeUtils
 import java.util.Locale
@@ -73,6 +75,9 @@ class BackupRepository(
                 height = LocalStorageData.height.value,
                 targetWeight = LocalStorageData.targetWeight.value,
                 startWeight = LocalStorageData.startWeight.value,
+                age = LocalStorageData.age.value,
+                gender = LocalStorageData.gender.value,
+                activityLevel = LocalStorageData.activityLevel.value,
             ),
         )
         val text = json.encodeToString(BackupFile.serializer(), backup)
@@ -128,12 +133,21 @@ class BackupRepository(
 
         val settings = backup.settings
         val settingsApplied = settings != null &&
-                (settings.height > 0.0 || settings.targetWeight > 0.0 || settings.startWeight > 0.0)
+                (settings.height > 0.0 || settings.targetWeight > 0.0 || settings.startWeight > 0.0 ||
+                        settings.age > 0 || settings.gender.isNotEmpty() || settings.activityLevel.isNotEmpty())
         if (settings != null) {
             if (settings.height > 0.0) LocalStorageData.height.update { settings.height }
             if (settings.targetWeight > 0.0) LocalStorageData.targetWeight.update { settings.targetWeight }
             // 起始体重未设置（<=0）不覆盖本机已手动设置的值，与身高/目标体重口径一致
             if (settings.startWeight > 0.0) LocalStorageData.startWeight.update { settings.startWeight }
+            // 档案字段同理：未设置不覆盖；枚举存 name，导入时校验合法性
+            if (settings.age > 0) LocalStorageData.age.update { settings.age }
+            if (Gender.entries.any { it.name == settings.gender }) {
+                LocalStorageData.gender.update { settings.gender }
+            }
+            if (ActivityLevel.entries.any { it.name == settings.activityLevel }) {
+                LocalStorageData.activityLevel.update { settings.activityLevel }
+            }
         }
         // 体重数据变了，桌面小组件同步刷新
         if (recordDedup.toInsert.isNotEmpty()) {

@@ -51,6 +51,18 @@ interface DietRecordDao {
     @Query("SELECT * FROM DietRecord WHERE date >= :sinceDate ORDER BY date ASC, timestamp ASC")
     suspend fun getRecordsSince(sinceDate: String): List<DietRecord>
 
+    /** 范围内每日摄入热量合计（date 为 yyyy-MM-dd，可字典序比较），供 AI 分析融合饮食数据 */
+    @Query(
+        """
+        SELECT date, SUM(estimatedCalories) AS calories
+        FROM DietRecord
+        WHERE date >= :sinceDate
+        GROUP BY date
+        ORDER BY date ASC
+        """
+    )
+    suspend fun getDailyCaloriesSince(sinceDate: String): List<DailyCalories>
+
     @Query("SELECT * FROM DietRecord WHERE imageUri != ''")
     suspend fun getRecordsWithImage(): List<DietRecord>
 
@@ -65,3 +77,6 @@ interface DietRecordDao {
 }
 
 data class TrafficLightCount(val trafficLight: String, val count: Int)
+
+/** 单日摄入热量合计（AI 分析 Prompt 用投影） */
+data class DailyCalories(val date: String, val calories: Int)
