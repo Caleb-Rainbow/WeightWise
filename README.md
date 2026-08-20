@@ -1,19 +1,19 @@
 <p align="center">
   <h1 align="center">WeightWise</h1>
-  <p align="center">基于 Jetpack Compose 的 Android 体重追踪与健康运动管理应用</p>
+  <p align="center">基于 Jetpack Compose 的 Android 体重追踪与饮食记录应用</p>
 </p>
 
 ---
 
 ## 主要功能
 
-- **体重记录** — 快速方便地记录每日体重数据
-- **历史记录** — 以分页列表形式浏览所有体重记录，支持按日期排序
-- **趋势图表** — 通过 Vico 图表库直观展示体重变化趋势（折线图 + 面积填充）
+- **体重记录** — 快速方便地记录每日体重数据，支持备注日志、编辑与删除
+- **历史记录** — 分页浏览全部体重记录，支持按日志内容或日期搜索（如 `08-20`、`2026-08`）
+- **趋势图表** — 通过 Vico 图表库直观展示体重变化趋势（每日最低体重口径，折线图 + 面积填充），支持近 7 天 ~ 近 3 年 8 档统计范围
+- **目标追踪** — 设置目标体重后展示进度条，基于近 90 天加权回归趋势预测达成目标还需多少天
 - **BMI 计算器** — 根据身高和体重自动计算身体质量指数 (BMI)
-- **AI 运动计划** — 基于 DeepSeek 大模型生成个性化每日运动方案，支持 SSE 流式输出
-- **运动偏好** — 支持黑名单/白名单标签过滤，场景筛选（室内/户外/办公），难度自动调节
-- **体重分析** — AI 智能分析体重趋势，提供健康建议
+- **AI 体重分析** — 基于豆包大模型（火山方舟）分析所选时间范围内的体重趋势，SSE 流式输出
+- **AI 饮食记录** — 拍照或文字描述识别食物、估算热量与宏量营养素，给出红绿灯评级；识别结果可手动增删改后保存，AI 不可用时自动回退本地估算
 
 ## 截图
 
@@ -30,9 +30,9 @@
 | 项目 | 版本 |
 |------|------|
 | JDK | 21 |
-| Android SDK | compileSdk 36 / minSdk 29 / targetSdk 36 |
-| Kotlin | 2.3.20 |
-| Gradle | 8.13 |
+| Android SDK | compileSdk 37 / minSdk 29 / targetSdk 36 |
+| Kotlin | 2.4.10 |
+| Gradle | 9.5 |
 | NDK | arm64-v8a |
 
 ## 构建与运行
@@ -54,7 +54,7 @@
 ./gradlew :app:generateBaselineProfile
 ```
 
-> **注意：** 项目使用 `secrets.properties` 管理 API Key（已通过 `.gitignore` 排除），构建前需参考 `local.defaults.properties` 配置 DeepSeek API Key。
+> **注意：** 项目使用 `secrets.properties` 管理 API Key（已通过 `.gitignore` 排除），构建前需参考 `local.defaults.properties` 配置豆包（火山方舟）API Key。
 
 ## 技术栈
 
@@ -64,12 +64,12 @@
 | UI 框架 | Jetpack Compose + Material3 (Material Expressive) |
 | 导航 | Navigation3 (`androidx.navigation3`) |
 | 依赖注入 | Koin 4.2 + Koin Annotations (KSP) |
-| 本地存储 | Room 4（自动迁移）+ MMKV（偏好设置） |
+| 本地存储 | Room（自动迁移）+ MMKV（偏好设置） |
 | 网络 | Ktor + OkHttp（SSE 流式请求） |
 | 图表 | Vico 3.x |
 | 分页 | Paging 3 |
 | 序列化 | kotlinx.serialization |
-| 构建工具 | Gradle 8.13 + Version Catalog |
+| 构建工具 | Gradle 9.5 + Version Catalog |
 
 ## 架构
 
@@ -78,30 +78,26 @@
 ```
 app/src/main/java/com/example/weight/
 ├── ui/                          # 表现层
-│   ├── main/                    # 首页（体重记录、BMI、分析）
-│   ├── record/                  # 历史记录页
+│   ├── main/                    # 首页（体重记录、图表、目标进度、BMI、AI 分析）
+│   ├── record/                  # 历史记录页（分页、搜索、侧滑编辑/删除）
+│   ├── diet/                    # 饮食记录页（拍照/文字识别、今日汇总）
 │   ├── setting/                 # 设置页
-│   ├── exercise/                # 运动计划页
 │   ├── common/                  # 公共 UI 组件
 │   └── theme/                   # 主题、颜色、图标
 ├── data/                        # 数据层
 │   ├── record/                  # 体重记录实体与 DAO
-│   ├── exercise/                # 运动计划、目录、难度调节
-│   ├── chat/                    # AI 对话（DeepSeek API）
+│   ├── diet/                    # 饮食记录实体、DAO、Prompt 构建、离线兜底
+│   ├── chat/                    # AI 对话（豆包/火山方舟，OpenAI 兼容协议）
 │   ├── AppDataBase.kt           # Room 数据库
 │   └── LocalStorageData.kt      # MMKV 偏好存储
-├── util/                        # 工具类（时间处理，北京时间）
+├── util/                        # 工具类（时间处理、图片压缩、体重趋势预测）
 └── MainActivity.kt              # 入口 Activity + 导航定义
 ```
 
-## 运动计划系统
+## AI 能力与降级策略
 
-运动计划功能采用多层降级策略：
-
-1. **AI 生成** — 通过 DeepSeek API 根据用户数据生成个性化运动方案
-2. **本地回退** — 内置 `ExerciseCatalog`，包含 23 个动作（3 个难度等级）
-3. **偏好过滤** — 支持黑名单/白名单标签、场景筛选（室内/户外/办公）
-4. **难度调节** — 根据用户体能水平自动调整运动难度
+- **体重分析**：将所选范围的体重与日志数据构建 Prompt，经豆包 API 流式生成三段式分析（阶段总结 / 数据洞察 / 行动建议）；请求失败在界面呈现错误态并支持重试。
+- **饮食识别**：支持「照片 + 补充说明」多模态与纯文字两种输入，要求模型返回结构化 JSON（食物清单、热量、宏量、红绿灯、建议）；AI 不可用时回退 `FallbackDietAnalyzer` 给出按餐型的默认热量估算，并提示用户手动修正。
 
 ## 如何贡献
 
@@ -110,7 +106,6 @@ app/src/main/java/com/example/weight/
 - **报告 Bug** — 在 [Issues](https://github.com/Caleb-Rainbow/WeightWise/issues) 中提交
 - **功能建议** — 在 [Issues](https://github.com/Caleb-Rainbow/WeightWise/issues) 中提出新想法
 - **提交代码** — 提交 Pull Request 修复 Bug 或实现新功能
-- **翻译** — 帮助将应用翻译成更多语言
 
 ## 许可证
 
