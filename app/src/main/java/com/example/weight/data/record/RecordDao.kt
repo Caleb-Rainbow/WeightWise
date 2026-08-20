@@ -21,7 +21,15 @@ interface RecordDao {
     @Delete
     suspend fun delete(record: Record)
 
-    @Query("SELECT * FROM Record WHERE weight LIKE '%' || :query || '%' ORDER BY timestamp DESC")
+    // 按日志内容或北京时间日期（yyyy-MM-dd，支持 2026、2026-08、08-20 等前缀/子串）搜索
+    @Query(
+        """
+    SELECT * FROM Record
+    WHERE log LIKE '%' || :query || '%'
+       OR DATE(timestamp / 1000, 'unixepoch', '+8 hours') LIKE '%' || :query || '%'
+    ORDER BY timestamp DESC
+    """
+    )
     fun pagingSource(query: String): PagingSource<Int, Record>
 
     @Query("SELECT * FROM Record ORDER BY id DESC LIMIT 1")

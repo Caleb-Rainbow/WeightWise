@@ -28,12 +28,14 @@ import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
@@ -84,6 +86,7 @@ fun RecordScreen(
     val recordList = viewModel.recordPager.collectAsLazyPagingItems()
     val latestRecord by viewModel.latestRecord.collectAsStateWithLifecycle(initialValue = null)
     val recordCount by viewModel.recordCount.collectAsStateWithLifecycle(initialValue = 0)
+    val query by viewModel.query.collectAsStateWithLifecycle()
     val snackBarShow = LocalSnackBarShow.current
 
     var deleteTarget by remember { mutableStateOf<Record?>(null) }
@@ -129,58 +132,68 @@ fun RecordScreen(
                 })
         }) { paddingValues ->
         val refreshState = recordList.loadState.refresh
-        Box(
+        Column(
             modifier = Modifier
                 .padding(paddingValues)
                 .fillMaxSize()
         ) {
-            when {
-                refreshState is LoadState.Loading && recordList.itemCount == 0 -> {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                }
+            RecordSearchField(
+                value = query,
+                onValueChange = viewModel::onQueryChanged
+            )
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            ) {
+                when {
+                    refreshState is LoadState.Loading && recordList.itemCount == 0 -> {
+                        CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                    }
 
-                recordList.itemCount == 0 -> EmptyRecordsContent()
+                    recordList.itemCount == 0 -> EmptyRecordsContent(hasQuery = query.isNotBlank())
 
-                else -> {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        item(key = "summary") {
-                            RecordSummaryContent(
-                                latestRecord = latestRecord,
-                                recordCount = recordCount
-                            )
-                        }
-                        item(key = "swipe_hint") {
-                            Text(
-                                text = "提示：左滑记录可编辑或删除",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                modifier = Modifier.padding(start = 4.dp)
-                            )
-                        }
-                        items(recordList.itemCount, key = recordList.itemKey { it.id }) { index ->
-                            recordList[index]?.let { record ->
-                                // 列表按时间倒序，index+1 是时间上更早的一条，用于计算涨跌；
-                                // LazyPagingItems.get 越界会抛异常，必须先判断边界
-                                val hasOlderLoaded = index + 1 < recordList.itemCount
-                                val appendState = recordList.loadState.append
-                                val isEndOfPagination =
-                                    appendState is LoadState.NotLoading && appendState.endOfPaginationReached
-                                SwipeableRecordItem(
-                                    modifier = Modifier.animateItem(),
-                                    onEdit = { editTarget = record },
-                                    onDelete = { deleteTarget = record }
-                                ) {
-                                    RecordItemContent(
-                                        record = record,
-                                        previousWeight = if (hasOlderLoaded) {
-                                            recordList[index + 1]?.weight
-                                        } else null,
-                                        isOldestRecord = !hasOlderLoaded && isEndOfPagination
-                                    )
+                    else -> {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            item(key = "summary") {
+                                RecordSummaryContent(
+                                    latestRecord = latestRecord,
+                                    recordCount = recordCount
+                                )
+                            }
+                            item(key = "swipe_hint") {
+                                Text(
+                                    text = "提示：左滑记录可编辑或删除",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    modifier = Modifier.padding(start = 4.dp)
+                                )
+                            }
+                            items(recordList.itemCount, key = recordList.itemKey { it.id }) { index ->
+                                recordList[index]?.let { record ->
+                                    // 列表按时间倒序，index+1 是时间上更早的一条，用于计算涨跌；
+                                    // LazyPagingItems.get 越界会抛异常，必须先判断边界
+                                    val hasOlderLoaded = index + 1 < recordList.itemCount
+                                    val appendState = recordList.loadState.append
+                                    val isEndOfPagination =
+                                        appendState is LoadState.NotLoading && appendState.endOfPaginationReached
+                                    SwipeableRecordItem(
+                                        modifier = Modifier.animateItem(),
+                                        onEdit = { editTarget = record },
+                                        onDelete = { deleteTarget = record }
+                                    ) {
+                                        RecordItemContent(
+                                            record = record,
+                                            previousWeight = if (hasOlderLoaded) {
+                                                recordList[index + 1]?.weight
+                                            } else null,
+                                            isOldestRecord = !hasOlderLoaded && isEndOfPagination
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -191,8 +204,27 @@ fun RecordScreen(
     }
 }
 
+/** 顶部搜索框：按日志内容或日期（如 08-20、2026-08）过滤记录列表 */
 @Composable
-private fun EmptyRecordsContent() {
+private fun RecordSearchField(
+    value: String,
+    onValueChange: (String) -> Unit
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        placeholder = { Text("搜索日志或日期，如 08-20") },
+        leadingIcon = { Icon(imageVector = Icons.Default.Search, contentDescription = null) },
+        singleLine = true,
+        shape = RoundedCornerShape(28.dp)
+    )
+}
+
+@Composable
+private fun EmptyRecordsContent(hasQuery: Boolean) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -208,13 +240,14 @@ private fun EmptyRecordsContent() {
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "暂无体重记录",
+            text = if (hasQuery) "没有匹配的记录" else "暂无体重记录",
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(modifier = Modifier.height(6.dp))
         Text(
-            text = "点击右上角 + 添加第一条记录吧",
+            text = if (hasQuery) "换个关键词试试，支持日志内容和日期（如 08-20）"
+            else "点击右上角 + 添加第一条记录吧",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
             textAlign = TextAlign.Center
