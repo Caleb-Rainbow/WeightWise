@@ -6,9 +6,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import android.Manifest
-import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
-import androidx.core.content.ContextCompat
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -34,6 +32,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -70,9 +69,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.weight.LocalSnackBarShow
 import com.example.weight.data.diet.DietRecord
 import com.example.weight.data.diet.RecognizedFoodItem
+import com.example.weight.ui.common.AppPermissions
 import com.example.weight.ui.common.MyTopBar
+import com.example.weight.ui.common.PermissionOutcome
+import com.example.weight.ui.common.rememberPermissionRequester
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.koin.androidx.compose.koinViewModel
@@ -114,24 +117,43 @@ fun DietRecordScreen(
         bitmap?.let { viewModel.onBitmapCaptured(it) }
     }
 
-    // 相机权限请求
-    val cameraPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            takePicture.launch(null)
+    // 相机权限：软拒绝给提示（可改用相册），永久拒绝引导去系统设置
+    var showCameraSettingsGuide by remember { mutableStateOf(false) }
+    val snackBarShow = LocalSnackBarShow.current
+    val cameraPermissionRequester = rememberPermissionRequester(
+        Manifest.permission.CAMERA
+    ) { outcome ->
+        when (outcome) {
+            PermissionOutcome.GRANTED -> takePicture.launch(null)
+            PermissionOutcome.DENIED ->
+                snackBarShow("需要相机权限才能拍照识别，可重新点击拍照再次授权，或改用相册")
+            PermissionOutcome.PERMANENTLY_DENIED -> showCameraSettingsGuide = true
         }
     }
 
     fun launchCamera() {
-        val hasPermission = ContextCompat.checkSelfPermission(
-            context, Manifest.permission.CAMERA
-        ) == PackageManager.PERMISSION_GRANTED
-        if (hasPermission) {
+        if (AppPermissions.isGranted(context, Manifest.permission.CAMERA)) {
             takePicture.launch(null)
         } else {
-            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+            cameraPermissionRequester()
         }
+    }
+
+    if (showCameraSettingsGuide) {
+        AlertDialog(
+            onDismissRequest = { showCameraSettingsGuide = false },
+            title = { Text("需要相机权限") },
+            text = { Text("你已选择\"不再询问\"，无法在应用内弹窗授权。请到系统设置中开启\"相机\"权限，或改用相册选图。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showCameraSettingsGuide = false
+                    AppPermissions.openAppSettings(context)
+                }) { Text("去设置") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCameraSettingsGuide = false }) { Text("取消") }
+            },
+        )
     }
 
     // 相册
