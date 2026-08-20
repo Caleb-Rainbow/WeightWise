@@ -101,7 +101,11 @@ private fun WidgetEmptyContent() {
 @Composable
 private fun WidgetDataContent(data: WeightWidgetData, compact: Boolean) {
     val current = data.currentWeight ?: return
-    Column(modifier = GlanceModifier.fillMaxSize()) {
+    // 垂直居中：卡片高度由桌面决定（2格高约110~150dp），顶对齐会留出大片空白
+    Column(
+        modifier = GlanceModifier.fillMaxSize(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         // 变化行：有 7 天基准才展示，起步阶段给引导文案
         if (data.baselineWeight != null) {
             DeltaText(delta = current - data.baselineWeight)
