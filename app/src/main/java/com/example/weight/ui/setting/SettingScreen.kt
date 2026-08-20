@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -168,6 +169,20 @@ private fun DataManagementSection() {
         }
     }
 
+    val csvExportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            try {
+                val count = backupRepository.exportRecordsCsv(context, uri)
+                snackBarShow("已导出 $count 条体重记录（CSV）")
+            } catch (e: Exception) {
+                snackBarShow("导出失败：${e.message ?: "未知错误"}")
+            }
+        }
+    }
+
     Spacer(modifier = Modifier.height(16.dp))
     HorizontalDivider()
     Spacer(modifier = Modifier.height(12.dp))
@@ -188,6 +203,23 @@ private fun DataManagementSection() {
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(text = "导出数据（JSON）")
+    }
+    Spacer(modifier = Modifier.height(8.dp))
+    OutlinedButton(
+        onClick = {
+            csvExportLauncher.launch(
+                BackupRepository.defaultCsvFileName(TimeUtils.getCurrentDate())
+            )
+        },
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Icon(
+            imageVector = Icons.Default.TableChart,
+            contentDescription = null,
+            modifier = Modifier.width(18.dp),
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(text = "导出体重（CSV）")
     }
     Spacer(modifier = Modifier.height(8.dp))
     OutlinedButton(

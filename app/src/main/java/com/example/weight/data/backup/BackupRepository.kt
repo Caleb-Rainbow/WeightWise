@@ -15,6 +15,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import org.koin.core.annotation.Single
 import com.example.weight.util.ImageCompressor
+import com.example.weight.util.TimeUtils
+import java.util.Locale
 
 /** 备份文件不可读或内容非法时抛出，message 可直接展示给用户 */
 class BackupException(message: String) : Exception(message)
@@ -140,9 +142,41 @@ class BackupRepository(
         )
     }
 
+    /**
+     * 体重记录导出为 CSV（date,time,weight,log），带 UTF-8 BOM 防止 Excel 打开中文乱码。
+     * 返回导出的记录条数。
+     */
+    suspend fun exportRecordsCsv(context: Context, uri: Uri): Int = withContext(Dispatchers.IO) {
+        val records = recordDao.getAllOnce()
+        val sb = StringBuilder().append("\uFEFF") // BOM
+            .append("日期,时间,体重(kg),日志\n")
+        for (record in records) {
+            sb.append(TimeUtils.convertMillisToDate(record.timestamp)).append(',')
+                .append(TimeUtils.convertMillisToHM(record.timestamp)).append(',')
+                .append(String.format(Locale.CHINA, "%.1f", record.weight)).append(',')
+                .append(escapeCsvField(record.log)).append('\n')
+        }
+        context.contentResolver.openOutputStream(uri)?.use { out ->
+            out.write(sb.toString().toByteArray(Charsets.UTF_8))
+            out.flush()
+        } ?: throw IllegalStateException("无法写入所选位置")
+        records.size
+    }
+
+    /** 含逗号/引号/换行的字段用双引号包裹并把内部引号翻倍 */
+    private fun escapeCsvField(value: String): String =
+        if (value.contains(',') || value.contains('"') || value.contains('\n')) {
+            "\"${value.replace("\"", "\"\"")}\""
+        } else {
+            value
+        }
+
     companion object {
         /** 导出文件的默认名，如 weightwise_backup_2026-08-20.json */
         fun defaultExportFileName(today: String): String = "weightwise_backup_$today.json"
+
+        /** CSV 导出默认文件名 */
+        fun defaultCsvFileName(today: String): String = "weightwise_$today.csv"
 
         /** 备份中记录的图片文件名映射回本机持久路径（文件不存在时界面按无图展示） */
         fun resolveImagePath(context: Context, fileName: String): String {
