@@ -97,6 +97,8 @@ dependencies {
     ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.room.paging)
     implementation(libs.androidx.room.ktx)
+    //work
+    implementation(libs.androidx.work.runtime)
     //koin
     implementation(libs.koin.android)
     implementation(libs.koin.androidx.compose)

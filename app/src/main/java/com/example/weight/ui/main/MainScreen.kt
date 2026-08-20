@@ -110,7 +110,15 @@ import kotlin.math.absoluteValue
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun MainScreen(modifier: Modifier = Modifier, viewModel: MainViewModel = koinViewModel(),goSetting:()-> Unit = {},goRecord:()-> Unit={},goDietRecord:()->Unit={}) {
+fun MainScreen(
+    modifier: Modifier = Modifier,
+    viewModel: MainViewModel = koinViewModel(),
+    goSetting: () -> Unit = {},
+    goRecord: () -> Unit = {},
+    goDietRecord: () -> Unit = {},
+    openAddDialogRequest: Boolean = false,
+    onOpenAddDialogConsumed: () -> Unit = {},
+) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val dialogState by viewModel.dialogState.collectAsStateWithLifecycle()
     val streakInfo by viewModel.streakInfo.collectAsStateWithLifecycle()
@@ -120,6 +128,14 @@ fun MainScreen(modifier: Modifier = Modifier, viewModel: MainViewModel = koinVie
     // 里程碑达成时弹一次庆祝提示
     LaunchedEffect(Unit) {
         viewModel.milestoneCelebration.collect { snackBarShow(it) }
+    }
+
+    // 通知/小组件点击的「直达记体重」深链
+    LaunchedEffect(openAddDialogRequest) {
+        if (openAddDialogRequest) {
+            viewModel.showAddDialog()
+            onOpenAddDialogConsumed()
+        }
     }
     val height by LocalStorageData.height.collectAsStateWithLifecycle()
     val bmi by remember(uiState.selectedRecord,height) {

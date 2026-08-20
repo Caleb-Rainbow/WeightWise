@@ -27,6 +27,7 @@ baselineprofile = "1.5.0-rc01"
 profileinstaller = "1.4.1"
 
 ktor = "3.5.2"
+work = "2.10.1"
 
 secretsGradlePlugin = "2.0.1"
 markdownEditor = "0.43.0"
@@ -53,6 +54,8 @@ kotlinx-serialization = { group = "org.jetbrains.kotlinx", name = "kotlinx-seria
 
 androidx-paging-runtime = { group = "androidx.paging", name = "paging-runtime", version.ref = "paging" }
 androidx-paging-compose = { group = "androidx.paging", name = "paging-compose", version.ref = "paging" }
+
+androidx-work-runtime = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
 
 koin-android = { module = "io.insert-koin:koin-android", version.ref = "koin" }
 koin-androidx-compose = { module = "io.insert-koin:koin-androidx-compose", version.ref = "koin" }

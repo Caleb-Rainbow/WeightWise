@@ -1,5 +1,6 @@
 package com.example.weight
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -51,18 +52,38 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 
 class MainActivity : ComponentActivity() {
+
+    /** 来自通知/小组件的「直达记体重」请求；消费后由 UI 回调清零 */
+    private var openAddDialogRequest by mutableStateOf(false)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        openAddDialogRequest = intent.getBooleanExtra(EXTRA_OPEN_ADD_DIALOG, false)
         setContent {
             AppTheme {
                 ProvideVicoTheme(rememberM3VicoTheme()) {
                     ProvideSnackBarHost {
-                        MainNav3()
+                        MainNav3(
+                            openAddDialogRequest = openAddDialogRequest,
+                            onOpenAddDialogConsumed = { openAddDialogRequest = false },
+                        )
                     }
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (intent.getBooleanExtra(EXTRA_OPEN_ADD_DIALOG, false)) {
+            openAddDialogRequest = true
+        }
+    }
+
+    companion object {
+        /** 通知/桌面小组件点击时携带的 extra：打开后直接弹记体重对话框 */
+        const val EXTRA_OPEN_ADD_DIALOG = "open_add_dialog"
     }
 }
 
@@ -79,20 +100,26 @@ object Record : NavKey
 object DietRecord : NavKey
 
 @Composable
-private fun MainNav3() {
+private fun MainNav3(
+    openAddDialogRequest: Boolean,
+    onOpenAddDialogConsumed: () -> Unit,
+) {
     val backStack = rememberNavBackStack(Main)
     NavDisplay(
         backStack = backStack, transitionSpec = navTransitionSpec,
         popTransitionSpec = navPopTransitionSpec,
         predictivePopTransitionSpec = prependNavTransitionSpec, entryProvider = entryProvider {
             entry<Main> {
-                MainScreen(goSetting = {
-                    backStack.add(Setting)
-                }, goRecord = {
-                    backStack.add(Record)
-                }, goDietRecord = {
-                    backStack.add(DietRecord)
-                })
+                MainScreen(
+                    openAddDialogRequest = openAddDialogRequest,
+                    onOpenAddDialogConsumed = onOpenAddDialogConsumed,
+                    goSetting = {
+                        backStack.add(Setting)
+                    }, goRecord = {
+                        backStack.add(Record)
+                    }, goDietRecord = {
+                        backStack.add(DietRecord)
+                    })
             }
             entry<Setting> {
                 SettingScreen {

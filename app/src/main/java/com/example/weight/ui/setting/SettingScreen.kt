@@ -107,6 +107,13 @@ fun SettingScreen(modifier: Modifier = Modifier, goBack: () -> Unit) {
                 }
             }
 
+            Spacer(modifier = Modifier.height(16.dp))
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(text = "提醒", style = MaterialTheme.typography.labelLarge)
+            Spacer(modifier = Modifier.height(4.dp))
+            ReminderSettingSection()
+
             DataManagementSection()
         }
     }
