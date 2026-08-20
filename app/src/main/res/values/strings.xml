@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">体重记录</string>
+    <string name="weight_widget_label">体重小组件</string>
+    <string name="weight_widget_description">当前体重、较7天变化与目标进度，点击直达记体重</string>
 </resources>

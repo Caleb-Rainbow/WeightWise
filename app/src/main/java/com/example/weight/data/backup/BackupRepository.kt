@@ -7,6 +7,7 @@ import com.example.weight.data.AppDataBase
 import com.example.weight.data.LocalStorageData
 import com.example.weight.data.diet.DietRecordDao
 import com.example.weight.data.record.RecordDao
+import com.example.weight.data.widget.WidgetUpdater
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.update
@@ -44,6 +45,7 @@ class BackupRepository(
     private val recordDao: RecordDao,
     private val dietRecordDao: DietRecordDao,
     private val appDataBase: AppDataBase,
+    private val widgetUpdater: WidgetUpdater,
     private val json: Json,
 ) {
 
@@ -126,6 +128,10 @@ class BackupRepository(
         if (settings != null) {
             if (settings.height > 0.0) LocalStorageData.height.update { settings.height }
             if (settings.targetWeight > 0.0) LocalStorageData.targetWeight.update { settings.targetWeight }
+        }
+        // 体重数据变了，桌面小组件同步刷新
+        if (recordDedup.toInsert.isNotEmpty()) {
+            widgetUpdater.notifyDataChanged()
         }
         ImportResult(
             insertedRecords = recordDedup.toInsert.size,

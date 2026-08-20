@@ -12,6 +12,7 @@ import com.example.weight.data.chat.MessageModel
 import com.example.weight.data.record.DailyMinWeight
 import com.example.weight.data.record.Record
 import com.example.weight.data.record.RecordDao
+import com.example.weight.data.widget.WidgetUpdater
 import com.example.weight.util.MilestoneCalculator
 import com.example.weight.util.RecordStreakCalculator
 import com.example.weight.util.StreakInfo
@@ -56,6 +57,7 @@ data class DialogState(
 class MainViewModel(
     private val recordDao: RecordDao,
     private val chatRepository: ChatRepository,
+    private val widgetUpdater: WidgetUpdater,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(UiState())
     val uiState = _uiState.asStateFlow()
@@ -188,6 +190,7 @@ class MainViewModel(
                     log = log
                 )
             )
+            widgetUpdater.notifyDataChanged()
             onSuccess()
         }
     }

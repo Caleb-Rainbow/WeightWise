@@ -8,6 +8,7 @@ import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import com.example.weight.data.record.Record
 import com.example.weight.data.record.RecordDao
+import com.example.weight.data.widget.WidgetUpdater
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -19,7 +20,10 @@ import kotlinx.coroutines.launch
 import org.koin.core.annotation.KoinViewModel
 
 @KoinViewModel
-class RecordViewModel(private val recordDao: RecordDao) : ViewModel() {
+class RecordViewModel(
+    private val recordDao: RecordDao,
+    private val widgetUpdater: WidgetUpdater,
+) : ViewModel() {
 
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query.asStateFlow()
@@ -47,12 +51,14 @@ class RecordViewModel(private val recordDao: RecordDao) : ViewModel() {
     fun deleteRecord(record: Record) {
         viewModelScope.launch(Dispatchers.IO) {
             recordDao.delete(record)
+            widgetUpdater.notifyDataChanged()
         }
     }
 
     fun updateRecord(record: Record) {
         viewModelScope.launch(Dispatchers.IO) {
             recordDao.update(record)
+            widgetUpdater.notifyDataChanged()
         }
     }
 }

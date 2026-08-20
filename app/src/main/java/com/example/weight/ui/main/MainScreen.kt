@@ -82,6 +82,7 @@ import com.example.weight.data.record.DailyMinWeight
 import com.example.weight.data.record.Record
 import com.example.weight.ui.common.BottomXDateFormatter
 import com.example.weight.ui.common.rememberMarker
+import com.example.weight.util.GoalProgressCalculator
 import com.example.weight.util.StreakInfo
 import com.example.weight.util.TimeUtils
 import com.example.weight.util.WeightPredictor
@@ -391,16 +392,9 @@ private fun GoalProgressContent(
         if (targetWeight > 0) {
             val goalReached = currentWeight <= targetWeight
 
-            // 核心逻辑：计算从起始到目标的进度百分比
+            // 核心逻辑：计算从起始到目标的进度百分比（算法与桌面小组件共用）
             val progress = remember(startWeight, currentWeight, targetWeight) {
-                val totalRange = startWeight - targetWeight
-                // 避免起始体重和目标体重相同导致的除零错误
-                if (totalRange.compareTo(0.0) == 0) {
-                    return@remember if (currentWeight <= targetWeight) 1.0f else 0.0f
-                }
-                val traveled = startWeight - currentWeight
-                // 将进度限制在0.0到1.0之间，以正确显示进度条
-                (traveled / totalRange).toFloat().coerceIn(0.0f, 1.0f)
+                GoalProgressCalculator.progress(startWeight, currentWeight, targetWeight)
             }
             // 使用 animateFloatAsState 为进度条增加平滑的动画效果
             val animatedProgress by animateFloatAsState(

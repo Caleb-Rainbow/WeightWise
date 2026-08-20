@@ -99,6 +99,9 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     //work
     implementation(libs.androidx.work.runtime)
+    //glance
+    implementation(libs.androidx.glance.appwidget)
+    implementation(libs.androidx.glance.material3)
     //koin
     implementation(libs.koin.android)
     implementation(libs.koin.androidx.compose)
