@@ -44,6 +44,7 @@ import kotlin.math.roundToInt
  * @param onWeightChange 选择结果变化时回调
  * @param initialWeight 打开时回填的初始值
  * @param unit 单位文案
+ * @param showDecimal false 时隐藏小数列，只选整数（如年龄）
  */
 @Composable
 fun NumberSelector(
@@ -51,7 +52,8 @@ fun NumberSelector(
     decimalList: List<Int>,
     onWeightChange: (Double) -> Unit,
     initialWeight: Double? = null,
-    unit: String
+    unit: String,
+    showDecimal: Boolean = true,
 ) {
     val integerPagerState = rememberPagerState { integerList.size }
     val decimalPagerState = rememberPagerState { decimalList.size }
@@ -69,7 +71,7 @@ fun NumberSelector(
             scope.launch {
                 // 浮点误差会让 0.1*10 变成 0.9999...，必须四舍五入而不是 toInt 截断，
                 // 否则 0.1/0.3/0.7 等小数回填时会偏小一格
-                decimalPagerState.animateScrollToPage(
+                if (showDecimal) decimalPagerState.animateScrollToPage(
                     decimalList.indexOf((it % 1 * 10).roundToInt()).coerceAtLeast(0),
                     animationSpec = spring(stiffness = Spring.StiffnessVeryLow)
                 )
@@ -81,16 +83,18 @@ fun NumberSelector(
             val decimal = decimalList[decimalPagerState.currentPage] / 10.0
             onWeightChange(it + decimal)
         }
-        Spacer(
-            modifier = Modifier
-                .padding(horizontal = 30.dp)
-                .size(5.dp)
-                .clip(CircleShape)
-                .background(color = Color.Gray)
-        )
-        CustomVerticalPager(pagerState = decimalPagerState, list = decimalList) {
-            val integer = integerList[integerPagerState.currentPage]
-            onWeightChange(integer + it.toDouble() / 10)
+        if (showDecimal) {
+            Spacer(
+                modifier = Modifier
+                    .padding(horizontal = 30.dp)
+                    .size(5.dp)
+                    .clip(CircleShape)
+                    .background(color = Color.Gray)
+            )
+            CustomVerticalPager(pagerState = decimalPagerState, list = decimalList) {
+                val integer = integerList[integerPagerState.currentPage]
+                onWeightChange(integer + it.toDouble() / 10)
+            }
         }
         Text(
             modifier = Modifier.padding(start = 1.dp, bottom = 6.dp),
