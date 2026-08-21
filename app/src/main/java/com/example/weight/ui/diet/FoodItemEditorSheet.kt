@@ -8,7 +8,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -26,7 +29,8 @@ import androidx.compose.ui.unit.dp
 import com.example.weight.data.diet.RecognizedFoodItem
 
 /**
- *@description: 食物项编辑弹窗
+ *@description: 食物项编辑弹窗。宏量三输入（评审决策 #23）：编辑后逐食物宏量随热量一起修正，
+ *               否则日宏量聚合会系统性保留陈旧值
  *@author: 杨帅林
  *@create: 2026/4/11
  **/
@@ -48,6 +52,9 @@ fun FoodItemEditorSheet(
     var grams by remember(initialItem) { mutableStateOf(initialItem?.estimatedGrams?.toString() ?: "") }
     var category by remember(initialItem) { mutableStateOf(initialItem?.category ?: "") }
     var isHealthy by remember(initialItem) { mutableStateOf(initialItem?.isHealthy ?: true) }
+    var protein by remember(initialItem) { mutableStateOf(initialItem?.protein?.takeIf { it > 0 }?.toString() ?: "") }
+    var carbs by remember(initialItem) { mutableStateOf(initialItem?.carbs?.takeIf { it > 0 }?.toString() ?: "") }
+    var fat by remember(initialItem) { mutableStateOf(initialItem?.fat?.takeIf { it > 0 }?.toString() ?: "") }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -61,7 +68,7 @@ fun FoodItemEditorSheet(
         ) {
             Text(
                 text = if (initialItem == null) "添加食物" else "编辑食物",
-                style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleMedium,
             )
 
             OutlinedTextField(
@@ -97,6 +104,40 @@ fun FoodItemEditorSheet(
                 )
             }
 
+            // 宏量营养素（可选填，留空按 0 计）
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                OutlinedTextField(
+                    value = protein,
+                    onValueChange = { protein = it.filter { c -> c.isDigit() } },
+                    label = { Text("蛋白质 (g)") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    shape = RoundedCornerShape(12.dp),
+                )
+                OutlinedTextField(
+                    value = carbs,
+                    onValueChange = { carbs = it.filter { c -> c.isDigit() } },
+                    label = { Text("碳水 (g)") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    shape = RoundedCornerShape(12.dp),
+                )
+                OutlinedTextField(
+                    value = fat,
+                    onValueChange = { fat = it.filter { c -> c.isDigit() } },
+                    label = { Text("脂肪 (g)") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    shape = RoundedCornerShape(12.dp),
+                )
+            }
+
             // 分类选择
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
@@ -109,14 +150,14 @@ fun FoodItemEditorSheet(
                         onClick = { category = cat },
                         shape = RoundedCornerShape(8.dp),
                         colors = if (selected) {
-                            androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
-                                containerColor = androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer
+                            ButtonDefaults.outlinedButtonColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer
                             )
                         } else {
-                            androidx.compose.material3.ButtonDefaults.outlinedButtonColors()
+                            ButtonDefaults.outlinedButtonColors()
                         },
                     ) {
-                        Text(cat, style = androidx.compose.material3.MaterialTheme.typography.labelSmall)
+                        Text(cat, style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
@@ -127,33 +168,33 @@ fun FoodItemEditorSheet(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text("健康程度:", style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
+                Text("健康程度:", style = MaterialTheme.typography.bodyMedium)
                 OutlinedButton(
                     onClick = { isHealthy = true },
                     shape = RoundedCornerShape(8.dp),
                     colors = if (isHealthy) {
-                        androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
-                            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer
+                        ButtonDefaults.outlinedButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
                         )
                     } else {
-                        androidx.compose.material3.ButtonDefaults.outlinedButtonColors()
+                        ButtonDefaults.outlinedButtonColors()
                     },
                 ) { Text("健康") }
                 OutlinedButton(
                     onClick = { isHealthy = false },
                     shape = RoundedCornerShape(8.dp),
                     colors = if (!isHealthy) {
-                        androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
-                            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.errorContainer
+                        ButtonDefaults.outlinedButtonColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer
                         )
                     } else {
-                        androidx.compose.material3.ButtonDefaults.outlinedButtonColors()
+                        ButtonDefaults.outlinedButtonColors()
                     },
                 ) { Text("不健康") }
             }
 
             // 确认按钮
-            androidx.compose.material3.Button(
+            Button(
                 onClick = {
                     val item = RecognizedFoodItem(
                         name = name.ifBlank { "未知食物" },
@@ -161,6 +202,9 @@ fun FoodItemEditorSheet(
                         estimatedGrams = grams.toIntOrNull() ?: 0,
                         category = category,
                         isHealthy = isHealthy,
+                        protein = protein.toIntOrNull() ?: 0,
+                        carbs = carbs.toIntOrNull() ?: 0,
+                        fat = fat.toIntOrNull() ?: 0,
                     )
                     onConfirm(item)
                 },

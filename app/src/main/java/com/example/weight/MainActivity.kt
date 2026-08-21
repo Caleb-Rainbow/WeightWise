@@ -182,6 +182,11 @@ private fun MainNav3(
 val LocalSnackBarShow = compositionLocalOf<(String) -> Unit> {
     error("No LocalSnackBarShow provided")
 }
+
+/** 饮食删除撤销等需要带 action 按钮 SnackBar 的场景直接拿宿主状态自行 showSnackbar（可控制时长/取消重发） */
+val LocalSnackbarHostState = compositionLocalOf<SnackbarHostState> {
+    error("No LocalSnackbarHostState provided")
+}
 val LocalShowLoadingDialog = compositionLocalOf<() -> Unit> {
     error("No LocalShowLoadingDialog provided")
 }
@@ -239,6 +244,7 @@ fun ProvideSnackBarHost(
 
     CompositionLocalProvider(
         LocalSnackBarShow provides snackBarShow,
+        LocalSnackbarHostState provides snackBarHostState,
         LocalShowLoadingDialog provides showLoadingDialog,
         LocalHideLoadingDialog provides hideLoadingDialog,
         LocalShowMessageDialog provides showMessageDialog,

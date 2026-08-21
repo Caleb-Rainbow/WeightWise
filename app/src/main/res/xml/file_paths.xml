@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    FileProvider 路径收窄（评审决策 #26）：只暴露 camera_capture/ 子目录给系统相机 App 写入，
+    不用 path="." 通配（会把整个 cacheDir 暴露出去）。
+    注意与 DietImageMigrator 的边界：迁移器只动 cacheDir/diet_images（见 ImageCompressor 注释），
+    本目录是拍照临时文件，页面进入时整体清理。
+-->
+<paths>
+    <cache-path
+        name="camera_capture"
+        path="camera_capture/" />
+</paths>

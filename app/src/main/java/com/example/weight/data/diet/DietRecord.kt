@@ -33,6 +33,8 @@ data class DietRecord(
 )
 
 // 以下 DTO 均为只读数据类，标记 @Immutable 让 Compose 恢复对其参数的跳过能力
+// 宏量三字段为可选新增（v1.5）：旧记录 JSON 无这些键时反序列化为 0；
+// 「真 0 值」与「无数据」按天聚合时以「存在任一非零宏量」近似区分（DailyMacroAggregator）
 @Immutable
 @Serializable
 data class RecognizedFoodItem(
@@ -41,6 +43,9 @@ data class RecognizedFoodItem(
     val estimatedGrams: Int = 0,
     val category: String = "",
     val isHealthy: Boolean = true,
+    val protein: Int = 0,
+    val carbs: Int = 0,
+    val fat: Int = 0,
 )
 
 @Immutable

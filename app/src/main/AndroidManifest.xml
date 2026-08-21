@@ -3,7 +3,8 @@
     xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.VIBRATE"/>
     <uses-permission android:name="android.permission.INTERNET"/>
-    <uses-permission android:name="android.permission.CAMERA"/>
+    <!-- CAMERA 权限已随拍照升级移除：TakePicture 委托系统相机拍摄，无需本 App 持有权限；
+         注意 manifest 一旦声明 CAMERA，TakePicture 启动前必须已授权，否则抛 SecurityException -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:allowBackup="true"
@@ -38,6 +39,15 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/weight_widget_info" />
         </receiver>
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 
 </manifest>

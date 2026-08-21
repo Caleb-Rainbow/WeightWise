@@ -78,6 +78,7 @@ import com.example.weight.data.record.DailyMinWeight
 import com.example.weight.data.record.Record
 import com.example.weight.ui.common.WeightChart
 import com.example.weight.ui.common.movingAverage
+import com.example.weight.ui.diet.QuickAddSheet
 import com.example.weight.util.GoalProgressCalculator
 import com.example.weight.util.StreakInfo
 import com.example.weight.util.TimeUtils
@@ -107,6 +108,15 @@ fun MainScreen(
     val streakInfo by viewModel.streakInfo.collectAsStateWithLifecycle()
     val snackBarShow = LocalSnackBarShow.current
 
+    // 工具栏「饮食」→ 快速记一笔弹层（一级入口）；sheet 内「拍照识别」才进完整饮食页
+    var showQuickAdd by remember { mutableStateOf(false) }
+    if (showQuickAdd) {
+        QuickAddSheet(
+            onGoFullDiet = goDietRecord,
+            onDismiss = { showQuickAdd = false },
+        )
+    }
+
     // 里程碑达成时弹一次庆祝提示
     LaunchedEffect(Unit) {
         viewModel.milestoneCelebration.collect { snackBarShow(it) }
@@ -132,7 +142,7 @@ fun MainScreen(
             MainBottomToolbar(
                 onSetting = goSetting,
                 onAddRecord = viewModel::showAddDialog,
-                onDietRecord = goDietRecord,
+                onDietRecord = { showQuickAdd = true },
                 onRecord = goRecord,
                 onReport = goReport
             )

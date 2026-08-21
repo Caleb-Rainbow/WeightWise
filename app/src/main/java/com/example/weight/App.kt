@@ -19,7 +19,8 @@ import org.koin.plugin.module.dsl.startKoin
 
 class App : Application() {
 
-    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    /** 应用级协程域：饮食删除撤销窗口等必须活过 ViewModel 生命周期的异步工作挂这里 */
+    val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
         super.onCreate()

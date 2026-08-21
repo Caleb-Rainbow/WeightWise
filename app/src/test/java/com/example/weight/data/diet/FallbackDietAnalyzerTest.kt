@@ -30,9 +30,10 @@ class FallbackDietAnalyzerTest {
     }
 
     @Test
-    fun `兜底结果标记为黄灯且不可直接信任`() {
+    fun `兜底结果红绿灯本地推导且不可直接信任`() {
         val response = FallbackDietAnalyzer.generateFallback("一碗牛肉面", "LUNCH")
-        assertEquals("YELLOW", response.trafficLight)
+        // 评审决策 #25：兜底食物 isHealthy=false，红绿灯按本地规则推导为 RED（旧实现写死 YELLOW 自相矛盾）
+        assertEquals("RED", response.trafficLight)
         assertFalse(response.foods.single().isHealthy)
         assertEquals(response.foods.sumOf { it.estimatedCalories }, response.totalCalories)
     }

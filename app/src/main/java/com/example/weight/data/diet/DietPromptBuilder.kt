@@ -89,7 +89,7 @@ object DietPromptBuilder {
             appendLine()
             appendLine("【输出格式】")
             appendLine("严格返回以下JSON结构，不要包含任何Markdown标记或多余文字：")
-            appendLine("""{"foods":[{"name":"食物名称","estimatedCalories":150,"estimatedGrams":200,"category":"主食","isHealthy":true}],"totalCalories":350,"macros":{"protein":10,"carbs":15,"fat":12},"trafficLight":"GREEN","advice":"简短饮食建议（一句话，温暖鼓励的语气）","adjustedDescription":"调整说明（如有用户补充，说明如何调整的）"}""")
+            appendLine("""{"foods":[{"name":"食物名称","estimatedCalories":150,"estimatedGrams":200,"category":"主食","isHealthy":true,"protein":5,"carbs":30,"fat":3}],"totalCalories":350,"macros":{"protein":10,"carbs":15,"fat":12},"trafficLight":"GREEN","advice":"简短饮食建议（一句话，温暖鼓励的语气）","adjustedDescription":"调整说明（如有用户补充，说明如何调整的）"}""")
             appendLine()
             appendLine("【注意事项】")
             if (hasImage) {
@@ -98,7 +98,8 @@ object DietPromptBuilder {
                 appendLine("- 如果文字描述无法识别出具体食物，请尽力推测并在advice中标注不确定性")
             }
             appendLine("- estimatedCalories必须是正整数，合理估算")
-            appendLine("- 对于中餐，请考虑常见的烹饪用油（一盘家常菜通常含15-30g隐形油）")
+            appendLine("- 每种食物必须给出protein/carbs/fat（克，非负整数），三者之和的供能应与该食物热量大体一致")
+            appendLine("- 对于中餐，请考虑常见的烹饪用油（一盘家常菜通常含15-30g隐形油，计入fat）")
             appendLine("- isHealthy判断依据：低油低糖高纤维为true")
             appendLine("- category可选值：主食、蔬菜、肉类、蛋奶、饮品、水果、零食、调味品、其他")
             appendLine("- 如果有餐具或容器参照，可以利用其大小辅助估算分量")

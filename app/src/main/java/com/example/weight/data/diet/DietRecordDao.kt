@@ -31,6 +31,20 @@ interface DietRecordDao {
     @Query("SELECT * FROM DietRecord WHERE date = :date ORDER BY timestamp ASC")
     fun getByDate(date: String): Flow<List<DietRecord>>
 
+    /** 历史 Tab 取数：[startDate] 含、[endDate] 排他（yyyy-MM-dd 字典序），按日期倒序+日内时间正序 */
+    @Query(
+        """
+        SELECT * FROM DietRecord
+        WHERE date >= :startDate AND date < :endDate
+        ORDER BY date DESC, timestamp ASC
+        """
+    )
+    fun getByDateRange(startDate: String, endDate: String): Flow<List<DietRecord>>
+
+    /** 常用食物聚合用轻量投影：只取 JSON 大字段且限定日期，避免全表物化（沿用 getDedupKeys 的惯例） */
+    @Query("SELECT recognizedFoodJson FROM DietRecord WHERE date >= :sinceDate AND recognizedFoodJson != ''")
+    suspend fun getFoodJsonSince(sinceDate: String): List<String>
+
     @Query("SELECT COALESCE(SUM(estimatedCalories), 0) FROM DietRecord WHERE date = :date")
     suspend fun getDailyCalories(date: String): Int
 

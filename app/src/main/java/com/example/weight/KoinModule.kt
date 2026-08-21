@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.example.weight.data.AppDataBase
 import com.example.weight.data.createDefaultHttpClient
 import com.example.weight.data.diet.DietRecordDao
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.serialization.json.Json
 import org.koin.core.annotation.ComponentScan
 import org.koin.core.annotation.KoinApplication
@@ -25,6 +26,10 @@ class KoinModule {
 
     @Single
     fun provideDietRecordDao(appDataBase: AppDataBase): DietRecordDao = appDataBase.dietRecordDao()
+
+    @Single
+    fun provideAppScope(application: Application): CoroutineScope =
+        (application as App).appScope
 
     @Single
     fun provideHttpClient(json: Json) = createDefaultHttpClient(json)

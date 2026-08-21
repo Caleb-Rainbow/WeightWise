@@ -20,8 +20,8 @@ extensions.configure<ApplicationExtension>("android") {
         applicationId = "com.example.weight"
         minSdk = 29
         targetSdk = 36
-        versionCode = 14
-        versionName = "1.4.0"
+        versionCode = 15
+        versionName = "1.5.0"
         ndk.abiFilters.add("arm64-v8a")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -102,6 +102,8 @@ dependencies {
     //glance
     implementation(libs.androidx.glance.appwidget)
     implementation(libs.androidx.glance.material3)
+    //exif：TakePicture 全尺寸 JPEG 的方向标记读取（BitmapFactory 不读 EXIF）
+    implementation(libs.androidx.exifinterface)
     //koin
     implementation(libs.koin.android)
     implementation(libs.koin.androidx.compose)
@@ -130,4 +132,8 @@ dependencies {
     implementation(libs.markdown.m3)
     //test
     testImplementation("junit:junit:4.13.2")
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.room.testing)
+    testImplementation(libs.androidx.core.ktx)
 }
