@@ -1,5 +1,6 @@
 [versions]
 agp = "9.3.1"
+junitVersion = "4.13.2"
 kotlin = "2.4.10"
 coreKtx = "1.19.0"
 lifecycleRuntimeKtx = "2.11.0"
@@ -29,14 +30,14 @@ profileinstaller = "1.4.1"
 ktor = "3.5.2"
 work = "2.11.2"
 glance = "1.1.1"
-exifinterface = "1.4.1"
+exifinterface = "1.4.2"
 
 secretsGradlePlugin = "2.0.1"
 markdownEditor = "0.44.0"
 
 # 测试专用（runtime 不引入）：协程测试 + Robolectric（DAO/VM 层测试）
-kotlinxCoroutines = "1.10.2"
-robolectric = "4.16"
+kotlinxCoroutines = "1.11.0"
+robolectric = "4.16.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -55,6 +56,7 @@ androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = 
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 androidx-room-paging = { group = "androidx.room", name = "room-paging", version.ref = "room" }
 
+junit = { module = "junit:junit", version.ref = "junitVersion" }
 kotlinx-serialization-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-core", version.ref = "kotlinx-serialization" }
 kotlinx-serialization = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 
@@ -96,7 +98,6 @@ markdown-m3 = {module = "com.mikepenz:multiplatform-markdown-renderer-m3",versio
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 serialization = {id = "org.jetbrains.kotlin.plugin.serialization",version.ref = "kotlin"}
 room = {id = "androidx.room",version.ref = "room"}

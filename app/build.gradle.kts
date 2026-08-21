@@ -19,7 +19,7 @@ extensions.configure<ApplicationExtension>("android") {
     defaultConfig {
         applicationId = "com.example.weight"
         minSdk = 29
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 15
         versionName = "1.5.0"
         ndk.abiFilters.add("arm64-v8a")
@@ -131,7 +131,7 @@ dependencies {
     implementation(libs.markdown.editor)
     implementation(libs.markdown.m3)
     //test
-    testImplementation("junit:junit:4.13.2")
+    testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.robolectric)
     testImplementation(libs.room.testing)
