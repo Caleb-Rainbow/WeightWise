@@ -12,6 +12,7 @@ import kotlin.math.pow
  * 相比旧的"全历史平均速率"（总减重 ÷ 总天数）方案，它更贴近近期真实状态：
  * - 指数权重（半衰期 21 天）让近期数据主导结果，早期的水分掉秤或很久前的快速减重不会永久拉高预测；
  * - 回归拟合天然平滑单日波动（水分、进食造成的噪声）；
+ * - 双层趋势检查：整体斜率外还对最近 30 天单独回归复核，平台一两个月不会被较早的快速期拉出乐观天数；
  * - 同时支持减重与增重目标；趋势停滞或正在远离目标时返回 null，不给误导性数字。
  */
 object WeightPredictor {
@@ -28,8 +29,14 @@ object WeightPredictor {
     /** 数据的最小时间跨度（天），只有几天的连续记录无法代表趋势 */
     private const val MIN_SPAN_DAYS = 7.0
 
-    /** 有效速率下限（kg/天），低于它视为平台期，不做预测 */
-    private const val MIN_EFFECTIVE_RATE = 0.002
+    /** 近期停滞检查窗口（天）：整体斜率混合了最长 90 天的历史，需对最近这段单独回归复核 */
+    private const val RECENT_CHECK_DAYS = 30.0
+
+    /** 近期窗口内参与局部回归的最少点数，证据不足时跳过停滞检查而非否决预测 */
+    private const val MIN_RECENT_POINTS = 3
+
+    /** 近期窗口的最小时间跨度（天），与整体 [MIN_SPAN_DAYS] 同理 */
+    private const val MIN_RECENT_SPAN_DAYS = 7.0
 
     /** 预测天数上限，超过说明当前趋势下目标遥不可及，不如不显示 */
     private const val MAX_PREDICTABLE_DAYS = 730L
@@ -97,14 +104,64 @@ object WeightPredictor {
         if (sxx <= 0.0) return null
         val slope = sxy / sxx // kg/天，负值表示下降
 
+        val losingWeight = currentWeight > targetWeight
         // 按目标方向取"朝目标的有效速率"：减重看下降速率，增重看上升速率
-        val towardTargetRate = if (currentWeight > targetWeight) -slope else slope
-        // 速率过低（平台期）或方向相反（正在远离目标）都不预测
-        if (towardTargetRate < MIN_EFFECTIVE_RATE) return null
-
+        val towardTargetRate = if (losingWeight) -slope else slope
         val remaining = (currentWeight - targetWeight).absoluteValue
-        val days = remaining / towardTargetRate
-        if (days > MAX_PREDICTABLE_DAYS) return null
-        return ceil(days).toLong()
+        if (remaining <= 0.0) return null
+        // 速率门槛自调谐：低于 remaining / MAX_PREDICTABLE_DAYS 即按当前速率
+        // 在可信范围内到不了目标，平台期（速率≈0）与方向相反（负速率）都被这道门拦下
+        val minRate = remaining / MAX_PREDICTABLE_DAYS
+        if (towardTargetRate < minRate) return null
+
+        // 整体斜率混合了最长 90 天的历史，平台一两个月仍可能被较早的快速期拉出乐观天数，
+        // 再对最近 RECENT_CHECK_DAYS 天单独回归：局部速率同样不达标视为停滞，不给预测
+        val recentTowardRate = recentTowardRate(xs, ys, spanDays, losingWeight)
+        if (recentTowardRate != null && recentTowardRate < minRate) return null
+
+        return ceil(remaining / towardTargetRate).toLong()
+    }
+
+    /**
+     * 对最近 [RECENT_CHECK_DAYS] 天的数据做普通最小二乘，返回按目标方向的有效速率。
+     * 近期点数或跨度不足、无法可靠判断局部趋势时返回 null，调用方应跳过停滞检查。
+     */
+    private fun recentTowardRate(
+        xs: List<Double>,
+        ys: List<Double>,
+        spanDays: Double,
+        losingWeight: Boolean,
+    ): Double? {
+        val cutoff = spanDays - RECENT_CHECK_DAYS
+        val recentXs = ArrayList<Double>(xs.size)
+        val recentYs = ArrayList<Double>(ys.size)
+        for (i in xs.indices) {
+            if (xs[i] >= cutoff) {
+                recentXs.add(xs[i])
+                recentYs.add(ys[i])
+            }
+        }
+        if (recentXs.size < MIN_RECENT_POINTS) return null
+        if (recentXs.max() - recentXs.min() < MIN_RECENT_SPAN_DAYS) return null
+
+        var meanX = 0.0
+        var meanY = 0.0
+        for (i in recentXs.indices) {
+            meanX += recentXs[i]
+            meanY += recentYs[i]
+        }
+        meanX /= recentXs.size
+        meanY /= recentYs.size
+
+        var sxx = 0.0
+        var sxy = 0.0
+        for (i in recentXs.indices) {
+            val dx = recentXs[i] - meanX
+            sxx += dx * dx
+            sxy += dx * (recentYs[i] - meanY)
+        }
+        if (sxx <= 0.0) return null
+        val slope = sxy / sxx
+        return if (losingWeight) -slope else slope
     }
 }

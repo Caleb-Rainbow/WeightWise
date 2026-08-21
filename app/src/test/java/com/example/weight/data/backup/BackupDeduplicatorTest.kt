@@ -1,7 +1,7 @@
 package com.example.weight.data.backup
 
-import com.example.weight.data.diet.DietRecord
-import com.example.weight.data.record.Record
+import com.example.weight.data.diet.DietRecordDedupKey
+import com.example.weight.data.record.RecordDedupKey
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -10,7 +10,7 @@ class BackupDeduplicatorTest {
 
     @Test
     fun `体重按时间戳与体重去重`() {
-        val existing = listOf(Record(weight = 75.0, log = "a", timestamp = 100L))
+        val existing = listOf(RecordDedupKey(timestamp = 100L, weight = 75.0))
         val incoming = listOf(
             RecordBackup(weight = 75.0, log = "", timestamp = 100L), // 重复，跳过
             RecordBackup(weight = 74.0, log = "new", timestamp = 100L), // 同时间不同体重，保留
@@ -37,10 +37,7 @@ class BackupDeduplicatorTest {
     @Test
     fun `饮食按日期时间戳餐型去重`() {
         val existing = listOf(
-            DietRecord(
-                date = "2026-08-20", timestamp = 100L, mealType = "LUNCH",
-                recognizedFoodJson = "[]",
-            )
+            DietRecordDedupKey(date = "2026-08-20", timestamp = 100L, mealType = "LUNCH")
         )
         val incoming = listOf(
             DietRecordBackup(date = "2026-08-20", timestamp = 100L, mealType = "LUNCH"), // 重复

@@ -35,15 +35,43 @@ class WeightPredictorTest {
     @Test
     fun `近期停滞时不会被早期的快速减重带偏`() {
         // 前 60 天每天 -0.2kg（90 -> 78.2），后 30 天一直停在 78.2。
-        // 旧算法按全历史平均会得出约 61 天；新算法应给出明显更久的天数或拒绝预测
+        // 整体加权斜率仍约 -0.11kg/天，但最近 30 天局部斜率≈0，停滞检查应拒绝预测
         val records = dailyWeights(
             buildList {
                 repeat(60) { add(90.0 - 0.2 * it) }
                 repeat(30) { add(78.2) }
             }
         )
+        assertNull(WeightPredictor.estimateDaysToTarget(records, currentWeight = 78.2, targetWeight = 70.0))
+    }
+
+    @Test
+    fun `短暂停滞仍给出更保守的预测`() {
+        // 同上但平台只有 15 天：局部窗口混合了下降与平台，不应一刀切拒绝，
+        // 但预测应明显比按早期 -0.2kg/天 的理论值 41 天保守
+        val records = dailyWeights(
+            buildList {
+                repeat(60) { add(90.0 - 0.2 * it) }
+                repeat(15) { add(78.2) }
+            }
+        )
         val days = WeightPredictor.estimateDaysToTarget(records, currentWeight = 78.2, targetWeight = 70.0)
-        assertTrue("不应给出乐观的 61 天以内的预测，实际 $days", days == null || days > 61L)
+        assertTrue("预期在 42~70 天之间，实际 $days", days != null && days in 42..70)
+    }
+
+    @Test
+    fun `近期数据太少时跳过停滞检查`() {
+        // 双周称重：14 天一称、每次 -0.5kg，近 30 天只有 2 个点，
+        // 无法可靠判断局部趋势，不应据此拒绝预测
+        val records = List(7) { k ->
+            DailyMinWeight(
+                minWeight = 90.0 - 0.5 * k,
+                recordDay = "day-${14 * k}",
+                timestamp = baseTs + 14 * k * dayMillis
+            )
+        }
+        val days = WeightPredictor.estimateDaysToTarget(records, currentWeight = 87.0, targetWeight = 70.0)
+        assertTrue("应给出预测，实际 $days", days != null)
     }
 
     @Test
@@ -101,5 +129,11 @@ class WeightPredictorTest {
     fun `目标体重未设置返回null`() {
         val records = dailyWeights(List(30) { 80.0 - 0.1 * it })
         assertNull(WeightPredictor.estimateDaysToTarget(records, currentWeight = 77.1, targetWeight = 0.0))
+    }
+
+    @Test
+    fun `当前体重等于目标返回null`() {
+        val records = dailyWeights(List(30) { 80.0 - 0.1 * it })
+        assertNull(WeightPredictor.estimateDaysToTarget(records, currentWeight = 77.1, targetWeight = 77.1))
     }
 }
