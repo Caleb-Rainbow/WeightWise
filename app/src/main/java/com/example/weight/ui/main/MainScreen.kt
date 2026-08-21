@@ -9,7 +9,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -142,7 +144,8 @@ fun MainScreen(
             MainBottomToolbar(
                 onSetting = goSetting,
                 onAddRecord = viewModel::showAddDialog,
-                onDietRecord = { showQuickAdd = true },
+                onDietRecord = goDietRecord,
+                onDietQuickAdd = { showQuickAdd = true },
                 onRecord = goRecord,
                 onReport = goReport
             )
@@ -286,6 +289,7 @@ private fun MainBottomToolbar(
     onSetting: () -> Unit,
     onAddRecord: () -> Unit,
     onDietRecord: () -> Unit,
+    onDietQuickAdd: () -> Unit,
     onRecord: () -> Unit,
     onReport: () -> Unit,
     modifier: Modifier = Modifier
@@ -306,7 +310,13 @@ private fun MainBottomToolbar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             MainToolbarItem(label = "设置", icon = Icons.Default.Settings, onClick = onSetting)
-            MainToolbarItem(label = "饮食", icon = Icons.Default.CameraAlt, onClick = onDietRecord)
+            // 点击直达饮食页；长按弹快速记一笔 sheet（用户反馈：一级入口不能挡住主路径）
+            MainToolbarItem(
+                label = "饮食",
+                icon = Icons.Default.CameraAlt,
+                onClick = onDietRecord,
+                onLongClick = onDietQuickAdd,
+            )
             Column(
                 modifier = Modifier.weight(1f),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -343,17 +353,30 @@ private fun MainBottomToolbar(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun RowScope.MainToolbarItem(
     label: String,
     icon: ImageVector,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null
 ) {
     Column(
         modifier = Modifier
             .weight(1f)
             .clip(RoundedCornerShape(20.dp))
-            .clickable(role = Role.Button, onClickLabel = label, onClick = onClick)
+            .then(
+                if (onLongClick != null) {
+                    Modifier.combinedClickable(
+                        role = Role.Button,
+                        onClickLabel = label,
+                        onClick = onClick,
+                        onLongClick = onLongClick,
+                    )
+                } else {
+                    Modifier.clickable(role = Role.Button, onClickLabel = label, onClick = onClick)
+                }
+            )
             .padding(horizontal = 4.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {

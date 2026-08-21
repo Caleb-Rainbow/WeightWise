@@ -47,8 +47,9 @@ import com.example.weight.util.CalorieCalculator
 import org.koin.androidx.compose.koinViewModel
 
 /**
- *@description: 主屏快速记饮食弹层（评审决策 #20）：常用食物 chips 一键勾选 → 保存成餐，
- *               离线零 AI 依赖；「拍照识别」跳转完整饮食页走 AI 识别
+ *@description: 主屏快速记饮食弹层（长按工具栏「饮食」触发；点击直达饮食页）：
+ *               常用食物 chips 一键勾选 → 保存成餐，离线零 AI 依赖；
+ *               「进入饮食记录」跳转完整饮食页走 AI 识别
  *@author: 杨帅林
  *@create: 2026/8/21
  **/
@@ -200,7 +201,7 @@ fun QuickAddSheet(
                 ) {
                     Icon(Icons.Default.AddAPhoto, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("拍照识别")
+                    Text("进入饮食记录", maxLines = 1)
                 }
                 Button(
                     onClick = viewModel::save,
