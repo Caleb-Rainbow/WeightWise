@@ -65,6 +65,7 @@ import com.example.weight.LocalSnackBarShow
 import com.example.weight.data.record.Record
 import com.example.weight.ui.common.DeleteDialog
 import com.example.weight.ui.common.MyTopBar
+import com.example.weight.ui.diet.TrafficLightColors
 import com.example.weight.ui.main.AddRecordDialog
 import com.example.weight.util.TimeUtils
 import kotlinx.coroutines.Job
@@ -74,8 +75,7 @@ import java.text.DecimalFormat
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-/** 体重下降（利好）与上涨的展示色，和饮食记录页的交通灯配色保持一致 */
-private val DecreaseColor = Color(0xFF4CAF50)
+/** 体重上涨展示色;下降色引用饮食域红绿灯常量,两页同源不再各写一份色值(T7/OV5) */
 private val IncreaseColor = Color(0xFFEF5350)
 
 @Composable
@@ -260,7 +260,7 @@ private fun EmptyRecordsContent(hasQuery: Boolean) {
 private fun RecordSummaryContent(latestRecord: Record?, recordCount: Int) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer
         )
@@ -339,7 +339,7 @@ private fun RecordItemContent(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
         ),
@@ -443,7 +443,7 @@ private fun WeightChangeText(
     val delta = weight - previousWeight
     val format = remember { DecimalFormat("#.#") }
     when {
-        delta < 0 -> WeightChangeBadge(text = "↓ ${format.format(abs(delta))}", color = DecreaseColor)
+        delta < 0 -> WeightChangeBadge(text = "↓ ${format.format(abs(delta))}", color = TrafficLightColors.Green)
         delta > 0 -> WeightChangeBadge(text = "↑ ${format.format(delta)}", color = IncreaseColor)
         else -> WeightChangeBadge(text = "持平", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
     }
@@ -497,7 +497,7 @@ private fun SwipeableRecordItem(
     }
     val close = { animateTo(0f) }
 
-    Box(modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))) {
+    Box(modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))) {
         // 背景操作层：按钮必须靠右排布，左滑露出卡片右侧时才能看到
         Row(
             modifier = Modifier.matchParentSize(),

@@ -169,6 +169,8 @@ private fun MainNav3(
             entry<DietRecord> {
                 DietRecordScreen(goBack = {
                     backStack.removeAt(backStack.lastIndex)
+                }, goSetting = {
+                    if (backStack.lastOrNull() != Setting) backStack.add(Setting)
                 })
             }
             entry<Report> {

@@ -43,4 +43,17 @@ object DailyMacroAggregator {
         }
         return DailyMacros(protein, carbs, fat, hasMacroData, skipped)
     }
+
+    /**
+     * 宏量堆叠条权重(D4/Q3A):按热量占比归一(kcal = g×4/4/9,营养学惯例),
+     * 图例仍显示克数。全零宏量返回 null,UI 不渲染堆叠条
+     */
+    fun macroCalorieWeights(proteinG: Int, carbsG: Int, fatG: Int): Triple<Float, Float, Float>? {
+        val p = proteinG * 4f
+        val c = carbsG * 4f
+        val f = fatG * 9f
+        val total = p + c + f
+        if (total <= 0f) return null
+        return Triple(p / total, c / total, f / total)
+    }
 }

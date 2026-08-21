@@ -162,6 +162,7 @@ fun DietRecordEditorSheet(
                     FilterChipSmall(
                         selected = mealType == meal,
                         label = meal.displayName,
+                        icon = meal.icon,
                         onClick = { onMealTypeSelected(meal) },
                     )
                 }
@@ -270,7 +271,12 @@ fun DietRecordEditorSheet(
 }
 
 @Composable
-private fun FilterChipSmall(selected: Boolean, label: String, onClick: () -> Unit) {
+private fun FilterChipSmall(
+    selected: Boolean,
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit,
+) {
     OutlinedButton(
         onClick = onClick,
         shape = RoundedCornerShape(10.dp),
@@ -281,20 +287,8 @@ private fun FilterChipSmall(selected: Boolean, label: String, onClick: () -> Uni
         },
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp),
     ) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(13.dp))
+        Spacer(modifier = Modifier.width(4.dp))
         Text(label, fontSize = 12.sp, maxLines = 1)
     }
-}
-
-internal fun trafficLightColor(light: String): Color = when (light) {
-    "GREEN" -> Color(0xFF4CAF50)
-    "YELLOW" -> Color(0xFFFFC107)
-    "RED" -> Color(0xFFF44336)
-    else -> Color.Gray
-}
-
-internal fun trafficLightLabel(light: String): String = when (light) {
-    "GREEN" -> "健康饮食"
-    "YELLOW" -> "尚可"
-    "RED" -> "放纵一下"
-    else -> "未知"
 }

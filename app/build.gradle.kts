@@ -20,8 +20,8 @@ extensions.configure<ApplicationExtension>("android") {
         applicationId = "com.example.weight"
         minSdk = 29
         targetSdk = 37
-        versionCode = 15
-        versionName = "1.5.0"
+        versionCode = 16
+        versionName = "1.6.0"
         ndk.abiFilters.add("arm64-v8a")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -55,7 +55,12 @@ extensions.configure<ApplicationExtension>("android") {
         resValues = true
     }
 
-
+    testOptions {
+        unitTests {
+            // Robolectric 需要 resources/manifest 才能起 Compose 宿主(T10)
+            isIncludeAndroidResources = true
+        }
+    }
 }
 kotlin {
     compilerOptions {
@@ -136,4 +141,7 @@ dependencies {
     testImplementation(libs.robolectric)
     testImplementation(libs.room.testing)
     testImplementation(libs.androidx.core.ktx)
+    // T10 Compose UI 测试基建(Robolectric + createComposeRule);BOM 统一版本
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

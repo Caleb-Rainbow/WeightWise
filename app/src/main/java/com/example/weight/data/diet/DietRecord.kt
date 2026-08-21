@@ -46,6 +46,8 @@ data class RecognizedFoodItem(
     val protein: Int = 0,
     val carbs: Int = 0,
     val fat: Int = 0,
+    /** E1A:常用食物 chip/手动添加为 true;mergeFoods 据此让手动项跨 AI 分析存活 */
+    val isManuallyAdded: Boolean = false,
 )
 
 @Immutable

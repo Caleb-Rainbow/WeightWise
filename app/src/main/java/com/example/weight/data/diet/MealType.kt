@@ -7,8 +7,8 @@ package com.example.weight.data.diet
  *@create: 2026/4/11
  **/
 enum class MealType(val label: String, val displayName: String) {
-    BREAKFAST("早餐", "🌅 早餐"),
-    LUNCH("午餐", "☀️ 午餐"),
-    DINNER("晚餐", "🌙 晚餐"),
-    SNACK("加餐", "🍎 加餐"),
+    BREAKFAST("早餐", "早餐"),
+    LUNCH("午餐", "午餐"),
+    DINNER("晚餐", "晚餐"),
+    SNACK("加餐", "加餐"),
 }

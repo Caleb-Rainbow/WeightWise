@@ -96,4 +96,35 @@ object TimeUtils {
         val today = LocalDate.now(ZoneId.systemDefault())
         return ChronoUnit.DAYS.between(start, today).toInt() + 1
     }
+
+    /**
+     * 历史页日期头人性化(OV4B/E3A):今天/昨天说人话,更早给「M月d日 周X」。
+     * today 由调用方传入(而非内部取 now)保持纯函数可单测;解析失败原样返回
+     */
+    fun humanizeDate(today: LocalDate, date: String): String {
+        val d = runCatching { LocalDate.parse(date, format2) }.getOrNull() ?: return date
+        return when (d) {
+            today -> "今天"
+            today.minusDays(1) -> "昨天"
+            else -> "${d.monthValue}月${d.dayOfMonth}日 ${chineseDayOfWeek(d.dayOfWeek.value)}"
+        }
+    }
+
+    /** 近 N 天日期序列(OV4B 空档日枚举),含今天,升序;days ≤ 0 返回空 */
+    fun lastNDates(today: LocalDate, days: Int): List<String> {
+        if (days <= 0) return emptyList()
+        return (days - 1 downTo 0).map { offset ->
+            format2.format(today.minusDays(offset.toLong()))
+        }
+    }
+
+    private fun chineseDayOfWeek(isoValue: Int): String = when (isoValue) {
+        1 -> "周一"
+        2 -> "周二"
+        3 -> "周三"
+        4 -> "周四"
+        5 -> "周五"
+        6 -> "周六"
+        else -> "周日"
+    }
 }

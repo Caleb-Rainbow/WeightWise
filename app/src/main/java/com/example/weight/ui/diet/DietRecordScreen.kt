@@ -4,8 +4,10 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,24 +16,28 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material3.AlertDialog
@@ -45,7 +51,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -56,11 +61,13 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -68,14 +75,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
@@ -86,25 +98,31 @@ import com.example.weight.LocalSnackBarShow
 import com.example.weight.LocalSnackbarHostState
 import com.example.weight.data.diet.DailyMacros
 import com.example.weight.data.diet.DietRecord
+import com.example.weight.data.diet.DailyMacroAggregator
 import com.example.weight.data.diet.Macros
 import com.example.weight.data.diet.MealType
 import com.example.weight.data.diet.RecognizedFoodItem
 import com.example.weight.ui.common.MyTopBar
 import com.example.weight.util.CalorieCalculator
-import com.example.weight.util.ImageCompressor
 import com.example.weight.util.IntakeStatus
+import com.example.weight.util.ImageCompressor
+import com.example.weight.util.TimeUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.koinInject
 import java.io.File
+import java.time.LocalDate
+import kotlin.math.roundToInt
 
 /**
- *@description: 饮食记录主界面（v1.5 三 Tab 重构：添加/今日/历史）。
- *               HorizontalPager 保活三页：切 Tab 输入态（备注）不丢；
- *               撤销 SnackBar、编辑器、保存动线均挂宿主级
+ *@description: 饮食记录主界面(v1.6 预算制重构)。
+ *               今日=剩余额度大数字+状态圆环+宏量堆叠条+餐次分组 B 行;
+ *               添加=情境化主按钮(保存这餐/开始识别/禁用原因);
+ *               历史=日期分组(含空档日)。HorizontalPager 保活三页
  *@author: 杨帅林
  *@create: 2026/4/11
  **/
@@ -117,6 +135,7 @@ private const val TAB_HISTORY = 2
 @Composable
 fun DietRecordScreen(
     goBack: () -> Unit,
+    goSetting: () -> Unit = {},
     viewModel: DietRecordViewModel = koinViewModel(),
 ) {
     val addState by viewModel.addTab.collectAsStateWithLifecycle()
@@ -131,16 +150,16 @@ fun DietRecordScreen(
     val pagerState = rememberPagerState(initialPage = TAB_ADD) { 3 }
     val addListState = rememberLazyListState()
 
-    // 跨午夜后回到页面时刷新「今天」口径，并顺带清理拍照临时目录
+    // 跨午夜后回到页面时刷新「今天」口径,并顺带清理拍照临时目录
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         viewModel.refreshTodayDate()
     }
 
-    // 备注放本地状态：进 ViewModel 的 StateFlow 会让整个页面的每个 item 逐字符重组，
-    // 只在发起分析/保存时把最终值传给 VM；HorizontalPager 保活使切 Tab 不丢
+    // 备注放本地状态:进 ViewModel 的 StateFlow 会让整个页面的每个 item 逐字符重组,
+    // 只在发起分析/保存时把最终值传给 VM;HorizontalPager 保活使切 Tab 不丢
     var userNote by rememberSaveable { mutableStateOf("") }
 
-    // 「添加」Tab 的食物项编辑弹窗（index=-1 表示新增）
+    // 「添加」Tab 的食物项编辑弹窗(index=-1 表示新增)
     var showFoodEditor by remember { mutableStateOf(false) }
     var editingFoodIndex by remember { mutableStateOf(-1) }
     var editingFoodItem by remember { mutableStateOf<RecognizedFoodItem?>(null) }
@@ -171,7 +190,7 @@ fun DietRecordScreen(
         showFoodEditor = true
     }
 
-    // 拍照（TakePicture 全尺寸，委托系统相机，无需 CAMERA 权限）
+    // 拍照(TakePicture 全尺寸,委托系统相机,无需 CAMERA 权限)
     val captureFileRef = remember { mutableStateOf<File?>(null) }
     val takePicture = rememberLauncherForActivityResult(
         ActivityResultContracts.TakePicture()
@@ -193,27 +212,26 @@ fun DietRecordScreen(
         uri?.let { viewModel.onGallerySelected(it) }
     }
 
-    // 跨 Tab 单次事件：保存动线（切「今日」+ 余量 SnackBar）、失败与拍摄异常提示
+    // 跨 Tab 单次事件:保存动线(切「今日」+ 余量 SnackBar)、失败与拍摄异常提示
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
                 is DietEvent.RecordSaved -> {
                     userNote = ""
                     snackBarShow(
-                        event.remainingCalories?.let { "已记录，今日还可摄入 $it kcal" } ?: "已记录"
+                        event.remainingCalories?.let { "已记录,今日还可摄入 $it kcal" } ?: "已记录"
                     )
                     pagerState.animateScrollToPage(TAB_TODAY)
                 }
-                DietEvent.SaveFailed -> snackBarShow("保存失败，请重试")
-                DietEvent.CaptureInvalid -> snackBarShow("拍摄失败，请重试或改用相册")
+                DietEvent.SaveFailed -> snackBarShow("保存失败,请重试")
+                DietEvent.CaptureInvalid -> snackBarShow("拍摄失败,请重试或改用相册")
                 DietEvent.EditorSaved -> snackBarShow("修改已保存")
             }
         }
     }
 
-    // 删除撤销：SnackBar 存续期 = 撤销窗口（SnackbarDuration.Long = 10s）。
-    // 连续删除时取消当前条重发合并计数；被其他 SnackBar 顶掉同样走 commitPending（宁可慢删不误删：
-    // 记录行已即时删除，此处只提交图片清理）
+    // 删除撤销:SnackBar 存续期 = 撤销窗口(SnackbarDuration.Long = 10s)。
+    // 连续删除时取消当前条重发合并计数;被其他 SnackBar 顶掉同样走 commitPending
     var undoSnackbarJob by remember { mutableStateOf<Job?>(null) }
     LaunchedEffect(Unit) {
         viewModel.pendingDeleteRecords.collect { pending ->
@@ -285,6 +303,8 @@ fun DietRecordScreen(
                 when (page) {
                     TAB_ADD -> AddTabPage(
                         state = addState,
+                        todayTotalCalories = todayState.totalCalories,
+                        recommendedCalories = todayState.recommendedCalories,
                         userNote = userNote,
                         onUserNoteChange = { userNote = it },
                         onMealTypeSelected = viewModel::onMealTypeSelected,
@@ -297,23 +317,25 @@ fun DietRecordScreen(
                         onClearImage = viewModel::clearImage,
                         onStartAnalysis = { viewModel.startAnalysis(userNote) },
                         onCancelAnalysis = viewModel::cancelAnalysis,
+                        onDiscardAnalysis = viewModel::discardAnalysis,
                         onQuickAddFood = viewModel::addFoodItem,
                         onEditFood = ::openFoodEditor,
                         onRemoveFood = viewModel::removeFoodItem,
+                        onClearFoods = viewModel::clearFoods,
                         onSave = { viewModel.saveRecord(userNote) },
                         listState = addListState,
                     )
                     TAB_TODAY -> TodayTabPage(
                         state = todayState,
                         onEditRecord = viewModel::openEditor,
-                        onDeleteRecord = viewModel::deleteRecord,
                         onGoAdd = { scope.launch { pagerState.animateScrollToPage(TAB_ADD) } },
+                        goSetting = goSetting,
                     )
                     TAB_HISTORY -> HistoryTabPage(
                         state = historyState,
                         onRangeSelected = viewModel::setHistoryRange,
                         onEditRecord = viewModel::openEditor,
-                        onDeleteRecord = viewModel::deleteRecord,
+                        onGoAdd = { scope.launch { pagerState.animateScrollToPage(TAB_ADD) } },
                     )
                 }
             }
@@ -325,6 +347,8 @@ fun DietRecordScreen(
 @Composable
 private fun AddTabPage(
     state: AddTabState,
+    todayTotalCalories: Int,
+    recommendedCalories: Int?,
     userNote: String,
     onUserNoteChange: (String) -> Unit,
     onMealTypeSelected: (MealType) -> Unit,
@@ -333,23 +357,32 @@ private fun AddTabPage(
     onClearImage: () -> Unit,
     onStartAnalysis: () -> Unit,
     onCancelAnalysis: () -> Unit,
+    onDiscardAnalysis: () -> Unit,
     onQuickAddFood: (RecognizedFoodItem) -> Unit,
     onEditFood: (Int) -> Unit,
     onRemoveFood: (Int) -> Unit,
+    onClearFoods: () -> Unit,
     onSave: () -> Unit,
     listState: LazyListState,
 ) {
+    // D11/OV2A:四输入穷举;isAnalyzing 时按钮由「取消识别」分支覆盖
+    val action = dietPrimaryAction(
+        hasImage = state.hasImage,
+        hasNote = userNote.isNotBlank(),
+        hasFoods = state.recognizedFoods.isNotEmpty(),
+        hasResult = state.aiResponse != null,
+    )
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(horizontal = 15.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        // 输入卡：餐次 + 常用食物（首屏可达，兑现「快速添加优先级最高」）+ 图片 + 备注
+        // 输入卡:餐次 + 常用食物(首屏可达,快速添加优先级最高)+ 图片 + 备注
         item(key = "input_card") {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                 ),
@@ -366,18 +399,30 @@ private fun AddTabPage(
                             FilterChip(
                                 selected = state.selectedMealType == mealType,
                                 onClick = { onMealTypeSelected(mealType) },
-                                label = { Text(mealType.displayName, fontSize = 13.sp, maxLines = 1) },
-                                modifier = Modifier.weight(1f),
+                                label = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            mealType.icon,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(14.dp),
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(mealType.displayName, fontSize = 13.sp, maxLines = 1)
+                                    }
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .minimumInteractiveComponentSize(),
                                 shape = RoundedCornerShape(12.dp),
                             )
                         }
                     }
 
-                    // 常用食物区：点击以历史中位数克数/热量直接加入下方列表（离线零 AI）
+                    // 常用食物区:点击以历史中位数克数/热量直接加入下方列表(离线零 AI)
                     if (state.frequentFoods.isNotEmpty()) {
                         Column {
                             Text(
-                                "常用食物",
+                                "常用食物 · 点击直接加入",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -391,9 +436,10 @@ private fun AddTabPage(
                                         onClick = { onQuickAddFood(food) },
                                         shape = RoundedCornerShape(10.dp),
                                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                        modifier = Modifier.minimumInteractiveComponentSize(),
                                     ) {
                                         Text(
-                                            "${food.name} · ${food.estimatedCalories}",
+                                            "${food.name} · ${food.estimatedCalories} kcal",
                                             fontSize = 12.sp,
                                             maxLines = 1,
                                         )
@@ -403,7 +449,7 @@ private fun AddTabPage(
                         }
                     }
 
-                    // 图片区：无图且已有食物（纯快速添加）时折叠为一行入口
+                    // 图片区:无图且已有食物(纯快速添加)时折叠为一行入口
                     when {
                         state.selectedImageUri != null -> {
                             GalleryPreview(imageUri = state.selectedImageUri, onClearImage = onClearImage)
@@ -438,7 +484,7 @@ private fun AddTabPage(
                             ) {
                                 Icon(Icons.Default.AddAPhoto, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("拍照识别（可选）", fontSize = 13.sp)
+                                Text("拍照识别(可选)", fontSize = 13.sp)
                             }
                         }
                     }
@@ -446,7 +492,7 @@ private fun AddTabPage(
                     OutlinedTextField(
                         value = userNote,
                         onValueChange = onUserNoteChange,
-                        label = { Text("添加备注（如：只吃了一半）") },
+                        label = { Text("添加备注(如:只吃了一半)") },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                     )
@@ -454,42 +500,105 @@ private fun AddTabPage(
             }
         }
 
-        // 分析卡：单一入口（有图走图片识别，无图备注非空走文本识别），分析中可取消
-        item(key = "analyze_button") {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Button(
-                    onClick = if (state.isAnalyzing) onCancelAnalysis else onStartAnalysis,
-                    modifier = Modifier.fillMaxWidth(),
-                    // 分析中该按钮是「取消分析」，必须可点；空闲时要求有图或有备注
-                    enabled = !state.isSaving && (state.isAnalyzing || state.hasImage || userNote.isNotBlank()),
-                    shape = RoundedCornerShape(12.dp),
-                ) {
-                    if (state.isAnalyzing) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onPrimary,
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("取消分析")
-                    } else {
-                        Icon(Icons.Default.AddAPhoto, contentDescription = null, modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(if (state.hasImage) "开始分析" else "文本识别")
+        // 快速路径已选区:结果卡不在场时展示(结果卡在场则由结果卡呈现)
+        if (state.aiResponse == null && state.recognizedFoods.isNotEmpty()) {
+            item(key = "selected_foods") {
+                SelectedFoodsSection(
+                    foods = state.recognizedFoods,
+                    onEdit = onEditFood,
+                    onRemove = onRemoveFood,
+                    onClear = onClearFoods,
+                )
+            }
+        }
+
+        // 情境化主按钮(D5/D11)
+        if (action != DietPrimaryAction.HIDDEN) {
+            item(key = "primary_action") {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    when (action) {
+                        DietPrimaryAction.SAVE_THIS_MEAL -> {
+                            val quickTotal = state.recognizedFoods.sumOf { it.estimatedCalories }
+                            Button(
+                                onClick = onSave,
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = !state.isSaving,
+                                shape = RoundedCornerShape(12.dp),
+                            ) {
+                                if (state.isSaving) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(20.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                }
+                                Text("保存这餐 · $quickTotal kcal", fontWeight = FontWeight.Bold)
+                            }
+                            if (userNote.isNotBlank()) {
+                                TextButton(onClick = onStartAnalysis) {
+                                    Text("改用文本识别", fontSize = 13.sp)
+                                }
+                            }
+                        }
+                        DietPrimaryAction.ANALYZE -> {
+                            Button(
+                                onClick = if (state.isAnalyzing) onCancelAnalysis else onStartAnalysis,
+                                modifier = Modifier.fillMaxWidth(),
+                                // 分析中该按钮是「取消识别」,必须可点;空闲时要求有图或有备注
+                                enabled = !state.isSaving && (state.isAnalyzing || state.hasImage || userNote.isNotBlank()),
+                                shape = RoundedCornerShape(12.dp),
+                            ) {
+                                if (state.isAnalyzing) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(20.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("取消识别")
+                                } else {
+                                    Icon(Icons.Default.AddAPhoto, contentDescription = null, modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(if (state.hasImage) "开始识别" else "文本识别")
+                                }
+                            }
+                            if (state.isAnalyzing) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    "识别中,通常需要 10–20 秒 · 可继续改餐次或备注",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                // 等待期迷你额度行:把 10–20 秒焦虑转化为预算心智
+                                if (recommendedCalories != null && recommendedCalories > 0) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        "识别期间:今日还可摄入 ${(recommendedCalories - todayTotalCalories).coerceAtLeast(0)} kcal",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                }
+                            }
+                        }
+                        DietPrimaryAction.DISABLED -> {
+                            Button(
+                                onClick = {},
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = false,
+                                shape = RoundedCornerShape(12.dp),
+                            ) {
+                                Text("拍照、点常用食物或写备注开始")
+                            }
+                        }
+                        DietPrimaryAction.HIDDEN -> Unit
                     }
-                }
-                if (state.isAnalyzing) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        "识别中，通常需要 10–20 秒",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                 }
             }
         }
 
-        // 结果卡 + 保存（分析完成后自动滚动至此）
+        // 结果卡 + 保存(分析完成后自动滚动至此)
         if (state.aiResponse != null) {
             item(key = "ai_result") {
                 AiResultSection(
@@ -497,10 +606,12 @@ private fun AddTabPage(
                     aiAdvice = state.aiAdvice,
                     foods = state.recognizedFoods,
                     isFallback = state.isFallback,
-                    macros = state.aiResponse?.macros ?: Macros(),
+                    todayTotalCalories = todayTotalCalories,
+                    recommendedCalories = recommendedCalories,
                     onEditFood = onEditFood,
                     onRemoveFood = onRemoveFood,
                     onAddFood = { onEditFood(-1) },
+                    onDiscard = onDiscardAnalysis,
                 )
             }
 
@@ -528,16 +639,16 @@ private fun AddTabPage(
         }
     }
 
-    // P9 真正修复：分析完成滚动至结果卡
+    // 分析完成滚动至结果卡(结果卡在场时 item 布局:0 输入卡、1 结果卡、2 保存)
     LaunchedEffect(state.aiResponse) {
         if (state.aiResponse != null && state.recognizedFoods.isNotEmpty()) {
             delay(200) // 等结果卡完成组合
-            runCatching { listState.animateScrollToItem(2) }
+            runCatching { listState.animateScrollToItem(1) }
         }
     }
 }
 
-/** 食物编辑弹窗状态由屏幕宿主持有，编辑器/添加页共用 */
+/** 食物编辑弹窗状态由屏幕宿主持有,编辑器/添加页共用 */
 @Composable
 private fun GalleryPreview(imageUri: Uri, onClearImage: () -> Unit) {
     val context = LocalContext.current
@@ -561,7 +672,7 @@ private fun GalleryPreview(imageUri: Uri, onClearImage: () -> Unit) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(200.dp)
-                    .clip(RoundedCornerShape(16.dp)),
+                    .clip(RoundedCornerShape(12.dp)),
                 contentScale = ContentScale.Crop,
             )
         } else {
@@ -594,11 +705,11 @@ private fun CapturePreview(file: File, onClearImage: () -> Unit) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(200.dp)
-                    .clip(RoundedCornerShape(16.dp)),
+                    .clip(RoundedCornerShape(12.dp)),
                 contentScale = ContentScale.Crop,
             )
         } else {
-            PreviewPlaceholder(text = if (loadFailed) "照片加载失败，请重新拍摄" else "照片加载中…")
+            PreviewPlaceholder(text = if (loadFailed) "照片加载失败,请重新拍摄" else "照片加载中…")
         }
         ClearImageButton(onClearImage, Modifier.align(Alignment.TopEnd).padding(8.dp))
     }
@@ -610,7 +721,7 @@ private fun PreviewPlaceholder(text: String) {
         modifier = Modifier
             .fillMaxWidth()
             .height(200.dp)
-            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(16.dp)),
+            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp)),
         contentAlignment = Alignment.Center,
     ) {
         Text(text, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -632,28 +743,38 @@ private fun ClearImageButton(onClearImage: () -> Unit, modifier: Modifier = Modi
     }
 }
 
+/**
+ * 识别结果卡(T4):复用 B 行语言;顶部红绿灯 chip+总热量;宏量图例按合并后 foods 现算;
+ * 保存前额度预览条;「放弃本次识别」退出路径(OV10)
+ */
 @Composable
 private fun AiResultSection(
     trafficLight: String,
     aiAdvice: String,
     foods: List<RecognizedFoodItem>,
     isFallback: Boolean,
-    macros: com.example.weight.data.diet.Macros,
+    todayTotalCalories: Int,
+    recommendedCalories: Int?,
     onEditFood: (Int) -> Unit,
     onRemoveFood: (Int) -> Unit,
     onAddFood: () -> Unit,
+    onDiscard: () -> Unit,
 ) {
-    val lightColor = trafficLightColor(trafficLight)
-    val lightLabel = trafficLightLabel(trafficLight)
+    val chipColors = lightChipColors(trafficLight)
     val totalCalories = foods.sumOf { it.estimatedCalories }
+    val macros = Macros(
+        protein = foods.sumOf { it.protein },
+        carbs = foods.sumOf { it.carbs },
+        fat = foods.sumOf { it.fat },
+    )
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            // 离线兜底信任态：徽章 + 灰化红绿灯 + 置顶核对提示（评审 F8）
+            // 离线兜底信任态:徽章 + 灰化红绿灯 + 置顶核对提示(评审 F8)
             if (isFallback) {
                 Card(
                     shape = RoundedCornerShape(8.dp),
@@ -662,7 +783,7 @@ private fun AiResultSection(
                     ),
                 ) {
                     Text(
-                        "离线估算：AI 暂不可用，以下为默认值，请核对修改",
+                        "离线估算:AI 暂不可用,以下为默认值,请核对修改",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onErrorContainer,
                         modifier = Modifier
@@ -678,21 +799,24 @@ private fun AiResultSection(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(chipColors.container)
+                        .padding(horizontal = 8.dp, vertical = 3.dp),
+                ) {
                     Box(
                         modifier = Modifier
-                            .size(12.dp)
-                            .background(
-                                if (isFallback) lightColor.copy(alpha = 0.4f) else lightColor,
-                                CircleShape
-                            )
+                            .size(8.dp)
+                            .background(chipColors.dot, CircleShape)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(5.dp))
                     Text(
-                        lightLabel,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = if (isFallback) lightColor.copy(alpha = 0.6f) else lightColor,
-                        fontWeight = FontWeight.Bold,
+                        trafficLightLabel(trafficLight),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = chipColors.text,
+                        fontWeight = FontWeight.SemiBold,
                     )
                 }
                 Text(
@@ -708,9 +832,9 @@ private fun AiResultSection(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    MacroChip("蛋白质", "${macros.protein}g", Color(0xFF42A5F5))
-                    MacroChip("碳水", "${macros.carbs}g", Color(0xFFFFA726))
-                    MacroChip("脂肪", "${macros.fat}g", Color(0xFFEF5350))
+                    MacroLegend("蛋白质", "${macros.protein}g", DietMacroColors.Protein)
+                    MacroLegend("碳水", "${macros.carbs}g", DietMacroColors.Carbs)
+                    MacroLegend("脂肪", "${macros.fat}g", DietMacroColors.Fat)
                 }
             }
 
@@ -727,50 +851,55 @@ private fun AiResultSection(
             HorizontalDivider()
             Spacer(modifier = Modifier.height(8.dp))
 
+            val lightColor = trafficLightColor(trafficLight)
             foods.forEachIndexed { index, food ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 4.dp),
+                        .padding(vertical = 4.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(onClickLabel = "编辑${food.name}") { onEditFood(index) }
+                        .padding(horizontal = 4.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            food.name,
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Medium,
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(width = 4.dp, height = 32.dp)
+                                .background(lightColor, RoundedCornerShape(2.dp))
                         )
-                        val detail = buildString {
-                            append("${food.estimatedGrams}g · ${food.estimatedCalories}kcal")
-                            if (food.category.isNotBlank()) append(" · ${food.category}")
-                            if (food.protein > 0 || food.carbs > 0 || food.fat > 0) {
-                                append(" · 蛋白${food.protein} 碳水${food.carbs} 脂肪${food.fat}")
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                food.name,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            val detail = buildString {
+                                if (food.estimatedGrams > 0) append("${food.estimatedGrams}g · ")
+                                append("${food.estimatedCalories}kcal")
+                                if (food.isManuallyAdded) append(" · 手动添加")
                             }
+                            Text(
+                                detail,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
-                        Text(
-                            detail,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
                     }
-                    Row {
-                        IconButton(onClick = { onEditFood(index) }, modifier = Modifier.size(32.dp)) {
-                            Icon(
-                                Icons.Default.Edit,
-                                contentDescription = "编辑",
-                                modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.primary,
-                            )
-                        }
-                        IconButton(onClick = { onRemoveFood(index) }, modifier = Modifier.size(32.dp)) {
-                            Icon(
-                                Icons.Default.Close,
-                                contentDescription = "删除",
-                                modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.error,
-                            )
-                        }
+                    IconButton(onClick = { onRemoveFood(index) }, modifier = Modifier.size(40.dp)) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "删除${food.name}",
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.error,
+                        )
                     }
                 }
             }
@@ -784,6 +913,30 @@ private fun AiResultSection(
                 Spacer(modifier = Modifier.width(4.dp))
                 Text("添加食物")
             }
+
+            // 保存前额度预览:延续编辑器「不突袭」原则,保存前看到这餐的影响
+            if (recommendedCalories != null && recommendedCalories > 0) {
+                Spacer(modifier = Modifier.height(10.dp))
+                val after = recommendedCalories - todayTotalCalories - totalCalories
+                Text(
+                    if (after >= 0) "这餐 $totalCalories kcal · 保存后今日还可摄入 $after kcal"
+                    else "这餐 $totalCalories kcal · 保存后今日将超出 ${-after} kcal",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(10.dp))
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                )
+            }
+
+            TextButton(
+                onClick = onDiscard,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("放弃本次识别", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
     }
 }
@@ -792,96 +945,130 @@ private fun AiResultSection(
 private fun TodayTabPage(
     state: TodayTabState,
     onEditRecord: (DietRecord) -> Unit,
-    onDeleteRecord: (DietRecord) -> Unit,
     onGoAdd: () -> Unit,
+    goSetting: () -> Unit,
 ) {
     val mealTypeByName = remember { MealType.entries.associateBy { it.name } }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(horizontal = 15.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item(key = "today_summary") {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        "今日饮食",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    if (state.recommendedCalories != null && state.recommendedCalories > 0) {
-                        IntakeProgressContent(intake = state.totalCalories, recommended = state.recommendedCalories)
-                    } else {
-                        Text(
-                            "已摄入: ${state.totalCalories} kcal",
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Medium,
-                        )
-                        Text(
-                            "补全设置中的年龄、性别与活动水平后，可获得个性化建议摄入量",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-
-                    // 每日宏量合计：无宏量数据日显示「—」降级；混合日标注部分统计
-                    state.macros?.let { macros ->
-                        Spacer(modifier = Modifier.height(12.dp))
-                        DailyMacrosRow(macros)
-                    }
-                }
-            }
+            IntakeHero(
+                totalCalories = state.totalCalories,
+                recommendedCalories = state.recommendedCalories,
+                macros = state.macros,
+                isEmpty = state.records.isEmpty(),
+                goSetting = goSetting,
+            )
         }
 
         if (state.records.isEmpty()) {
             item(key = "empty_today") {
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
+                    Text("🍽️", fontSize = 34.sp)
+                    Spacer(modifier = Modifier.height(10.dp))
                     Text(
-                        "今天还没有记录，去记一笔吧！",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 16.dp),
+                        "今天还没记录",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
                     )
-                    OutlinedButton(onClick = onGoAdd, shape = RoundedCornerShape(12.dp)) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        "拍一张照片,或从常用食物快速记一笔",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Button(onClick = onGoAdd, shape = RoundedCornerShape(12.dp)) {
                         Text("去记一笔")
                     }
                 }
             }
         } else {
-            // 按餐次分组
+            // 按餐次分组:组头=图标+餐次+首条时间+小计
             val grouped = state.records.groupBy { it.mealType }
             MealType.entries.forEach { mealType ->
                 val mealRecords = grouped[mealType.name] ?: return@forEach
+                val subtotal = mealRecords.sumOf { it.estimatedCalories }
+                val firstTime = TimeUtils.convertMillisToHM(mealRecords.minOf { it.timestamp })
                 item(key = "meal_header_${mealType.name}") {
-                    Text(
-                        mealType.displayName,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            mealType.icon,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            mealType.displayName,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            firstTime,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(modifier = Modifier.weight(1f))
+                        Text(
+                            "$subtotal kcal",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
                 items(
                     count = mealRecords.size,
                     key = { i -> "today_${mealRecords[i].id}" },
                 ) { i ->
                     val record = mealRecords[i]
+                    val texts = rememberRecordTexts(record, mealLabel = null)
                     DietRecordRow(
                         record = record,
-                        mealLabel = null,
+                        title = texts.first,
+                        subtitle = texts.second,
                         onClick = { onEditRecord(record) },
-                        onDelete = { onDeleteRecord(record) },
+                    )
+                }
+            }
+            item(key = "go_add_footer") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.primaryContainer)
+                        .clickable(onClickLabel = "补记一笔") { onGoAdd() }
+                        .padding(vertical = 12.dp)
+                        .minimumInteractiveComponentSize(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        "补记一笔",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
                     )
                 }
             }
@@ -889,278 +1076,229 @@ private fun TodayTabPage(
     }
 }
 
+/**
+ * Hero 预算卡(T1/D3):大数字=剩余;环填充=已用比例、环色=额度状态(IntakeRingColors);
+ * 满配/接近/超支/档案缺失四态;零记录日隐藏堆叠条
+ */
 @Composable
-private fun DailyMacrosRow(macros: DailyMacros) {
-    Column {
-        if (macros.hasMacroData) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                MacroChip("蛋白质", "${macros.protein}g", Color(0xFF42A5F5))
-                MacroChip("碳水", "${macros.carbs}g", Color(0xFFFFA726))
-                MacroChip("脂肪", "${macros.fat}g", Color(0xFFEF5350))
-            }
-            if (macros.skippedRecords > 0) {
-                Spacer(modifier = Modifier.height(4.dp))
+private fun IntakeHero(
+    totalCalories: Int,
+    recommendedCalories: Int?,
+    macros: DailyMacros?,
+    isEmpty: Boolean,
+    goSetting: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            if (recommendedCalories != null && recommendedCalories > 0) {
+                val status = CalorieCalculator.intakeStatus(totalCalories, recommendedCalories)
+                val remaining = recommendedCalories - totalCalories
+                val over = status == IntakeStatus.OVER
+                val usedPercent = ((totalCalories.toDouble() / recommendedCalories) * 100).roundToInt()
+                val today = remember { LocalDate.now() }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    RingBox(
+                        usedPercent = usedPercent,
+                        color = status.ringColor(),
+                        over = over,
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column {
+                        Text(
+                            if (over) "今日摄入已超" else "今日还可摄入",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            if (over) "已超出 ${-remaining} kcal" else "$remaining kcal",
+                            style = MaterialTheme.typography.displaySmall,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = if (over) IntakeRingColors.Over else MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    "${macros.skippedRecords} 条记录数据异常未计入宏量",
+                    "已摄入 $totalCalories / 建议 $recommendedCalories kcal" +
+                        " · 今天${today.monthValue}月${today.dayOfMonth}日",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-            }
-        } else {
-            Text(
-                "宏量营养素 —（本日记录早于宏量统计功能，未记录该数据）",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
 
-@Composable
-private fun HistoryTabPage(
-    state: HistoryTabState,
-    onRangeSelected: (Int) -> Unit,
-    onEditRecord: (DietRecord) -> Unit,
-    onDeleteRecord: (DietRecord) -> Unit,
-) {
-    val mealTypeByName = remember { MealType.entries.associateBy { it.name } }
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        // 时间口径：复用主屏 ScopeSelector 的心智（近30天/近3月/近6月）
-        item(key = "range_selector") {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                listOf(30 to "近30天", 90 to "近3月", 180 to "近6月").forEach { (days, label) ->
-                    FilterChip(
-                        selected = state.rangeDays == days,
-                        onClick = { onRangeSelected(days) },
-                        label = { Text(label, fontSize = 13.sp) },
-                        shape = RoundedCornerShape(12.dp),
-                    )
-                }
-            }
-        }
-
-        if (state.records.isEmpty()) {
-            item(key = "empty_history") {
-                Text(
-                    "该时段暂无记录",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 32.dp),
-                )
-            }
-        } else {
-            val byDate = state.records.groupBy { it.date }
-            byDate.forEach { (date, records) ->
-                item(key = "date_header_$date") {
-                    val dayTotal = records.sumOf { it.estimatedCalories }
-                    val dayLight = state.dayLights[date]
-                    val lightColor = dayLight?.let { trafficLightColor(it) } ?: Color.Gray
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .background(lightColor, CircleShape)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
+                if (!isEmpty) {
+                    val weights = macros
+                        ?.takeIf { it.hasMacroData }
+                        ?.let { DailyMacroAggregator.macroCalorieWeights(it.protein, it.carbs, it.fat) }
+                    if (macros != null && macros.hasMacroData && weights != null) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        MacroStackedBar(weights)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        ) {
+                            MacroLegend("蛋白质", "${macros.protein}g", DietMacroColors.Protein)
+                            MacroLegend("碳水", "${macros.carbs}g", DietMacroColors.Carbs)
+                            MacroLegend("脂肪", "${macros.fat}g", DietMacroColors.Fat)
+                        }
+                        if (macros.skippedRecords > 0) {
+                            Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                date,
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
+                                "${macros.skippedRecords} 条记录数据异常未计入宏量",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
+                    } else if (macros != null && !macros.hasMacroData) {
+                        Spacer(modifier = Modifier.height(10.dp))
                         Text(
-                            "$dayTotal kcal",
-                            style = MaterialTheme.typography.bodyMedium,
+                            "宏量数据 —(本日记录早于宏量统计功能,未记录该数据)",
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
-                items(
-                    count = records.size,
-                    key = { i -> "history_${records[i].id}" },
-                ) { i ->
-                    val record = records[i]
-                    DietRecordRow(
-                        record = record,
-                        mealLabel = mealTypeByName[record.mealType]?.displayName ?: record.mealType,
-                        onClick = { onEditRecord(record) },
-                        onDelete = { onDeleteRecord(record) },
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DietRecordRow(
-    record: DietRecord,
-    mealLabel: String?,
-    onClick: () -> Unit,
-    onDelete: () -> Unit,
-) {
-    val lightColor = trafficLightColor(record.trafficLight)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.weight(1f),
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .background(lightColor, CircleShape)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Column(modifier = Modifier.weight(1f)) {
+            } else {
+                // 档案不全降级(D6/4A):大数字回退已摄入,环置灰隐藏,引导去设置页
                 Text(
-                    mealLabel ?: "饮食记录",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
+                    "今日已摄入",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                if (record.userInput.isNotBlank()) {
+                Text(
+                    "$totalCalories kcal",
+                    style = MaterialTheme.typography.displaySmall,
+                    fontWeight = FontWeight.ExtraBold,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "今天 · 补全身体档案后开启每日额度",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.primaryContainer)
+                        .clickable(onClickLabel = "去补全档案") { goSetting() }
+                        .padding(horizontal = 12.dp, vertical = 11.dp)
+                        .minimumInteractiveComponentSize(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Text(
-                        record.userInput,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
+                        "补全档案,开启每日额度",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    Icon(
+                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
                     )
                 }
-            }
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                "${record.estimatedCalories} kcal",
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-            )
-            IconButton(onClick = onClick, modifier = Modifier.size(32.dp)) {
-                Icon(
-                    Icons.Default.Edit,
-                    contentDescription = "编辑记录",
-                    modifier = Modifier.size(16.dp),
-                    tint = MaterialTheme.colorScheme.primary,
-                )
-            }
-            IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-                Icon(
-                    Icons.Default.Delete,
-                    contentDescription = "删除记录",
-                    modifier = Modifier.size(16.dp),
-                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
-                )
             }
         }
     }
 }
 
-/** 已摄入/建议摄入进度条：进度封顶 100%，超支用状态色与文案表达 */
+/** 状态圆环:填充=已用比例,环色=额度状态;超支画满;环心中性「已用 N%」 */
 @Composable
-private fun IntakeProgressContent(intake: Int, recommended: Int) {
-    val status = CalorieCalculator.intakeStatus(intake, recommended)
-    val statusColor = when (status) {
-        IntakeStatus.ENOUGH -> trafficLightColor("GREEN")
-        IntakeStatus.NEAR_LIMIT -> trafficLightColor("YELLOW")
-        IntakeStatus.OVER -> trafficLightColor("RED")
-    }
-    val remaining = recommended - intake
-    val statusDetail = when (status) {
-        IntakeStatus.ENOUGH -> "还可摄入 $remaining kcal"
-        IntakeStatus.NEAR_LIMIT -> "今日额度快用完了"
-        IntakeStatus.OVER -> "已超出建议 ${-remaining} kcal"
-    }
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("已摄入 ", style = MaterialTheme.typography.bodyLarge)
-            Text(
-                "$intake",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = statusColor,
-            )
-            Text(
-                " / 建议 $recommended kcal",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .background(statusColor, CircleShape)
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(
-                status.label,
-                style = MaterialTheme.typography.bodySmall,
-                color = statusColor,
-                fontWeight = FontWeight.Medium,
-            )
-        }
-    }
-
-    Spacer(modifier = Modifier.height(8.dp))
-
-    val progress = (intake.toFloat() / recommended).coerceIn(0f, 1f)
-    val animatedProgress by animateFloatAsState(
-        targetValue = progress,
+private fun RingBox(usedPercent: Int, color: Color, over: Boolean) {
+    val animatedFraction by animateFloatAsState(
+        targetValue = (usedPercent.coerceIn(0, 100)) / 100f,
         animationSpec = ProgressIndicatorDefaults.ProgressAnimationSpec,
-        label = "intakeProgress",
+        label = "intakeRing",
     )
-    LinearProgressIndicator(
-        progress = { animatedProgress },
+    Box(
+        modifier = Modifier.size(72.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val stroke = 8.dp.toPx()
+            val inset = stroke / 2
+            val arcSize = Size(size.width - stroke, size.height - stroke)
+            drawArc(
+                color = IntakeRingColors.Track,
+                startAngle = 0f,
+                sweepAngle = 360f,
+                useCenter = false,
+                topLeft = Offset(inset, inset),
+                size = arcSize,
+                style = Stroke(width = stroke, cap = StrokeCap.Butt),
+            )
+            drawArc(
+                color = color,
+                startAngle = -90f,
+                sweepAngle = if (over) 360f else animatedFraction * 360f,
+                useCenter = false,
+                topLeft = Offset(inset, inset),
+                size = arcSize,
+                style = Stroke(width = stroke, cap = StrokeCap.Round),
+            )
+        }
+        Text(
+            if (over) "已用\n$usedPercent%" else "已用 $usedPercent%",
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+@Composable
+private fun MacroStackedBar(weights: Triple<Float, Float, Float>) {
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(8.dp)
             .clip(RoundedCornerShape(4.dp)),
-        color = statusColor,
-        trackColor = statusColor.copy(alpha = 0.15f),
-    )
-
-    Spacer(modifier = Modifier.height(4.dp))
-
-    Text(
-        statusDetail,
-        style = MaterialTheme.typography.bodySmall,
-        color = statusColor,
-    )
+    ) {
+        // weight(0f) 会抛 IllegalArgumentException:零权重段直接不渲染
+        // (单食物常见:如纯碳水食物蛋白/脂肪为 0)
+        if (weights.first > 0f) {
+            Box(
+                modifier = Modifier
+                    .weight(weights.first)
+                    .fillMaxHeight()
+                    .background(DietMacroColors.Protein)
+            )
+        }
+        if (weights.second > 0f) {
+            Box(
+                modifier = Modifier
+                    .weight(weights.second)
+                    .fillMaxHeight()
+                    .background(DietMacroColors.Carbs)
+            )
+        }
+        if (weights.third > 0f) {
+            Box(
+                modifier = Modifier
+                    .weight(weights.third)
+                    .fillMaxHeight()
+                    .background(DietMacroColors.Fat)
+            )
+        }
+    }
 }
 
 @Composable
-private fun MacroChip(label: String, value: String, color: Color) {
+private fun MacroLegend(label: String, value: String, color: Color) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(
             modifier = Modifier
@@ -1173,5 +1311,255 @@ private fun MacroChip(label: String, value: String, color: Color) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+/** 从记录 JSON 解析食物并推导行标题/副标(食物名是视觉主角);解析失败回退通用文案 */
+@Composable
+private fun rememberRecordTexts(record: DietRecord, mealLabel: String?): Pair<String, String> {
+    val json: kotlinx.serialization.json.Json = koinInject()
+    val foods = remember(record.id, record.recognizedFoodJson) {
+        runCatching {
+            json.decodeFromString<List<RecognizedFoodItem>>(record.recognizedFoodJson)
+        }.onFailure { android.util.Log.w("DietRecord", "行文案:记录 JSON 解析失败 ${record.id}", it) }
+            .getOrNull()
+    }
+    return remember(foods, mealLabel, record.userInput) {
+        when {
+            foods.isNullOrEmpty() -> {
+                (mealLabel ?: "饮食记录") to record.userInput
+            }
+            foods.size == 1 -> {
+                val f = foods.first()
+                val sub = buildString {
+                    if (mealLabel != null) append("$mealLabel · ")
+                    if (f.estimatedGrams > 0) append("${f.estimatedGrams}g")
+                    if (record.userInput.isNotBlank()) {
+                        if (isNotEmpty()) append(" · ")
+                        append(record.userInput)
+                    }
+                    if (isEmpty()) append("${f.estimatedCalories} kcal")
+                }
+                f.name to sub
+            }
+            else -> {
+                val sub = buildString {
+                    if (mealLabel != null) append("$mealLabel")
+                    if (record.userInput.isNotBlank()) {
+                        append(" · ")
+                        append(record.userInput)
+                    }
+                }
+                "${foods.first().name} 等 ${foods.size} 项" to sub
+            }
+        }
+    }
+}
+
+/** B 行(D7/D8):色条+40dp 缩略图(有图才出现)+食物名标题+kcal;点击整行进编辑器 */
+@Composable
+private fun DietRecordRow(
+    record: DietRecord,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+) {
+    val lightColor = trafficLightColor(record.trafficLight)
+    val thumbnailCache = koinInject<DietThumbnailCache>()
+    val thumb by produceState<ImageBitmap?>(initialValue = null, record.imageUri) {
+        if (record.imageUri.isNotBlank()) {
+            value = thumbnailCache.get(record.imageUri)
+        }
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .clickable(onClickLabel = "编辑记录") { onClick() }
+            .padding(start = 0.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f),
+        ) {
+            Box(
+                modifier = Modifier
+                    .padding(start = 0.dp)
+                    .size(width = 4.dp, height = 40.dp)
+                    .background(lightColor, RoundedCornerShape(0.dp, 3.dp, 3.dp, 0.dp))
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            if (record.imageUri.isNotBlank()) {
+                val currentThumb = thumb
+                if (currentThumb != null) {
+                    Image(
+                        painter = BitmapPainter(currentThumb),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                        contentScale = ContentScale.Crop,
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
+                    )
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (subtitle.isNotBlank()) {
+                    Text(
+                        subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+        Text(
+            "${record.estimatedCalories} kcal",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+@Composable
+private fun HistoryTabPage(
+    state: HistoryTabState,
+    onRangeSelected: (Int) -> Unit,
+    onEditRecord: (DietRecord) -> Unit,
+    onGoAdd: () -> Unit,
+) {
+    val today = remember { LocalDate.now() }
+    val mealTypeByName = remember { MealType.entries.associateBy { it.name } }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 15.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        // 时间口径:复用主屏 ScopeSelector 的心智(近30天/近3月/近6月)
+        item(key = "range_selector") {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                listOf(30 to "近30天", 90 to "近3月", 180 to "近6月").forEach { (days, label) ->
+                    FilterChip(
+                        selected = state.rangeDays == days,
+                        onClick = { onRangeSelected(days) },
+                        label = { Text(label, fontSize = 13.sp) },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.minimumInteractiveComponentSize(),
+                    )
+                }
+            }
+        }
+
+        if (state.days.all { it.records.isEmpty() }) {
+            item(key = "empty_history") {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        "该时段暂无记录",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedButton(onClick = onGoAdd, shape = RoundedCornerShape(12.dp)) {
+                        Text("去记第一笔")
+                    }
+                }
+            }
+        } else {
+            items(state.days, key = { "day_${it.date}" }) { day ->
+                if (day.records.isEmpty()) {
+                    // 空档日(OV4B):紧凑行,无合计
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp, bottom = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .background(TrafficLightColors.Unknown, CircleShape)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            "${TimeUtils.humanizeDate(today, day.date)} · 当天未记录",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                } else {
+                    // 日期头:人性化日期+当日红绿灯点+日合计
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .background(
+                                        day.trafficLight?.let { trafficLightColor(it) }
+                                            ?: TrafficLightColors.Unknown,
+                                        CircleShape
+                                    )
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                TimeUtils.humanizeDate(today, day.date),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                        Text(
+                            "${day.totalCalories} kcal",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    day.records.forEach { record ->
+                        val texts = rememberRecordTexts(
+                            record,
+                            mealLabel = mealTypeByName[record.mealType]?.displayName,
+                        )
+                        DietRecordRow(
+                            record = record,
+                            title = texts.first,
+                            subtitle = texts.second,
+                            onClick = { onEditRecord(record) },
+                        )
+                    }
+                }
+            }
+        }
     }
 }

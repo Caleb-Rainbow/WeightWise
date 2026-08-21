@@ -22,6 +22,8 @@ import com.example.weight.data.diet.MealType
 import com.example.weight.data.diet.MealTypeInference
 import com.example.weight.data.diet.RecognizedFoodItem
 import com.example.weight.data.diet.TrafficLightCalculator
+import com.example.weight.data.diet.mergeFoods
+import com.example.weight.data.diet.resolveTrafficLight
 import com.example.weight.util.ImageCompressor
 import com.example.weight.util.TimeUtils
 import kotlinx.coroutines.CancellationException
@@ -65,6 +67,8 @@ data class AddTabState(
     val isSaving: Boolean = false,
     val aiResponse: AiDietResponse? = null,
     val recognizedFoods: List<RecognizedFoodItem> = emptyList(),
+    /** AI 评级时的食物快照(OV1B):保存时与 recognizedFoods 比对,一致才采信 AI 评级 */
+    val ratedFoods: List<RecognizedFoodItem> = emptyList(),
     val trafficLight: String = "",
     val aiAdvice: String = "",
     /** AI 失败走离线兜底时为 true：结果卡显示「离线估算」徽章降级样式 */
@@ -84,13 +88,21 @@ data class TodayTabState(
 )
 
 data class HistoryTabState(
-    val records: List<DietRecord> = emptyList(),
     /** 时间口径（天）：30/90/180，复用主屏 ScopeSelector 心智 */
     val rangeDays: Int = 30,
-    /** 日期 → 当日红绿灯（按当日全部食物 isHealthy 本地推导，全 App 单一算法） */
-    val dayLights: Map<String, String> = emptyMap(),
-    /** 日期 → 当日热量合计 */
-    val dayTotals: Map<String, Int> = emptyMap(),
+    /**
+     * 完整日期序列（OV4B，新→旧）：含无记录的空档日。
+     * 空档日 records 为空；脏 JSON 日 records 非空但 trafficLight 为 null（灰点+保留合计）
+     */
+    val days: List<HistoryDay> = emptyList(),
+)
+
+/** 历史页单日：records 空=空档日；trafficLight null=有记录但评级不可知（食物 JSON 全部解析失败） */
+data class HistoryDay(
+    val date: String,
+    val records: List<DietRecord> = emptyList(),
+    val totalCalories: Int? = null,
+    val trafficLight: String? = null,
 )
 
 /** 跨 Tab 单次事件（SnackBar 文案、切 Tab 动线） */
@@ -290,10 +302,14 @@ class DietRecordViewModel(
 
     private fun applyAiResponse(response: AiDietResponse, isFallback: Boolean) {
         _addTab.update {
+            // E1A:合并手动项与 AI 结果(接入点在写回时,保证 index 与展示列表一致);
+            // ratedFoods 快照与合并结果同步,供保存时判定评级来源(OV1B)
+            val merged = mergeFoods(it.recognizedFoods, response.foods)
             it.copy(
                 isAnalyzing = false,
                 aiResponse = response,
-                recognizedFoods = response.foods,
+                recognizedFoods = merged,
+                ratedFoods = merged,
                 trafficLight = response.trafficLight,
                 aiAdvice = response.advice,
                 isFallback = isFallback,
@@ -318,7 +334,31 @@ class DietRecordViewModel(
 
     /** 快速添加 chip 与手动添加共用同一入口：加入下方食物列表后再统一保存 */
     fun addFoodItem(item: RecognizedFoodItem) {
-        _addTab.update { it.copy(recognizedFoods = it.recognizedFoods + item) }
+        _addTab.update {
+            it.copy(recognizedFoods = it.recognizedFoods + item.copy(isManuallyAdded = true))
+        }
+    }
+
+    /** 快速路径清空已选(E1A):仅清食物列表,不动图片与备注 */
+    fun clearFoods() {
+        _addTab.update { it.copy(recognizedFoods = emptyList(), ratedFoods = emptyList()) }
+    }
+
+    /** 「放弃本次识别」(OV10):清掉 AI 结果,保留手动添加的食物与图片,可重新拍摄/识别 */
+    fun discardAnalysis() {
+        analysisJob?.cancel()
+        analysisJob = null
+        _addTab.update {
+            it.copy(
+                isAnalyzing = false,
+                aiResponse = null,
+                trafficLight = "",
+                aiAdvice = "",
+                isFallback = false,
+                ratedFoods = emptyList(),
+                recognizedFoods = it.recognizedFoods.filter { food -> food.isManuallyAdded },
+            )
+        }
     }
 
     fun saveRecord(userNote: String) {
@@ -336,9 +376,13 @@ class DietRecordViewModel(
                         date = _todayDate.value,
                         userInput = userNote,
                         imageUri = imagePath,
-                        // AI 路径保留 AI 评级；快速添加等本地路径本地推导（红绿灯语义单一化）
-                        trafficLight = snapshot.aiResponse?.trafficLight
-                            ?: TrafficLightCalculator.compute(snapshot.recognizedFoods),
+                        // OV1B:食物清单与 AI 评级快照一致才采信 AI 评级,否则本地重算,
+                        // 杜绝「AI 评级盖在改动后的食物上」污染报告页统计
+                        trafficLight = resolveTrafficLight(
+                            snapshot.recognizedFoods,
+                            snapshot.ratedFoods,
+                            snapshot.aiResponse?.trafficLight,
+                        ),
                     )
                 )
                 cachedCompressionResult = null
@@ -348,6 +392,7 @@ class DietRecordViewModel(
                         captureFile = null,
                         aiResponse = null,
                         recognizedFoods = emptyList(),
+                        ratedFoods = emptyList(),
                         trafficLight = "",
                         aiAdvice = "",
                         isFallback = false,
@@ -433,31 +478,53 @@ class DietRecordViewModel(
     private fun observeHistory() {
         viewModelScope.launch {
             _historyTab.flatMapLatest { state ->
-                val endDate = LocalDate.now().plusDays(1).toString() // 排他：明天零点
-                val startDate = LocalDate.now().minusDays((state.rangeDays - 1).toLong()).toString()
-                dietRecordDao.getByDateRange(startDate, endDate)
-                    .map { records -> records to computeDayMeta(records) }
+                dietRecordDao.getByDateRange(historyStartDate(state.rangeDays), historyEndDateExclusive)
+                    .map { records -> buildHistoryDays(records, state.rangeDays) }
                     .flowOn(Dispatchers.Default)
-            }.collect { (records, meta) ->
-                _historyTab.update {
-                    it.copy(records = records, dayLights = meta.first, dayTotals = meta.second)
-                }
+            }.collect { days ->
+                _historyTab.update { it.copy(days = days) }
             }
         }
     }
 
-    /** 历史日头的红绿灯与合计；单条脏 JSON 跳过，不参与当日推导 */
-    private fun computeDayMeta(records: List<DietRecord>): Pair<Map<String, String>, Map<String, Int>> {
+    private fun historyStartDate(rangeDays: Int): String =
+        LocalDate.now().minusDays((rangeDays - 1).toLong()).toString()
+
+    private val historyEndDateExclusive: String
+        get() = LocalDate.now().plusDays(1).toString() // 排他:明天零点
+
+    /**
+     * 完整日期序列(OV4B):空档日也占一行「当天未记录」;有记录但食物 JSON 全部解析失败的日,
+     * trafficLight 为 null(UI 灰点+保留合计,E3A)。新→旧排序
+     */
+    private fun buildHistoryDays(records: List<DietRecord>, rangeDays: Int): List<HistoryDay> {
+        val today = LocalDate.now()
+        val byDate = records.groupBy { it.date }
+        val lights = computeDayLights(records)
+        return TimeUtils.lastNDates(today, rangeDays).reversed().map { date ->
+            val dayRecords = byDate[date].orEmpty()
+            if (dayRecords.isEmpty()) {
+                HistoryDay(date)
+            } else {
+                HistoryDay(
+                    date = date,
+                    records = dayRecords,
+                    totalCalories = dayRecords.sumOf { it.estimatedCalories },
+                    trafficLight = lights[date],
+                )
+            }
+        }
+    }
+
+    /** 历史日头红绿灯;单条脏 JSON 跳过,不参与当日推导;全天解析失败则该日无评级 */
+    private fun computeDayLights(records: List<DietRecord>): Map<String, String> {
         val foodsByDate = HashMap<String, MutableList<RecognizedFoodItem>>()
-        val totals = HashMap<String, Int>()
         for (record in records) {
-            totals.merge(record.date, record.estimatedCalories, Int::plus)
             runCatching {
                 json.decodeFromString<List<RecognizedFoodItem>>(record.recognizedFoodJson)
             }.getOrNull()?.let { foodsByDate.getOrPut(record.date) { mutableListOf() }.addAll(it) }
         }
-        val lights = foodsByDate.mapValues { (_, foods) -> TrafficLightCalculator.compute(foods) }
-        return lights to totals
+        return foodsByDate.mapValues { (_, foods) -> TrafficLightCalculator.compute(foods) }
     }
 
     // ================================ 编辑会话 ================================
