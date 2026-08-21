@@ -31,9 +31,6 @@ interface DietRecordDao {
     @Query("SELECT * FROM DietRecord WHERE date = :date ORDER BY timestamp ASC")
     fun getByDate(date: String): Flow<List<DietRecord>>
 
-    @Query("SELECT * FROM DietRecord WHERE date = :date ORDER BY timestamp ASC")
-    suspend fun getByDateOnce(date: String): List<DietRecord>
-
     @Query("SELECT COALESCE(SUM(estimatedCalories), 0) FROM DietRecord WHERE date = :date")
     suspend fun getDailyCalories(date: String): Int
 

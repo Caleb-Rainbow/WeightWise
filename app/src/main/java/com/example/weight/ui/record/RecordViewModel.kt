@@ -57,14 +57,15 @@ class RecordViewModel(
     fun deleteRecord(record: Record) {
         viewModelScope.launch(Dispatchers.IO) {
             recordDao.delete(record)
-            widgetUpdater.notifyDataChanged()
+            // 非阻塞刷新：组件更新在后台完成即可，无需拖住本协程
+            launch { widgetUpdater.notifyDataChanged() }
         }
     }
 
     fun updateRecord(record: Record) {
         viewModelScope.launch(Dispatchers.IO) {
             recordDao.update(record)
-            widgetUpdater.notifyDataChanged()
+            launch { widgetUpdater.notifyDataChanged() }
         }
     }
 }

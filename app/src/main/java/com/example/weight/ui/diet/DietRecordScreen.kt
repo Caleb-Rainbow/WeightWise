@@ -70,6 +70,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.weight.LocalSnackBarShow
 import com.example.weight.data.diet.DietRecord
@@ -111,6 +113,10 @@ fun DietRecordScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    // 跨午夜后回到页面时刷新“今天”的口径，今日记录/热量合计随日期键自动切换
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        viewModel.refreshTodayDate()
+    }
     var showFoodEditor by remember { mutableStateOf(false) }
     var editingFoodIndex by remember { mutableStateOf(-1) }
     var editingFoodItem by remember { mutableStateOf<RecognizedFoodItem?>(null) }
@@ -243,7 +249,7 @@ fun DietRecordScreen(
             // AI 识别按钮
             item(key = "analyze_button") {
                 Button(
-                    onClick = { viewModel.analyzeImage(context, userNote) },
+                    onClick = { viewModel.analyzeImage(userNote) },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !state.isAnalyzing && (state.selectedImageUri != null || state.hasCapturedBitmap),
                     shape = RoundedCornerShape(12.dp),
@@ -305,7 +311,7 @@ fun DietRecordScreen(
                 item(key = "save_button") {
                     Button(
                         onClick = {
-                            viewModel.saveRecord(context, userNote)
+                            viewModel.saveRecord(userNote)
                             userNote = ""
                         },
                         modifier = Modifier.fillMaxWidth(),

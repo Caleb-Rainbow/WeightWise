@@ -1,6 +1,6 @@
 package com.example.weight.ui.diet
 
-import android.content.Context
+import android.app.Application
 import android.graphics.Bitmap
 import android.net.Uri
 import android.util.Log
@@ -19,10 +19,13 @@ import com.example.weight.data.diet.RecognizedFoodItem
 import com.example.weight.util.ImageCompressor
 import com.example.weight.util.TimeUtils
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
@@ -60,6 +63,7 @@ data class DietRecordUiState(
 
 @KoinViewModel
 class DietRecordViewModel(
+    private val application: Application,
     private val dietRecordDao: DietRecordDao,
     private val chatRepository: ChatRepository,
     private val json: Json,
@@ -69,8 +73,8 @@ class DietRecordViewModel(
     private val _uiState = MutableStateFlow(DietRecordUiState())
     val uiState: StateFlow<DietRecordUiState> = _uiState.asStateFlow()
 
-    private val todayDate: String
-        get() = TimeUtils.getCurrentDate()
+    /** “今天”的口径：跨午夜后由 UI 在 ON_RESUME 时调用 [refreshTodayDate] 刷新 */
+    private val _todayDate = MutableStateFlow(TimeUtils.getCurrentDate())
 
     /** Camera-captured bitmap, kept outside UI state to avoid large objects in StateFlow snapshots */
     private var _capturedBitmap: Bitmap? = null
@@ -85,14 +89,19 @@ class DietRecordViewModel(
     private var analysisJob: Job? = null
 
     init {
-        loadTodayRecords()
-        observeTodayCalories()
+        observeTodayData()
         // 每日建议摄入与报告页共用的冷流，档案/最新体重变化时自动重算
         viewModelScope.launch {
             recommendedIntakeProvider.flow.collect { recommended ->
                 _uiState.update { it.copy(recommendedCalories = recommended) }
             }
         }
+    }
+
+    /** 跨午夜后回到页面时刷新“今天”的口径；订阅随日期键自动切换查询 */
+    fun refreshTodayDate() {
+        val today = TimeUtils.getCurrentDate()
+        if (_todayDate.value != today) _todayDate.value = today
     }
 
     fun onImageSelected(uri: Uri) {
@@ -118,7 +127,7 @@ class DietRecordViewModel(
         _uiState.update { it.copy(selectedImageUri = null, hasCapturedBitmap = false) }
     }
 
-    fun analyzeImage(context: Context, userNote: String) {
+    fun analyzeImage(userNote: String) {
         analysisJob?.cancel()
         analysisJob = viewModelScope.launch(Dispatchers.IO) {
             // Snapshot all needed state upfront to avoid TOCTOU races
@@ -137,7 +146,9 @@ class DietRecordViewModel(
                         result.base64
                     }
                     uri != null -> {
-                        val result = ImageCompressor.compressAndEncode(context, uri)
+                        // 用 applicationContext：分析协程存活可达数十秒，持有 Activity 会在
+                        // 旋转/退出时泄漏；此处只做内容解析，不需要界面上下文
+                        val result = ImageCompressor.compressAndEncode(application, uri)
                         _cachedCompressionResult = result
                         result.base64
                     }
@@ -246,15 +257,15 @@ class DietRecordViewModel(
         }
     }
 
-    fun saveRecord(context: Context, userNote: String) {
+    fun saveRecord(userNote: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val state = _uiState.value
             if (state.recognizedFoods.isEmpty()) return@launch
 
-            val imagePath = buildImagePath(context, state)
+            val imagePath = buildImagePath(state)
 
             val record = DietRecord(
-                date = todayDate,
+                date = _todayDate.value,
                 timestamp = System.currentTimeMillis(),
                 mealType = state.selectedMealType.name,
                 imageUri = imagePath,
@@ -267,7 +278,6 @@ class DietRecordViewModel(
                 trafficLight = state.trafficLight,
             )
             dietRecordDao.insert(record)
-            loadTodayRecords()
 
             recycleBitmap()
             _cachedCompressionResult = null
@@ -286,11 +296,11 @@ class DietRecordViewModel(
         }
     }
 
-    private suspend fun buildImagePath(context: Context, state: DietRecordUiState): String {
+    private suspend fun buildImagePath(state: DietRecordUiState): String {
         if (state.hasCapturedBitmap) {
             val bitmap = _cachedCompressionResult?.bitmap ?: _capturedBitmap
             if (bitmap != null && !bitmap.isRecycled) {
-                return ImageCompressor.saveImage(context, bitmap)
+                return ImageCompressor.saveImage(application, bitmap)
             }
             return ""
         }
@@ -299,9 +309,9 @@ class DietRecordViewModel(
             // 缓存未命中时只做「解码+降采样」：保存路径只要 Bitmap，
             // 不必重跑 JPEG 压缩 + Base64 编码再把大字符串直接丢弃
             val bitmap = _cachedCompressionResult?.bitmap
-                ?: ImageCompressor.decodeScaled(context, uri)
+                ?: ImageCompressor.decodeScaled(application, uri)
                     ?: return ""
-            ImageCompressor.saveImage(context, bitmap)
+            ImageCompressor.saveImage(application, bitmap)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to save image", e)
             ""
@@ -312,21 +322,25 @@ class DietRecordViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             ImageCompressor.deleteImage(record.imageUri)
             dietRecordDao.delete(record)
-            loadTodayRecords()
         }
     }
 
-    private fun loadTodayRecords() {
-        viewModelScope.launch(Dispatchers.IO) {
-            val records = dietRecordDao.getByDateOnce(todayDate)
-            _uiState.update { it.copy(todayRecords = records) }
-        }
-    }
-
-    private fun observeTodayCalories() {
+    /**
+     * 今日记录与热量合计同源订阅：插入/删除后 Room 失效通知自动重发，
+     * 不再需要手动 loadTodayRecords 的重复一次性查询；日期键变化时 flatMapLatest 切换查询
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun observeTodayData() {
         viewModelScope.launch {
-            dietRecordDao.getDailyCaloriesFlow(todayDate).collect { calories ->
-                _uiState.update { it.copy(todayTotalCalories = calories) }
+            _todayDate.flatMapLatest { date ->
+                combine(
+                    dietRecordDao.getByDate(date),
+                    dietRecordDao.getDailyCaloriesFlow(date),
+                ) { records, calories -> records to calories }
+            }.collect { (records, calories) ->
+                _uiState.update {
+                    it.copy(todayRecords = records, todayTotalCalories = calories)
+                }
             }
         }
     }

@@ -120,7 +120,8 @@ private fun CustomVerticalPager(pagerState: PagerState, list: List<Int>, onChang
     )
     VerticalPager(
         state = pagerState,
-        beyondViewportPageCount = 100,
+        // 懒加载默认值：只组合视口（含 contentPadding）内的页面。
+        // 之前写 100 会把全部 71+10 页永久组合，弹窗打开成本与内存白白放大
         flingBehavior = fling,
         contentPadding = PaddingValues(vertical = 40.dp)
     ) { page ->
