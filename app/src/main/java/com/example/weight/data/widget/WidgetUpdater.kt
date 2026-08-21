@@ -12,9 +12,12 @@ import org.koin.core.annotation.Single
 @Single
 class WidgetUpdater(private val application: Application) {
 
+    // 复用同一个 widget 实例，不再每次刷新新建
+    private val weightWidget = WeightWidget()
+
     suspend fun notifyDataChanged() {
         try {
-            WeightWidget().updateAll(application)
+            weightWidget.updateAll(application)
         } catch (e: Exception) {
             // 小组件尚未添加到桌面等场景下可能抛错，属预期，不打断业务流程
             android.util.Log.w("WidgetUpdater", "刷新小组件失败", e)

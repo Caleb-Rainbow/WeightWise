@@ -1,6 +1,6 @@
 package com.example.weight.ui.record
 
-import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -67,6 +67,7 @@ import com.example.weight.ui.common.DeleteDialog
 import com.example.weight.ui.common.MyTopBar
 import com.example.weight.ui.main.AddRecordDialog
 import com.example.weight.util.TimeUtils
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import java.text.DecimalFormat
@@ -463,7 +464,9 @@ private val SwipeActionWidth = 76.dp
 
 /**
  * 可侧滑的记录项容器：左滑露出「编辑 / 删除」操作层，
- * 松手后按滑动速度或越过一半的距离决定展开/收起
+ * 松手后按滑动速度或越过一半的距离决定展开/收起。
+ * 拖拽位移直接写快照状态（offset{} 延迟读取，仅触发重布局不触发重组），
+ * 收拢/展开动画用单个协程，在新的拖拽开始时取消，避免拖动中每帧 launch。
  */
 @Composable
 private fun SwipeableRecordItem(
@@ -474,17 +477,25 @@ private fun SwipeableRecordItem(
 ) {
     val coroutineScope = rememberCoroutineScope()
     val actionsWidthPx = with(LocalDensity.current) { (SwipeActionWidth * 2).toPx() }
-    val offsetX = remember { Animatable(0f) }
+    var offsetX by remember { mutableStateOf(0f) }
+    var settleJob by remember { mutableStateOf<Job?>(null) }
     val draggableState = remember {
         DraggableState { delta ->
-            coroutineScope.launch {
-                offsetX.snapTo((offsetX.value + delta).coerceIn(-actionsWidthPx, 0f))
-            }
+            offsetX = (offsetX + delta).coerceIn(-actionsWidthPx, 0f)
         }
     }
-    val close = {
-        coroutineScope.launch { offsetX.animateTo(0f, animationSpec = tween(250)) }
+
+    fun animateTo(targetOffsetX: Float) {
+        settleJob?.cancel()
+        settleJob = coroutineScope.launch {
+            animate(
+                initialValue = offsetX,
+                targetValue = targetOffsetX,
+                animationSpec = tween(250),
+            ) { value, _ -> offsetX = value }
+        }
     }
+    val close = { animateTo(0f) }
 
     Box(modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))) {
         // 背景操作层：按钮必须靠右排布，左滑露出卡片右侧时才能看到
@@ -514,20 +525,19 @@ private fun SwipeableRecordItem(
         // 前景内容层
         Box(
             modifier = Modifier
-                .offset { IntOffset(offsetX.value.roundToInt(), 0) }
+                .offset { IntOffset(offsetX.roundToInt(), 0) }
                 .draggable(
                     orientation = Orientation.Horizontal,
                     state = draggableState,
+                    onDragStarted = { settleJob?.cancel() },
                     onDragStopped = { velocity ->
-                        coroutineScope.launch {
-                            val velocityThreshold = 500f
-                            val targetOffsetX = if (abs(velocity) > velocityThreshold) {
-                                if (velocity < 0) -actionsWidthPx else 0f
-                            } else {
-                                if (offsetX.value < -actionsWidthPx / 2) -actionsWidthPx else 0f
-                            }
-                            offsetX.animateTo(targetValue = targetOffsetX, animationSpec = tween(250))
+                        val velocityThreshold = 500f
+                        val targetOffsetX = if (abs(velocity) > velocityThreshold) {
+                            if (velocity < 0) -actionsWidthPx else 0f
+                        } else {
+                            if (offsetX < -actionsWidthPx / 2) -actionsWidthPx else 0f
                         }
+                        animateTo(targetOffsetX)
                     }
                 )
         ) {

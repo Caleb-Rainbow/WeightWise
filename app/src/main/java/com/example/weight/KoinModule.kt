@@ -32,7 +32,8 @@ class KoinModule {
     fun provideJson() = Json {
         ignoreUnknownKeys = true
         explicitNulls = false
-        prettyPrint = true
+        // prettyPrint 会让聊天请求体（含全部历史消息）与备份文件膨胀 30-50%，序列化也更慢
+        prettyPrint = false
     }
 }
 

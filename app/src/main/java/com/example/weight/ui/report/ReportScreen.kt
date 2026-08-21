@@ -39,7 +39,6 @@ import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -57,6 +56,7 @@ import com.example.weight.data.record.DailyMinWeight
 import com.example.weight.ui.common.AnalysisBottomSheet
 import com.example.weight.ui.common.MyTopBar
 import com.example.weight.ui.common.WeightChart
+import com.example.weight.ui.common.movingAverage
 import com.example.weight.util.ReportCaloriesStats
 import com.example.weight.util.ReportType
 import com.example.weight.util.ReportWeightStats
@@ -89,18 +89,13 @@ fun ReportScreen(
         reportNullable?.let { cachedReport = it }
     }
 
-    val aiState by viewModel.aiState.collectAsStateWithLifecycle()
+    // 顶层一次性收集：放在条件分支里会随翻页加载态销毁重建订阅
+    val recommendedIntake by viewModel.recommendedIntake.collectAsStateWithLifecycle()
     val showMessageDialog = LocalShowMessageDialog.current
     val targetWeight by LocalStorageData.targetWeight.collectAsStateWithLifecycle()
 
-    AnalysisBottomSheet(
-        showSheet = aiState.isShowSheet,
-        onDismissRequest = viewModel::hideAiSheet,
-        analysisResult = aiState.response,
-        isLoading = aiState.isLoading,
-        errorMessage = aiState.error,
-        onRetry = { viewModel.aiSummarize { showMessageDialog("提示", it) {} } }
-    )
+    // AI 弹窗独立成组：流式期间每帧只重组这个小组件，而不是整个报告页
+    ReportAiSheet(viewModel)
 
     Scaffold(modifier = modifier, topBar = { MyTopBar(title = "报告", goBack = goBack) }) { padding ->
         Column(
@@ -150,7 +145,7 @@ fun ReportScreen(
                                 .padding(top = 12.dp)
                                 .fillMaxWidth(),
                             caloriesStats = it,
-                            recommendedIntake = viewModel.recommendedIntake.collectAsStateWithLifecycle().value,
+                            recommendedIntake = recommendedIntake,
                         )
                     }
                     FilledTonalButton(
@@ -171,6 +166,22 @@ fun ReportScreen(
             Spacer(modifier = Modifier.height(16.dp))
         }
     }
+}
+
+/** AI 总结弹窗：单独收集 aiState，把流式期间的高频重组范围限制在弹窗内 */
+@Composable
+private fun ReportAiSheet(viewModel: ReportViewModel) {
+    val aiState by viewModel.aiState.collectAsStateWithLifecycle()
+    val showMessageDialog = LocalShowMessageDialog.current
+    AnalysisBottomSheet(
+        showSheet = aiState.isShowSheet,
+        onDismissRequest = viewModel::hideAiSheet,
+        analysisResult = aiState.response,
+        isLoading = aiState.isLoading,
+        isStreaming = aiState.isStreaming,
+        errorMessage = aiState.error,
+        onRetry = { viewModel.aiSummarize { showMessageDialog("提示", it) {} } }
+    )
 }
 
 /** 周报 / 月报 / 年报 类型切换；切换后回到该类型的当前周期 */
@@ -368,12 +379,7 @@ private fun ReportChart(
 ) {
     val labels = remember(dailyWeights) { dailyWeights.map { it.recordDay } }
     // 7 日移动平均：对记录序列做 7 点滑动窗口平均；不足 7 条（如周报）均线无意义，不画
-    val movingAverage = remember(dailyWeights) {
-        if (dailyWeights.size < 7) emptyList()
-        else dailyWeights.indices.drop(6).map { i ->
-            dailyWeights.subList(i - 6, i + 1).map { it.minWeight }.average()
-        }
-    }
+    val movingAverage = remember(dailyWeights) { movingAverage(dailyWeights.map { it.minWeight }) }
     // Y 轴范围并入目标体重，保证目标参考虚线始终可见（与首页同规则）
     val chartMaxWeight = remember(dailyWeights, targetWeight) {
         val raw = dailyWeights.maxOfOrNull { it.minWeight } ?: 0.0
@@ -383,32 +389,31 @@ private fun ReportChart(
         val raw = dailyWeights.minOfOrNull { it.minWeight } ?: 0.0
         (if (targetWeight > 0) minOf(raw, targetWeight) else raw).minus(1)
     }
-    key(dailyWeights, movingAverage, targetWeight) {
-        val modelProducer = remember { CartesianChartModelProducer() }
-        LaunchedEffect(Unit) {
-            modelProducer.runTransaction {
-                lineModel {
-                    series(dailyWeights.map { it.minWeight })
-                    if (movingAverage.isNotEmpty()) {
-                        // 均线从第 7 个记录点起才有完整窗口，用显式 x 对齐横轴
-                        series(
-                            x = dailyWeights.indices.drop(6),
-                            y = movingAverage,
-                        )
-                    }
+    // producer 提到数据键之外保持稳定，数据变化只 runTransaction 增量提交，不重建图表
+    val modelProducer = remember { CartesianChartModelProducer() }
+    LaunchedEffect(dailyWeights, movingAverage) {
+        modelProducer.runTransaction {
+            lineModel {
+                series(dailyWeights.map { it.minWeight })
+                if (movingAverage.isNotEmpty()) {
+                    // 均线从第 7 个记录点起才有完整窗口，用显式 x 对齐横轴
+                    series(
+                        x = dailyWeights.indices.drop(6),
+                        y = movingAverage,
+                    )
                 }
             }
         }
-        WeightChart(
-            lineColor = vicoTheme.lineColor,
-            modelProducer = modelProducer,
-            maxWeight = chartMaxWeight,
-            minWeight = chartMinWeight,
-            xLabels = labels,
-            showMovingAverage = movingAverage.isNotEmpty(),
-            targetWeight = targetWeight,
-        )
     }
+    WeightChart(
+        lineColor = vicoTheme.lineColor,
+        modelProducer = modelProducer,
+        maxWeight = chartMaxWeight,
+        minWeight = chartMinWeight,
+        xLabels = labels,
+        showMovingAverage = movingAverage.isNotEmpty(),
+        targetWeight = targetWeight,
+    )
 }
 
 /** 统计卡：最高 / 最低 / 平均 三列 */

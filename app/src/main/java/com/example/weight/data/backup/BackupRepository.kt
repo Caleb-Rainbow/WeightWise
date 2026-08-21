@@ -5,7 +5,9 @@ import android.net.Uri
 import androidx.room.withTransaction
 import com.example.weight.data.AppDataBase
 import com.example.weight.data.LocalStorageData
+import com.example.weight.data.diet.DietRecord
 import com.example.weight.data.diet.DietRecordDao
+import com.example.weight.data.record.Record
 import com.example.weight.data.record.RecordDao
 import com.example.weight.data.widget.WidgetUpdater
 import java.io.File
@@ -13,6 +15,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromStream
+import kotlinx.serialization.json.encodeToStream
 import org.koin.core.annotation.Single
 import com.example.weight.util.ActivityLevel
 import com.example.weight.util.Gender
@@ -80,9 +84,9 @@ class BackupRepository(
                 activityLevel = LocalStorageData.activityLevel.value,
             ),
         )
-        val text = json.encodeToString(BackupFile.serializer(), backup)
+        // encodeToStream 直接写输出流，避免在内存里再持有一份完整 JSON 字符串
         context.contentResolver.openOutputStream(uri)?.use { out ->
-            out.write(text.toByteArray(Charsets.UTF_8))
+            json.encodeToStream(BackupFile.serializer(), backup, out)
             out.flush()
         } ?: throw IllegalStateException("无法写入所选位置")
         ExportResult(records.size, dietRecords.size)
@@ -90,11 +94,12 @@ class BackupRepository(
 
     /** 读取并解析备份文件，格式或版本不合法时抛 [BackupException] */
     suspend fun parseBackup(context: Context, uri: Uri): BackupFile = withContext(Dispatchers.IO) {
-        val text = context.contentResolver.openInputStream(uri)?.use { input ->
-            input.readBytes().decodeToString()
-        } ?: throw BackupException("无法读取所选文件")
         val backup = try {
-            json.decodeFromString(BackupFile.serializer(), text)
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                json.decodeFromStream(BackupFile.serializer(), input)
+            } ?: throw BackupException("无法读取所选文件")
+        } catch (e: BackupException) {
+            throw e
         } catch (e: Exception) {
             throw BackupException("文件格式不正确，不是有效的 WeightWise 备份")
         }
@@ -104,12 +109,12 @@ class BackupRepository(
         backup
     }
 
-    /** 与库内数据比对，计算去重后的导入预览，供用户确认 */
+    /** 与库内数据比对，计算去重后的导入预览，供用户确认；去重用轻量投影，不全量加载记录 */
     suspend fun previewImport(backup: BackupFile): ImportPreview = withContext(Dispatchers.IO) {
-        val recordDedup = BackupDeduplicator.filterNewRecords(recordDao.getAllOnce(), backup.records)
+        val recordDedup = BackupDeduplicator.filterNewRecords(recordDao.getDedupKeys(), backup.records)
         val dietDedup = BackupDeduplicator.filterNewDietRecords(
-            dietRecordDao.getAllOnce(), backup.dietRecords,
-        ) { fileName -> "" } // 预览阶段不关心图片路径
+            dietRecordDao.getDedupKeys(), backup.dietRecords,
+        ) { fileName -> "" } // 预览阶段只数数量，不解析图片路径
         ImportPreview(
             backup = backup,
             newRecordCount = recordDedup.toInsert.size,
@@ -119,16 +124,20 @@ class BackupRepository(
         )
     }
 
-    /** 执行导入：去重后在 Room 事务中写入，中途失败整体回滚；随后应用设置项 */
-    suspend fun importBackup(context: Context, backup: BackupFile): ImportResult = withContext(Dispatchers.IO) {
-        val recordDedup = BackupDeduplicator.filterNewRecords(recordDao.getAllOnce(), backup.records)
-        val dietDedup = BackupDeduplicator.filterNewDietRecords(
-            dietRecordDao.getAllOnce(), backup.dietRecords,
-        ) { fileName -> resolveImagePath(context, fileName) }
-
-        appDataBase.withTransaction {
-            if (recordDedup.toInsert.isNotEmpty()) recordDao.insertAll(recordDedup.toInsert)
-            if (dietDedup.toInsert.isNotEmpty()) dietRecordDao.insertAll(dietDedup.toInsert)
+    /**
+     * 执行导入：在 Room 事务内重取去重键、过滤并写入（预览到确认之间可能发生写入，
+     * 事务保证快照一致且失败整体回滚）；随后应用设置项。
+     */
+    suspend fun importBackup(context: Context, preview: ImportPreview): ImportResult = withContext(Dispatchers.IO) {
+        val backup = preview.backup
+        val (recordDedup, dietDedup) = appDataBase.withTransaction {
+            val newRecords = BackupDeduplicator.filterNewRecords(recordDao.getDedupKeys(), backup.records)
+            val newDietRecords = BackupDeduplicator.filterNewDietRecords(
+                dietRecordDao.getDedupKeys(), backup.dietRecords,
+            ) { fileName -> resolveImagePath(context, fileName) }
+            if (newRecords.toInsert.isNotEmpty()) recordDao.insertAll(newRecords.toInsert)
+            if (newDietRecords.toInsert.isNotEmpty()) dietRecordDao.insertAll(newDietRecords.toInsert)
+            newRecords to newDietRecords
         }
 
         val settings = backup.settings
@@ -162,21 +171,24 @@ class BackupRepository(
 
     /**
      * 体重记录导出为 CSV（date,time,weight,log），带 UTF-8 BOM 防止 Excel 打开中文乱码。
-     * 返回导出的记录条数。
+     * 逐行流式写出，不在内存拼完整字符串。返回导出的记录条数。
      */
     suspend fun exportRecordsCsv(context: Context, uri: Uri): Int = withContext(Dispatchers.IO) {
         val records = recordDao.getAllOnce()
-        val sb = StringBuilder().append("\uFEFF") // BOM
-            .append("日期,时间,体重(kg),日志\n")
-        for (record in records) {
-            sb.append(TimeUtils.convertMillisToDate(record.timestamp)).append(',')
-                .append(TimeUtils.convertMillisToHM(record.timestamp)).append(',')
-                .append(String.format(Locale.CHINA, "%.1f", record.weight)).append(',')
-                .append(escapeCsvField(record.log)).append('\n')
-        }
-        context.contentResolver.openOutputStream(uri)?.use { out ->
-            out.write(sb.toString().toByteArray(Charsets.UTF_8))
-            out.flush()
+        context.contentResolver.openOutputStream(uri)?.bufferedWriter(Charsets.UTF_8)?.use { writer ->
+            writer.write("\uFEFF") // BOM
+            writer.write("日期,时间,体重(kg),日志\n")
+            for (record in records) {
+                writer.write(TimeUtils.convertMillisToDate(record.timestamp))
+                writer.write(",")
+                writer.write(TimeUtils.convertMillisToHM(record.timestamp))
+                writer.write(",")
+                writer.write(String.format(Locale.CHINA, "%.1f", record.weight))
+                writer.write(",")
+                writer.write(escapeCsvField(record.log))
+                writer.write("\n")
+            }
+            writer.flush()
         } ?: throw IllegalStateException("无法写入所选位置")
         records.size
     }

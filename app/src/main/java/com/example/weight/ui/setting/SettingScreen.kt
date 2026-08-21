@@ -422,7 +422,7 @@ private fun DataManagementSection() {
                     pendingImport = null
                     scope.launch {
                         try {
-                            val result = backupRepository.importBackup(context, toImport.backup)
+                            val result = backupRepository.importBackup(context, toImport)
                             snackBarShow(
                                 "导入完成：新增 ${result.insertedRecords} 条体重、" +
                                     "${result.insertedDietRecords} 条饮食" +

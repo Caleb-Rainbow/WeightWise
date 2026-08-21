@@ -82,10 +82,11 @@ $caloriesSection【回复要求】
 
     /** 逐条明细；记录超过 [RECORD_DETAIL_LIMIT] 条改按月聚合（打卡天数/日均/最高/最低），控制 Prompt 长度 */
     private fun recordsText(records: List<Record>): String {
+        val zone = ZoneId.systemDefault() // 每条记录重复获取有查找成本，取一次复用
         if (records.size <= RECORD_DETAIL_LIMIT) {
             return records.joinToString("\n") { record ->
                 val date = Instant.ofEpochMilli(record.timestamp)
-                    .atZone(ZoneId.systemDefault())
+                    .atZone(zone)
                     .toLocalDate()
                     .format(DateTimeFormatter.ISO_LOCAL_DATE)
                 val logText = if (record.log.isNotBlank()) " [日志: ${record.log}]" else ""
@@ -95,14 +96,14 @@ $caloriesSection【回复要求】
         return records
             .groupBy { record ->
                 Instant.ofEpochMilli(record.timestamp)
-                    .atZone(ZoneId.systemDefault())
+                    .atZone(zone)
                     .toLocalDate()
                     .toString()
                     .take(7)
             }
             .map { (month, monthRecords) ->
                 val days = monthRecords
-                    .map { Instant.ofEpochMilli(it.timestamp).atZone(ZoneId.systemDefault()).toLocalDate() }
+                    .map { Instant.ofEpochMilli(it.timestamp).atZone(zone).toLocalDate() }
                     .distinct()
                     .size
                 val weights = monthRecords.map { it.weight }

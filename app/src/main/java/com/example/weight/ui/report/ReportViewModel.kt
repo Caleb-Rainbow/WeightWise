@@ -3,6 +3,7 @@ package com.example.weight.ui.report
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.weight.data.LocalStorageData
+import com.example.weight.data.RecommendedIntakeProvider
 import com.example.weight.data.chat.AnalysisPromptBuilder
 import com.example.weight.data.chat.ChatBodyModel
 import com.example.weight.data.chat.ChatMessageRole
@@ -15,7 +16,6 @@ import com.example.weight.data.diet.TrafficLightCount
 import com.example.weight.data.record.DailyMinWeight
 import com.example.weight.data.record.RecordDao
 import com.example.weight.util.ActivityLevel
-import com.example.weight.util.CalorieCalculator
 import com.example.weight.util.Gender
 import com.example.weight.util.ReportAggregator
 import com.example.weight.util.ReportCaloriesStats
@@ -26,6 +26,9 @@ import java.time.LocalDate
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -53,21 +56,14 @@ data class ReportData(
     val endBmi: Double?,
 )
 
-/** AI 周期总结的三态展示状态（加载/结果/失败） */
+/** AI 周期总结的展示状态（加载/流式中/完成/失败） */
 data class ReportAiState(
     val isShowSheet: Boolean = false,
     val isLoading: Boolean = false,
+    /** 首帧已到、流式尚未完结；UI 在此期间用纯文本渲染，结束后再整篇 Markdown */
+    val isStreaming: Boolean = false,
     val response: String = "",
     val error: String? = null, //null 表示无错误
-)
-
-/** 档案快照：MMKV 五项一次性合并，供建议摄入计算 */
-private data class ProfileSnapshot(
-    val heightCm: Double,
-    val age: Int,
-    val gender: Gender?,
-    val activityLevel: ActivityLevel?,
-    val targetWeightKg: Double,
 )
 
 @KoinViewModel
@@ -75,6 +71,7 @@ class ReportViewModel(
     private val recordDao: RecordDao,
     private val dietRecordDao: DietRecordDao,
     private val chatRepository: ChatRepository,
+    recommendedIntakeProvider: RecommendedIntakeProvider,
 ) : ViewModel() {
 
     private val _selectedType = MutableStateFlow(ReportType.WEEK)
@@ -84,35 +81,8 @@ class ReportViewModel(
     val anchor = _anchor.asStateFlow()
 
     /** 每日建议摄入：与饮食页同口径（档案 + 最新体重 → TDEE 目标缺口），档案不全或无体重时为 null */
-    val recommendedIntake: StateFlow<Int?> = run {
-        val profileFlow = combine(
-            LocalStorageData.height,
-            LocalStorageData.age,
-            LocalStorageData.gender,
-            LocalStorageData.activityLevel,
-            LocalStorageData.targetWeight,
-        ) { height, age, gender, activityLevel, targetWeight ->
-            ProfileSnapshot(
-                heightCm = height,
-                age = age,
-                gender = Gender.entries.find { it.name == gender },
-                activityLevel = ActivityLevel.entries.find { it.name == activityLevel },
-                targetWeightKg = targetWeight,
-            )
-        }
-        combine(profileFlow, recordDao.getLastDataFlow()) { profile, lastRecord ->
-            val weightKg = lastRecord?.weight
-            if (weightKg == null) null
-            else CalorieCalculator.recommendedIntake(
-                gender = profile.gender,
-                weightKg = weightKg,
-                heightCm = profile.heightCm,
-                age = profile.age,
-                activityLevel = profile.activityLevel,
-                targetWeightKg = profile.targetWeightKg,
-            )
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
-    }
+    val recommendedIntake: StateFlow<Int?> = recommendedIntakeProvider.flow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     /**
      * 当前周期的聚合报告。null 表示「周期/类型切换的加载瞬间」，UI 用上一次数据兜底；
@@ -127,28 +97,33 @@ class ReportViewModel(
                 val (start, end) = type.periodRange(anchor)
                 // 上一周期首末日，供「较上期」对比；一次性取值，翻页时随之刷新
                 val prevRange = type.periodRange(type.shift(anchor, -1))
-                val prevWeights = recordDao.getDailyMinWeightBetween(prevRange.first, prevRange.second).first()
-                val startDate = TimeUtils.convertMillisToDate(start)
-                val endDate = TimeUtils.convertMillisToDate(end)
-                combine(
-                    recordDao.getDailyMinWeightBetween(start, end),
-                    dietRecordDao.getDailyCaloriesBetween(startDate, endDate),
-                    dietRecordDao.getTrafficLightBetween(startDate, endDate),
-                    recommendedIntake,
-                    LocalStorageData.height,
-                ) { weights, calories, lights, intake, height ->
-                    ReportData(
-                        type = type,
-                        anchor = anchor,
-                        title = type.titleOf(anchor),
-                        totalDays = type.daysOf(anchor, today),
-                        dailyWeights = weights,
-                        weightStats = ReportAggregator.weightStats(weights),
-                        caloriesStats = ReportAggregator.caloriesStats(calories, lights, intake),
-                        changeVsPrevPeriod = ReportAggregator.changeVsPrevPeriod(weights, prevWeights),
-                        endBmi = weights.lastOrNull()?.let { ReportAggregator.bmi(it.minWeight, height) },
-                    )
-                }.collect { emit(it) }
+                coroutineScope {
+                    // 与主数据流并行，不阻塞本期数据先到先渲染
+                    val prevWeights = async {
+                        recordDao.getDailyMinWeightBetween(prevRange.first, prevRange.second).first()
+                    }
+                    val startDate = TimeUtils.convertMillisToDate(start)
+                    val endDate = TimeUtils.convertMillisToDate(end)
+                    combine(
+                        recordDao.getDailyMinWeightBetween(start, end),
+                        dietRecordDao.getDailyCaloriesBetween(startDate, endDate),
+                        dietRecordDao.getTrafficLightBetween(startDate, endDate),
+                        recommendedIntake,
+                        LocalStorageData.height,
+                    ) { weights, calories, lights, intake, height ->
+                        ReportData(
+                            type = type,
+                            anchor = anchor,
+                            title = type.titleOf(anchor),
+                            totalDays = type.daysOf(anchor, today),
+                            dailyWeights = weights,
+                            weightStats = ReportAggregator.weightStats(weights),
+                            caloriesStats = ReportAggregator.caloriesStats(calories, lights, intake),
+                            changeVsPrevPeriod = ReportAggregator.changeVsPrevPeriod(weights, prevWeights.await()),
+                            endBmi = weights.lastOrNull()?.let { ReportAggregator.bmi(it.minWeight, height) },
+                        )
+                    }.collect { emit(it) }
+                }
             }
         }
 
@@ -176,7 +151,7 @@ class ReportViewModel(
     fun aiSummarize(onFail: (String) -> Unit) {
         val type = _selectedType.value
         val anchor = _anchor.value
-        _aiState.update { it.copy(isLoading = true, response = "", error = null) }
+        _aiState.update { it.copy(isLoading = true, isStreaming = false, response = "", error = null) }
         viewModelScope.launch(Dispatchers.IO) {
             val (start, end) = type.periodRange(anchor)
             val records = recordDao.getRecordWeightBetween(start, end)
@@ -186,12 +161,19 @@ class ReportViewModel(
                 return@launch
             }
             _aiState.update { it.copy(isShowSheet = true) }
-            val dailyCalories: List<DailyCalories> =
-                dietRecordDao.getDailyCaloriesBetween(TimeUtils.convertMillisToDate(start), TimeUtils.convertMillisToDate(end)).first()
+            // 饮食热量与每日体重互不依赖，并行取数
+            val (dailyCalories, weights) = coroutineScope {
+                val caloriesDeferred = async {
+                    dietRecordDao.getDailyCaloriesBetween(
+                        TimeUtils.convertMillisToDate(start), TimeUtils.convertMillisToDate(end),
+                    ).first()
+                }
+                val weightsDeferred = async { recordDao.getDailyMinWeightBetween(start, end).first() }
+                caloriesDeferred.await() to weightsDeferred.await()
+            }
+            val endBmi = weights.lastOrNull()?.let { ReportAggregator.bmi(it.minWeight, LocalStorageData.height.value) }
             val gender = Gender.entries.find { it.name == LocalStorageData.gender.value }
             val activityLevel = ActivityLevel.entries.find { it.name == LocalStorageData.activityLevel.value }
-            val weights = recordDao.getDailyMinWeightBetween(start, end).first()
-            val endBmi = weights.lastOrNull()?.let { ReportAggregator.bmi(it.minWeight, LocalStorageData.height.value) }
             val prompt = AnalysisPromptBuilder.build(
                 records = records,
                 scopeLabel = type.titleOf(anchor),
@@ -203,6 +185,21 @@ class ReportViewModel(
                 genderLabel = gender?.displayName ?: "",
                 activityLabel = activityLevel?.displayName ?: "",
             )
+            // 流式回包先累积到 StringBuilder，由合帧协程按固定间隔刷新到状态，
+            // 避免每个 chunk 一次 StateFlow 更新 + 一次全文重组/Markdown 重解析
+            val streamed = StringBuilder()
+            val emitTicker = launch {
+                var emittedLength = 0
+                while (true) {
+                    delay(STREAM_EMIT_INTERVAL_MS)
+                    val snapshotLength = synchronized(streamed) { streamed.length }
+                    if (snapshotLength > emittedLength) {
+                        emittedLength = snapshotLength
+                        val text = synchronized(streamed) { streamed.toString() }
+                        _aiState.update { it.copy(isLoading = false, isStreaming = true, response = text) }
+                    }
+                }
+            }
             try {
                 chatRepository.streamChat(
                     model = ChatBodyModel(
@@ -214,10 +211,7 @@ class ReportViewModel(
                         )
                     ), onMessage = { msg ->
                         msg?.choices?.singleOrNull()?.delta?.content?.let { content ->
-                            _aiState.update { state ->
-                                if (state.isLoading) state.copy(isLoading = false) else state
-                            }
-                            _aiState.update { it.copy(response = it.response + content) }
+                            synchronized(streamed) { streamed.append(content) }
                         }
                     })
             } catch (e: CancellationException) {
@@ -225,13 +219,27 @@ class ReportViewModel(
             } catch (e: Exception) {
                 e.printStackTrace()
                 _aiState.update {
-                    it.copy(isLoading = false, error = e.message ?: "总结失败，请稍后重试")
+                    it.copy(isLoading = false, isStreaming = false, error = e.message ?: "总结失败，请稍后重试")
+                }
+            } finally {
+                emitTicker.cancel()
+                // 收尾：一次性发出最终全文（含最后一帧之后未到合帧间隔的尾巴）
+                val fullText = synchronized(streamed) { streamed.toString() }
+                _aiState.update { state ->
+                    if (state.error == null) {
+                        state.copy(isLoading = false, isStreaming = false, response = fullText)
+                    } else state
                 }
             }
         }
     }
 
     fun hideAiSheet() {
-        _aiState.update { it.copy(isShowSheet = false, response = "", error = null) }
+        _aiState.update { it.copy(isShowSheet = false, isStreaming = false, response = "", error = null) }
+    }
+
+    private companion object {
+        /** 流式合帧间隔：每 100ms 把累积文本刷一次到 UI，重组次数比逐 chunk 低一个数量级 */
+        const val STREAM_EMIT_INTERVAL_MS = 100L
     }
 }

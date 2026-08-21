@@ -54,42 +54,45 @@ object WeightPredictor {
         // 只保留最新记录往前 ANALYSIS_WINDOW_DAYS 天内的数据
         val latestTs = dailyWeights.maxOf { it.timestamp }
         val windowStartTs = latestTs - ANALYSIS_WINDOW_DAYS * MILLIS_PER_DAY
-        val points = ArrayList<Pair<Double, Double>>(dailyWeights.size) // (x=距窗口首日天数, y=体重)
+        val xs = ArrayList<Double>(dailyWeights.size) // x=距窗口首日天数
+        val ys = ArrayList<Double>(dailyWeights.size)
         for (record in dailyWeights) {
             if (record.timestamp >= windowStartTs) {
-                points.add((record.timestamp - windowStartTs) / MILLIS_PER_DAY to record.minWeight)
+                xs.add((record.timestamp - windowStartTs) / MILLIS_PER_DAY)
+                ys.add(record.minWeight)
             }
         }
-        if (points.size < MIN_DATA_POINTS) return null
+        val pointCount = xs.size
+        if (pointCount < MIN_DATA_POINTS) return null
         // 实际数据点的时间跨度必须足够长，连续几天的记录代表不了趋势
-        val xs = points.map { it.first }
         if ((xs.max() - xs.min()) < MIN_SPAN_DAYS) return null
 
         // 指数权重：以最新记录为基准（而非当前时刻），权重只由数据间相对距离决定
         // weight = 0.5 ^ (数据年龄 / 半衰期)，即 0.5.pow((spanDays - x) / halfLife)
         val spanDays = (latestTs - windowStartTs) / MILLIS_PER_DAY
-        fun weightOf(x: Double) = 0.5.pow((spanDays - x) / WEIGHT_HALF_LIFE_DAYS)
+
+        // 权重只算一遍存数组复用（原先两遍循环各算一次 pow）
+        val weights = DoubleArray(pointCount) { i -> 0.5.pow((spanDays - xs[i]) / WEIGHT_HALF_LIFE_DAYS) }
 
         // 加权最小二乘：先算加权均值，再累计加权协方差
         var sumW = 0.0
         var sumWX = 0.0
         var sumWY = 0.0
-        for ((x, y) in points) {
-            val w = weightOf(x)
+        for (i in 0 until pointCount) {
+            val w = weights[i]
             sumW += w
-            sumWX += w * x
-            sumWY += w * y
+            sumWX += w * xs[i]
+            sumWY += w * ys[i]
         }
         val meanX = sumWX / sumW
         val meanY = sumWY / sumW
 
         var sxx = 0.0
         var sxy = 0.0
-        for ((x, y) in points) {
-            val w = weightOf(x)
-            val dx = x - meanX
-            sxx += w * dx * dx
-            sxy += w * dx * (y - meanY)
+        for (i in 0 until pointCount) {
+            val dx = xs[i] - meanX
+            sxx += weights[i] * dx * dx
+            sxy += weights[i] * dx * (ys[i] - meanY)
         }
         if (sxx <= 0.0) return null
         val slope = sxy / sxx // kg/天，负值表示下降

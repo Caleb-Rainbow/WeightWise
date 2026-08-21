@@ -42,11 +42,12 @@ fun FoodItemEditorSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    var name by remember { mutableStateOf(initialItem?.name ?: "") }
-    var calories by remember { mutableStateOf(initialItem?.estimatedCalories?.toString() ?: "") }
-    var grams by remember { mutableStateOf(initialItem?.estimatedGrams?.toString() ?: "") }
-    var category by remember { mutableStateOf(initialItem?.category ?: "") }
-    var isHealthy by remember { mutableStateOf(initialItem?.isHealthy ?: true) }
+    // 以 initialItem 为 remember key：复用组合实例时也能正确显示当前编辑项而非陈旧数据
+    var name by remember(initialItem) { mutableStateOf(initialItem?.name ?: "") }
+    var calories by remember(initialItem) { mutableStateOf(initialItem?.estimatedCalories?.toString() ?: "") }
+    var grams by remember(initialItem) { mutableStateOf(initialItem?.estimatedGrams?.toString() ?: "") }
+    var category by remember(initialItem) { mutableStateOf(initialItem?.category ?: "") }
+    var isHealthy by remember(initialItem) { mutableStateOf(initialItem?.isHealthy ?: true) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,

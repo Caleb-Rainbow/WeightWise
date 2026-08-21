@@ -64,8 +64,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        openAddDialogRequest = intent.getBooleanExtra(EXTRA_OPEN_ADD_DIALOG, false)
-        openReportRequest = intent.getBooleanExtra(EXTRA_OPEN_REPORT, false)
+        openAddDialogRequest = intent.consumeBooleanExtra(EXTRA_OPEN_ADD_DIALOG)
+        openReportRequest = intent.consumeBooleanExtra(EXTRA_OPEN_REPORT)
         setContent {
             AppTheme {
                 ProvideVicoTheme(rememberM3VicoTheme()) {
@@ -84,12 +84,19 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        if (intent.getBooleanExtra(EXTRA_OPEN_ADD_DIALOG, false)) {
+        if (intent.consumeBooleanExtra(EXTRA_OPEN_ADD_DIALOG)) {
             openAddDialogRequest = true
         }
-        if (intent.getBooleanExtra(EXTRA_OPEN_REPORT, false)) {
+        if (intent.consumeBooleanExtra(EXTRA_OPEN_REPORT)) {
             openReportRequest = true
         }
+    }
+
+    /** 读掉布尔 extra 后立即移除：否则配置变更（旋转）重建时 getIntent 仍带旧 extra，深链会再次触发 */
+    private fun Intent.consumeBooleanExtra(name: String): Boolean {
+        val value = getBooleanExtra(name, false)
+        removeExtra(name)
+        return value
     }
 
     companion object {
@@ -124,10 +131,10 @@ private fun MainNav3(
     onOpenReportConsumed: () -> Unit,
 ) {
     val backStack = rememberNavBackStack(Main)
-    // 周报推送通知的「直达报告页」深链
+    // 周报推送通知的「直达报告页」深链；已在报告页时不再叠加一层
     LaunchedEffect(openReportRequest) {
         if (openReportRequest) {
-            backStack.add(Report)
+            if (backStack.lastOrNull() != Report) backStack.add(Report)
             onOpenReportConsumed()
         }
     }

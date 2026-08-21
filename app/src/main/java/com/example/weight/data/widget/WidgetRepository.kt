@@ -6,9 +6,9 @@ import com.example.weight.data.record.Record
 import com.example.weight.data.record.RecordDao
 import com.example.weight.util.GoalProgressCalculator
 import com.example.weight.util.TimeUtils.getStartTimeForLastDays
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.withContext
 import org.koin.core.annotation.Single
 
 /** 桌面小组件展示数据。currentWeight 为 null 表示无任何记录（空状态） */
@@ -29,11 +29,16 @@ data class WeightWidgetData(
 @Single
 class WidgetRepository(private val recordDao: RecordDao) {
 
-    suspend fun load(): WeightWidgetData = withContext(Dispatchers.IO) {
-        val current: Record? = recordDao.getLastData()
-        val last7Days: List<DailyMinWeight> =
+    suspend fun load(): WeightWidgetData = coroutineScope {
+        // 三次独立查询并行执行；Room suspend 自带 IO 调度，不再额外 withContext
+        val currentDeferred = async { recordDao.getLastData() }
+        val last7DaysDeferred = async {
             recordDao.getDailyMinWeightSince(getStartTimeForLastDays(7)).first()
-        val first: Record? = recordDao.getFirstData()
+        }
+        val firstDeferred = async { recordDao.getFirstData() }
+        val current: Record? = currentDeferred.await()
+        val last7Days: List<DailyMinWeight> = last7DaysDeferred.await()
+        val first: Record? = firstDeferred.await()
         val targetWeight = LocalStorageData.targetWeight.value
         val configuredStartWeight = LocalStorageData.startWeight.value
         val currentWeight = current?.weight

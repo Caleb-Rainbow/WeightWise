@@ -6,7 +6,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import android.Manifest
-import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -56,6 +55,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -79,6 +79,7 @@ import com.example.weight.ui.common.MyTopBar
 import com.example.weight.ui.common.PermissionOutcome
 import com.example.weight.ui.common.rememberPermissionRequester
 import com.example.weight.util.CalorieCalculator
+import com.example.weight.util.ImageCompressor
 import com.example.weight.util.IntakeStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -113,6 +114,9 @@ fun DietRecordScreen(
     var showFoodEditor by remember { mutableStateOf(false) }
     var editingFoodIndex by remember { mutableStateOf(-1) }
     var editingFoodItem by remember { mutableStateOf<RecognizedFoodItem?>(null) }
+    // 备注放本地状态：进 ViewModel 的 StateFlow 会让整个页面的每个 item 逐字符重组，
+    // 只在发起分析/保存时把最终值传给 VM
+    var userNote by rememberSaveable { mutableStateOf("") }
 
     // 拍照
     val takePicture = rememberLauncherForActivityResult(
@@ -202,15 +206,15 @@ fun DietRecordScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             // 餐次选择
-            item {
+            item(key = "meal_type") {
                 MealTypeSelector(
                     selectedMealType = state.selectedMealType,
-                    onMealTypeSelected = { viewModel.onMealTypeSelected(it) },
+                    onMealTypeSelected = viewModel::onMealTypeSelected,
                 )
             }
 
             // 图片选择区
-            item {
+            item(key = "image_picker") {
                 ImagePickerSection(
                     imageUri = state.selectedImageUri,
                     hasBitmap = state.hasCapturedBitmap,
@@ -226,10 +230,10 @@ fun DietRecordScreen(
             }
 
             // 用户备注
-            item {
+            item(key = "user_note") {
                 OutlinedTextField(
-                    value = state.userNote,
-                    onValueChange = { viewModel.onUserNoteChanged(it) },
+                    value = userNote,
+                    onValueChange = { userNote = it },
                     label = { Text("添加备注（如：只吃了一半）") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
@@ -237,9 +241,9 @@ fun DietRecordScreen(
             }
 
             // AI 识别按钮
-            item {
+            item(key = "analyze_button") {
                 Button(
-                    onClick = { viewModel.analyzeImage(context) },
+                    onClick = { viewModel.analyzeImage(context, userNote) },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !state.isAnalyzing && (state.selectedImageUri != null || state.hasCapturedBitmap),
                     shape = RoundedCornerShape(12.dp),
@@ -261,10 +265,10 @@ fun DietRecordScreen(
             }
 
             // 纯文本模式
-            if (!state.hasCapturedBitmap && state.selectedImageUri == null && state.userNote.isNotBlank()) {
-                item {
+            if (!state.hasCapturedBitmap && state.selectedImageUri == null && userNote.isNotBlank()) {
+                item(key = "text_analyze_button") {
                     OutlinedButton(
-                        onClick = { viewModel.analyzeTextOnly() },
+                        onClick = { viewModel.analyzeTextOnly(userNote) },
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !state.isAnalyzing,
                         shape = RoundedCornerShape(12.dp),
@@ -276,7 +280,7 @@ fun DietRecordScreen(
 
             // AI 分析结果
             if (state.aiResponse != null) {
-                item {
+                item(key = "ai_result") {
                     AiResultSection(
                         trafficLight = state.trafficLight,
                         aiAdvice = state.aiAdvice,
@@ -298,9 +302,12 @@ fun DietRecordScreen(
                 }
 
                 // 保存按钮
-                item {
+                item(key = "save_button") {
                     Button(
-                        onClick = { viewModel.saveRecord(context) },
+                        onClick = {
+                            viewModel.saveRecord(context, userNote)
+                            userNote = ""
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         enabled = state.recognizedFoods.isNotEmpty(),
                         shape = RoundedCornerShape(12.dp),
@@ -313,15 +320,15 @@ fun DietRecordScreen(
                 }
             }
 
-            item { HorizontalDivider() }
+            item(key = "divider") { HorizontalDivider() }
 
             // 今日汇总
-            item {
+            item(key = "today_summary") {
                 TodaySummarySection(
                     todayCalories = state.todayTotalCalories,
                     todayRecords = state.todayRecords,
                     recommendedCalories = state.recommendedCalories,
-                    onDeleteRecord = { viewModel.deleteRecord(it) },
+                    onDeleteRecord = viewModel::deleteRecord,
                 )
             }
         }
@@ -366,19 +373,17 @@ private fun ImagePickerSection(
         ),
     ) {
         if (imageUri != null) {
-            // 已选图片预览
+            // 已选图片预览：两阶段降采样解码（bounds + inSampleSize），预览区只要约 1024px，
+            // 相机原图全尺寸解码会有几十 MB 的内存峰值
             Box(modifier = Modifier.fillMaxWidth()) {
                 val context = LocalContext.current
                 var imageBitmap by remember(imageUri) { mutableStateOf<ImageBitmap?>(null) }
                 LaunchedEffect(imageUri) {
-                    withContext(Dispatchers.IO) {
-                        try {
-                            imageBitmap = context.contentResolver.openInputStream(imageUri)?.use { input ->
-                                BitmapFactory.decodeStream(input)?.asImageBitmap()
-                            }
-                        } catch (e: Exception) {
-                            android.util.Log.w("DietRecord", "Failed to load image preview", e)
-                        }
+                    imageBitmap = withContext(Dispatchers.IO) {
+                        val bitmap = runCatching { ImageCompressor.decodeScaled(context, imageUri) }
+                            .onFailure { android.util.Log.w("DietRecord", "Failed to decode preview ${imageUri}", it) }
+                            .getOrNull()
+                        bitmap?.asImageBitmap()
                     }
                 }
                 val currentBitmap = imageBitmap
@@ -421,9 +426,11 @@ private fun ImagePickerSection(
             // 拍照预览（Bitmap from ViewModel）
             Box(modifier = Modifier.fillMaxWidth()) {
                 val validBitmap = capturedBitmap?.takeIf { !it.isRecycled }
-                if (validBitmap != null) {
+                // 包装实例 memo 化，避免每次重组新建 ImageBitmap 导致 Image 重绘
+                val capturedImage = remember(validBitmap) { validBitmap?.asImageBitmap() }
+                if (capturedImage != null) {
                     Image(
-                        bitmap = validBitmap.asImageBitmap(),
+                        bitmap = capturedImage,
                         contentDescription = "拍摄的食物图片",
                         modifier = Modifier
                             .fillMaxWidth()
@@ -638,6 +645,8 @@ private fun TodaySummarySection(
     recommendedCalories: Int?,
     onDeleteRecord: (DietRecord) -> Unit,
 ) {
+    // 枚举名 → 展示项的 O(1) 查表，避免每条记录渲染时线性扫描枚举
+    val mealTypeByName = remember { MealType.entries.associateBy { it.name } }
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -695,7 +704,7 @@ private fun TodaySummarySection(
                             Spacer(modifier = Modifier.width(8.dp))
                             Column {
                                 Text(
-                                    MealType.entries.find { it.name == record.mealType }?.displayName ?: record.mealType,
+                                    mealTypeByName[record.mealType]?.displayName ?: record.mealType,
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Medium,
                                 )

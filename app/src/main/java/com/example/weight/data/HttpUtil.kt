@@ -1,5 +1,6 @@
 package com.example.weight.data
 
+import com.example.weight.BuildConfig
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.HttpTimeout
@@ -19,13 +20,17 @@ fun createDefaultHttpClient(json: Json): HttpClient {
         }
         // 插件3：超时设置
         install(HttpTimeout) {
+            // LLM 长响应需要整体放宽；连接/读超时收紧，弱网下快速失败而不是挂满 5 分钟
             requestTimeoutMillis = 300000
-            connectTimeoutMillis = 300000
-            socketTimeoutMillis = 300000
+            connectTimeoutMillis = 15_000
+            socketTimeoutMillis = 120_000
         }
-        install(Logging) {
-            logger = Logger.ANDROID
-            level = LogLevel.ALL
+        // 全量日志会把流式响应逐 chunk 打进 logcat（还含 API key），仅 debug 构建启用且不打 BODY
+        if (BuildConfig.DEBUG) {
+            install(Logging) {
+                logger = Logger.ANDROID
+                level = LogLevel.INFO
+            }
         }
     }
 }

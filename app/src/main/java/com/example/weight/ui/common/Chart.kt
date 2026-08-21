@@ -48,6 +48,7 @@ import com.patrykandpatrick.vico.compose.cartesian.marker.rememberDefaultCartesi
 import com.patrykandpatrick.vico.compose.common.Fill
 import com.patrykandpatrick.vico.compose.common.Insets
 import com.patrykandpatrick.vico.compose.common.LayeredComponent
+import com.patrykandpatrick.vico.compose.common.component.Component
 import com.patrykandpatrick.vico.compose.common.component.ShapeComponent
 import com.patrykandpatrick.vico.compose.common.component.TextComponent
 import com.patrykandpatrick.vico.compose.common.component.rememberShapeComponent
@@ -79,12 +80,29 @@ import androidx.compose.ui.graphics.Brush.Companion.verticalGradient
 import java.util.Locale
 import com.patrykandpatrick.vico.compose.cartesian.decoration.Decoration
 import com.patrykandpatrick.vico.compose.common.Position
+import com.patrykandpatrick.vico.compose.common.data.ExtraStore
 import java.text.DecimalFormat
 
 fun BottomXDateFormatter(labels: List<String>): CartesianValueFormatter =
     CartesianValueFormatter { _, value, _ ->
         labels.getOrNull(value.toInt()) ?: "无日期"
     }
+
+/**
+ * 滑动窗口均值：窗口右移时增量加减，O(n) 完成且不逐点分配临时列表。
+ * 数据不足一个窗口时返回空列表（调用方据此不画均线）。
+ */
+internal fun movingAverage(values: List<Double>, window: Int = 7): List<Double> {
+    if (values.size < window) return emptyList()
+    val result = ArrayList<Double>(values.size - window + 1)
+    var sum = 0.0
+    for (i in values.indices) {
+        sum += values[i]
+        if (i >= window) sum -= values[i - window]
+        if (i >= window - 1) result.add(sum / window)
+    }
+    return result
+}
 
 /**
  * 目标体重参考线：横贯图表的虚线 + 右端标签，让「距离目标多远」在图上直接可见。
@@ -157,26 +175,33 @@ internal fun rememberMarker(
     val indicatorFrontComponent =
         rememberShapeComponent(Fill(MaterialTheme.colorScheme.surface), RoundedCornerShape(10))
     val guideline = rememberAxisGuidelineComponent()
-    return rememberDefaultCartesianMarker(
-        label = label,
-        valueFormatter = valueFormatter,
-        indicator =
-            if (showIndicator) {
-                { color ->
-                    LayeredComponent(
-                        back = ShapeComponent(Fill(color.copy(alpha = 0.15f)), RoundedCornerShape(10)),
-                        front =
-                            LayeredComponent(
+    // indicator 在 draw 阶段按系列颜色取组件：按颜色缓存，避免滚动时每帧新建 LayeredComponent
+    val indicator: ((Color) -> Component)? =
+        if (showIndicator) {
+            remember(indicatorFrontComponent) {
+                val cache = mutableMapOf<Color, LayeredComponent>()
+                val indicatorOf: (Color) -> Component = { color: Color ->
+                    cache.getOrPut(color) {
+                        LayeredComponent(
+                            back = ShapeComponent(Fill(color.copy(alpha = 0.15f)), RoundedCornerShape(10)),
+                            front = LayeredComponent(
                                 back = ShapeComponent(fill = Fill(color), shape = RoundedCornerShape(10)),
                                 front = indicatorFrontComponent,
                                 padding = Insets(5.dp),
                             ),
-                        padding = Insets(10.dp),
-                    )
+                            padding = Insets(10.dp),
+                        )
+                    }
                 }
-            } else {
-                null
-            },
+                indicatorOf
+            }
+        } else {
+            null
+        }
+    return rememberDefaultCartesianMarker(
+        label = label,
+        valueFormatter = valueFormatter,
+        indicator = indicator,
         indicatorSize = 36.dp,
         guideline = guideline,
     )
@@ -348,7 +373,7 @@ fun WeightChart(
     lineColor: Color,
     showMovingAverage: Boolean = false,
     targetWeight: Double = 0.0,
-    onMarkerClick: (Int) -> Unit = {}
+    onMarkerClick: (Int) -> Unit = NoOpMarkerClick,
 ) {
     val movingAverageColor = MaterialTheme.colorScheme.secondary
     val targetLineColor = MaterialTheme.colorScheme.tertiary
@@ -373,6 +398,54 @@ fun WeightChart(
     } else {
         null
     }
+    // 以下实例全部 memo 化：rememberCartesianChart 按参数键控 remember，
+    // 传入新实例会让整张图表（含轴/marker）在每次无关重组时被重建
+    val bottomFormatter = remember(xLabels) { BottomXDateFormatter(xLabels) }
+    val decorations = remember(targetDecoration) { listOfNotNull(targetDecoration) }
+    val rangeProvider = remember(maxWeight, minWeight) {
+        CartesianLayerRangeProvider.fixed(maxY = maxWeight, minY = minWeight)
+    }
+    val startAxisTitle: (ExtraStore) -> CharSequence? = remember { { "体重" } }
+    val valueFormatter = remember {
+        // 有均线的点位同时显示当日体重与均值，颜色与各自曲线一致
+        DefaultCartesianMarker.ValueFormatter { _, targets ->
+            val points =
+                (targets.firstOrNull() as? LineCartesianLayerMarkerTarget)?.points.orEmpty()
+            val weightPoint = points.firstOrNull { it.entry.seriesIndex == 0 }
+            val averagePoint = points.firstOrNull { it.entry.seriesIndex == 1 }
+            when {
+                weightPoint == null -> ""
+                averagePoint == null ->
+                    String.format(Locale.CHINA, "%.1fkg", weightPoint.entry.y)
+                else -> buildAnnotatedString {
+                    withStyle(SpanStyle(color = weightPoint.color, fontWeight = FontWeight.Bold)) {
+                        append(String.format(Locale.CHINA, "%.1f", weightPoint.entry.y))
+                    }
+                    append("kg  均 ")
+                    withStyle(SpanStyle(color = averagePoint.color, fontWeight = FontWeight.Bold)) {
+                        append(String.format(Locale.CHINA, "%.1f", averagePoint.entry.y))
+                    }
+                }
+            }
+        }
+    }
+    val visibilityListener = remember(onMarkerClick) {
+        object : CartesianMarkerVisibilityListener {
+            override fun onShown(marker: CartesianMarker, targets: List<CartesianMarker.Target>) {
+                super.onShown(marker, targets)
+                targets.singleOrNull()?.let {
+                    onMarkerClick(it.x.toInt())
+                }
+            }
+
+            override fun onUpdated(marker: CartesianMarker, targets: List<CartesianMarker.Target>) {
+                super.onUpdated(marker, targets)
+                targets.singleOrNull()?.let {
+                    onMarkerClick(it.x.toInt())
+                }
+            }
+        }
+    }
     CartesianChartHost(
         rememberCartesianChart(
             rememberLineCartesianLayer(
@@ -395,55 +468,22 @@ fun WeightChart(
                         stroke = LineCartesianLayer.LineStroke.Continuous(thickness = 1.5.dp),
                     ),
                 ),
-                rangeProvider = CartesianLayerRangeProvider.fixed(maxY = maxWeight, minY = minWeight),
+                rangeProvider = rangeProvider,
             ),
             startAxis = VerticalAxis.rememberStart(
-                title = {"体重"},
+                title = startAxisTitle,
                 valueFormatter = CartesianValueFormatter.decimal(decimalCount = 2, suffix = "kg"),
                 itemPlacer = remember { VerticalAxis.ItemPlacer.step(step = { 0.5 }) }),
-            bottomAxis = HorizontalAxis.rememberBottom(valueFormatter = BottomXDateFormatter(labels = xLabels)),
-            decorations = listOfNotNull(targetDecoration),
-            marker = rememberMarker(valueFormatter = remember {
-                // 有均线的点位同时显示当日体重与均值，颜色与各自曲线一致
-                DefaultCartesianMarker.ValueFormatter { _, targets ->
-                    val points =
-                        (targets.firstOrNull() as? LineCartesianLayerMarkerTarget)?.points.orEmpty()
-                    val weightPoint = points.firstOrNull { it.entry.seriesIndex == 0 }
-                    val averagePoint = points.firstOrNull { it.entry.seriesIndex == 1 }
-                    when {
-                        weightPoint == null -> ""
-                        averagePoint == null ->
-                            String.format(Locale.CHINA, "%.1fkg", weightPoint.entry.y)
-                        else -> buildAnnotatedString {
-                            withStyle(SpanStyle(color = weightPoint.color, fontWeight = FontWeight.Bold)) {
-                                append(String.format(Locale.CHINA, "%.1f", weightPoint.entry.y))
-                            }
-                            append("kg  均 ")
-                            withStyle(SpanStyle(color = averagePoint.color, fontWeight = FontWeight.Bold)) {
-                                append(String.format(Locale.CHINA, "%.1f", averagePoint.entry.y))
-                            }
-                        }
-                    }
-                }
-            }),
-            markerVisibilityListener = object : CartesianMarkerVisibilityListener {
-                override fun onShown(marker: CartesianMarker, targets: List<CartesianMarker.Target>) {
-                    super.onShown(marker, targets)
-                    targets.singleOrNull()?.let {
-                        onMarkerClick(it.x.toInt())
-                    }
-                }
-
-                override fun onUpdated(marker: CartesianMarker, targets: List<CartesianMarker.Target>) {
-                    super.onUpdated(marker, targets)
-                    targets.singleOrNull()?.let {
-                        onMarkerClick(it.x.toInt())
-                    }
-                }
-            }
+            bottomAxis = HorizontalAxis.rememberBottom(valueFormatter = bottomFormatter),
+            decorations = decorations,
+            marker = rememberMarker(valueFormatter = valueFormatter),
+            markerVisibilityListener = visibilityListener,
         ),
         modelProducer = modelProducer,
         modifier = modifier.height(220.dp),
         scrollState = rememberVicoScrollState(scrollEnabled = true, initialScroll = Scroll.Absolute.End),
     )
 }
+
+/** 稳定的默认空回调：避免默认参数每次组合生成新 lambda 导致图表重建 */
+private val NoOpMarkerClick: (Int) -> Unit = {}

@@ -56,8 +56,6 @@ import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -79,6 +77,7 @@ import com.example.weight.data.LocalStorageData
 import com.example.weight.data.record.DailyMinWeight
 import com.example.weight.data.record.Record
 import com.example.weight.ui.common.WeightChart
+import com.example.weight.ui.common.movingAverage
 import com.example.weight.util.GoalProgressCalculator
 import com.example.weight.util.StreakInfo
 import com.example.weight.util.TimeUtils
@@ -121,9 +120,10 @@ fun MainScreen(
         }
     }
     val height by LocalStorageData.height.collectAsStateWithLifecycle()
-    val bmi by remember(uiState.selectedRecord,height) {
-        val height = height / 100
-        mutableDoubleStateOf(uiState.selectedRecord?.minWeight?.div(height.times(height)) ?: 0.0)
+    // 普通 remember 计算值即可：此处从不写入，mutableStateOf 是无意义的包装
+    val bmi = remember(uiState.selectedRecord, height) {
+        val heightMeters = height / 100
+        uiState.selectedRecord?.minWeight?.div(heightMeters.times(heightMeters)) ?: 0.0
     }
     MainDialog()
     Scaffold(
@@ -175,9 +175,11 @@ fun MainScreen(
                     }
 
                     Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                        // 提升到此处一次性收集，避免在下层参数表达式里内联 collect
+                        val selectedScope by viewModel.selectedScope.collectAsStateWithLifecycle()
                         SelectedRecordContent(
                             record = uiState.selectedRecord,
-                            selectedScope = viewModel.selectedScope.collectAsStateWithLifecycle().value,
+                            selectedScope = selectedScope,
                             onScopeSelected = viewModel::selectScope,
                             streakInfo = streakInfo
                         )
@@ -189,13 +191,16 @@ fun MainScreen(
                             firstRecord = uiState.firstRecord,
                             recentDailyWeights = predictionDataList
                         )
+                        // 稳定引用：内联 lambda 每次重组都是新实例，会让图表的 marker listener 链失效重建
+                        val onRecordSelected = remember(viewModel) {
+                            { record: DailyMinWeight -> viewModel.setSelectedRecord(record) }
+                        }
                         StatisticChart(
                             currentScopeDataList = scopeData,
                             maxWeight = chartMaxWeight,
-                            minWeight = chartMinWeight
-                        ) {
-                            viewModel.setSelectedRecord(it)
-                        }
+                            minWeight = chartMinWeight,
+                            onMarkerClick = onRecordSelected,
+                        )
                         StatsSummaryCard(
                             modifier = Modifier
                                 .padding(top = 12.dp)
@@ -610,50 +615,48 @@ private fun StatisticChart(
     currentScopeDataList: List<DailyMinWeight>,
     maxWeight: Double,
     minWeight: Double,
-    onMarkerClick: (DailyMinWeight) -> Unit
+    onMarkerClick: (DailyMinWeight) -> Unit,
 ) {
     // 根据收集到的数据构建 LineChart 所需的参数，当 currentScopeDataList 变化时重组
     val labels = remember(currentScopeDataList) { currentScopeDataList.map { it.recordDay } }
     // 7 日移动平均：对记录序列做 7 点滑动窗口平均，与图表按记录排布的横轴自洽；
     // 数据不足 7 条时（如近7天范围内）均线无意义，不画
-    val movingAverage = remember(currentScopeDataList) {
-        if (currentScopeDataList.size < 7) emptyList()
-        else currentScopeDataList.indices.drop(6).map { i ->
-            currentScopeDataList.subList(i - 6, i + 1).map { it.minWeight }.average()
-        }
-    }
+    val movingAverage = remember(currentScopeDataList) { movingAverage(currentScopeDataList.map { it.minWeight }) }
     val targetWeight by LocalStorageData.targetWeight.collectAsStateWithLifecycle()
 
     // 当 chartData 不为空时才显示图表
     if (currentScopeDataList.isNotEmpty()) {
-        key(currentScopeDataList, movingAverage, targetWeight) {
-            val modelProducer = remember { CartesianChartModelProducer() }
-            LaunchedEffect(Unit) {
-                modelProducer.runTransaction {
-                    lineModel {
-                        series(currentScopeDataList.map { it.minWeight })
-                        if (movingAverage.isNotEmpty()) {
-                            // 均线从第 7 个记录点起才有完整窗口，用显式 x 对齐横轴
-                            series(
-                                x = currentScopeDataList.indices.drop(6),
-                                y = movingAverage,
-                            )
-                        }
+        // producer 保持稳定，数据变化只增量提交事务；不销毁整棵图表子树（含滚动状态）
+        val modelProducer = remember { CartesianChartModelProducer() }
+        LaunchedEffect(currentScopeDataList, movingAverage) {
+            modelProducer.runTransaction {
+                lineModel {
+                    series(currentScopeDataList.map { it.minWeight })
+                    if (movingAverage.isNotEmpty()) {
+                        // 均线从第 7 个记录点起才有完整窗口，用显式 x 对齐横轴
+                        series(
+                            x = currentScopeDataList.indices.drop(6),
+                            y = movingAverage,
+                        )
                     }
                 }
             }
-            WeightChart(
-                lineColor = vicoTheme.lineColor,
-                modelProducer = modelProducer,
-                maxWeight = maxWeight,
-                minWeight = minWeight,
-                xLabels = labels,
-                showMovingAverage = movingAverage.isNotEmpty(),
-                targetWeight = targetWeight
-            ) {
-                onMarkerClick(currentScopeDataList[it])
-            }
         }
+        // 稳定的索引回调：内联 lambda 每次重组生成新实例，会顺着 WeightChart 的
+        // remember 链触发 marker listener 重建乃至整张图表重建
+        val onMarkerIndexClick = remember(onMarkerClick, currentScopeDataList) {
+            { index: Int -> onMarkerClick(currentScopeDataList[index]) }
+        }
+        WeightChart(
+            lineColor = vicoTheme.lineColor,
+            modelProducer = modelProducer,
+            maxWeight = maxWeight,
+            minWeight = minWeight,
+            xLabels = labels,
+            showMovingAverage = movingAverage.isNotEmpty(),
+            targetWeight = targetWeight,
+            onMarkerClick = onMarkerIndexClick,
+        )
     }
 }
 

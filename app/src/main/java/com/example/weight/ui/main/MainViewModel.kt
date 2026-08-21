@@ -72,8 +72,7 @@ class MainViewModel(
         }
 
     init {
-        observeFirstRecord()
-        observeMilestones()
+        observeFirstRecordAndMilestones()
     }
 
     /** 连续打卡信息：打卡日来自数据库 Flow，记录增删后自动重算 */
@@ -86,11 +85,11 @@ class MainViewModel(
     val milestoneCelebration = _milestoneCelebration.receiveAsFlow()
 
     /**
-     * 监听起始/最新体重计算里程碑档数，仅在档数「净增」时庆祝：
-     * 首次发射（冷启动、导入数据）不庆祝，删除再恢复同档也不重复庆祝以外的方向均不触发。
+     * 一条 combine 同时驱动「起始体重」展示与里程碑庆祝：
+     * 相比原先两条独立 Flow 各自订阅 getFirstDataFlow，Record 表写入时的重查次数少一半。
      * 起始体重与首页进度卡同口径：手动设置优先，未设置时取第一条记录。
      */
-    private fun observeMilestones() {
+    private fun observeFirstRecordAndMilestones() {
         viewModelScope.launch(Dispatchers.IO) {
             var lastCount = 0
             var initialized = false
@@ -99,6 +98,7 @@ class MainViewModel(
                 recordDao.getLastDataFlow(),
                 LocalStorageData.startWeight,
             ) { first, last, configuredStartWeight ->
+                _uiState.update { it.copy(firstRecord = first) }
                 val startWeight = GoalProgressCalculator.effectiveStartWeight(
                     configuredStartWeight, first?.weight
                 )
@@ -121,51 +121,29 @@ class MainViewModel(
     val predictionData: Flow<List<DailyMinWeight>> =
         recordDao.getDailyMinWeightSince(getStartTimeForLastDays(WeightPredictor.ANALYSIS_WINDOW_DAYS.toInt()))
 
-    // 更新选中的统计范围
+    // StateFlow 更新线程安全且为微秒级操作，直接在调用线程执行即可，无需切 IO 调度
     fun selectScope(scope: StatisticsScope) {
-        viewModelScope.launch(Dispatchers.IO) {
-            _selectedScope.value = scope
-        }
+        _selectedScope.value = scope
     }
 
     fun showAddDialog() {
-        viewModelScope.launch(Dispatchers.IO) {
-            _dialogState.update {
-                it.copy(isShowAddDialog = true)
-            }
-        }
+        _dialogState.update { it.copy(isShowAddDialog = true) }
     }
 
     fun hideAddDialog() {
-        viewModelScope.launch(Dispatchers.IO) {
-            _dialogState.update {
-                it.copy(isShowAddDialog = false)
-            }
-        }
+        _dialogState.update { it.copy(isShowAddDialog = false) }
     }
 
     fun showSetHeightDialog() {
-        viewModelScope.launch(Dispatchers.IO) {
-            _dialogState.update {
-                it.copy(isShowSetHeightDialog = true)
-            }
-        }
+        _dialogState.update { it.copy(isShowSetHeightDialog = true) }
     }
 
     fun hideSetHeightDialog() {
-        viewModelScope.launch(Dispatchers.IO) {
-            _dialogState.update {
-                it.copy(isShowSetHeightDialog = false)
-            }
-        }
+        _dialogState.update { it.copy(isShowSetHeightDialog = false) }
     }
 
     fun setSelectedRecord(record: DailyMinWeight?) {
-        viewModelScope.launch(Dispatchers.IO) {
-            _uiState.update {
-                it.copy(selectedRecord = record)
-            }
-        }
+        _uiState.update { it.copy(selectedRecord = record) }
     }
 
     fun getLastRecordWeight(onWeight: (Double?) -> Unit) {
@@ -186,26 +164,6 @@ class MainViewModel(
             )
             widgetUpdater.notifyDataChanged()
             onSuccess()
-        }
-    }
-
-    /**
-     * 响应式观察最早记录变化。
-     * Record 表数据变化（新增/删除）时自动重发，确保进度条的"起始体重"始终准确。
-     */
-    private fun observeFirstRecord() {
-        viewModelScope.launch(Dispatchers.IO) {
-            recordDao.getFirstDataFlow().collect { record ->
-                _uiState.update { it.copy(firstRecord = record) }
-            }
-        }
-    }
-
-    fun getFirstRecord() {
-        viewModelScope.launch(Dispatchers.IO) {
-            _uiState.update {
-                it.copy(firstRecord = recordDao.getFirstData())
-            }
         }
     }
 }

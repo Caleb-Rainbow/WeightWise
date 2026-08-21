@@ -103,6 +103,10 @@ interface RecordDao {
     @Query("SELECT * FROM Record ORDER BY timestamp ASC")
     suspend fun getAllOnce(): List<Record>
 
+    /** 去重用轻量投影：只取 (timestamp, weight)，避免导入链路全量物化日志等大字段 */
+    @Query("SELECT timestamp, weight FROM Record")
+    suspend fun getDedupKeys(): List<RecordDedupKey>
+
     /** 全部打卡日（北京时间 yyyy-MM-dd，去重升序），供连续打卡计算 */
     @Query(
         "SELECT DISTINCT DATE(timestamp / 1000, 'unixepoch', '+8 hours') AS recordDay " +
@@ -111,3 +115,6 @@ interface RecordDao {
     fun getRecordDaysFlow(): Flow<List<String>>
 
 }
+
+/** 备份去重键：与 [BackupDeduplicator] 的 (timestamp, weight) 口径一致 */
+data class RecordDedupKey(val timestamp: Long, val weight: Double)

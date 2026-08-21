@@ -33,6 +33,50 @@ object ImageCompressor {
     )
 
     /**
+     * 从 URI 解码 → inSampleSize 降采样 → 精确缩放，不做压缩和 Base64 编码。
+     * 预览渲染与保存路径只需 Bitmap 时用这个，避免白白执行 JPEG 压缩 + 大字符串编码。
+     * 无法打开或解码失败返回 null。
+     *
+     * bounds 探测失败（部分格式如 HEIC 在 inJustDecodeBounds 下返回 null 或 0 尺寸，
+     * 但全尺寸解码却正常）时降级为单次全尺寸解码，保证预览可用。
+     */
+    suspend fun decodeScaled(
+        context: Context,
+        uri: Uri,
+        maxLongEdge: Int = DEFAULT_MAX_LONG_EDGE,
+    ): Bitmap? = withContext(Dispatchers.IO) {
+        val boundsOptions = BitmapFactory.Options().apply {
+            inJustDecodeBounds = true
+        }
+        val boundsDecoded = context.contentResolver.openInputStream(uri)?.use { input ->
+            BitmapFactory.decodeStream(input, null, boundsOptions)
+        } != null
+        val origW = boundsOptions.outWidth
+        val origH = boundsOptions.outHeight
+
+        // bounds 探测失败或尺寸无效：降级全尺寸解码（不再二次打开流）
+        if (!boundsDecoded || origW <= 0 || origH <= 0) {
+            return@withContext context.contentResolver.openInputStream(uri)?.use { input ->
+                BitmapFactory.decodeStream(input)
+            }
+        }
+
+        val (targetW, targetH) = calculateTargetSize(origW, origH, maxLongEdge)
+        val sampleSize = calculateSampleSize(origW, origH, targetW, targetH)
+
+        val decodeOptions = BitmapFactory.Options().apply {
+            inSampleSize = sampleSize
+        }
+        val roughBitmap = context.contentResolver.openInputStream(uri)?.use { secondStream ->
+            BitmapFactory.decodeStream(secondStream, null, decodeOptions)
+        } ?: return@withContext null
+
+        val scaledBitmap = scaleBitmap(roughBitmap, targetW, targetH)
+        if (roughBitmap != scaledBitmap) roughBitmap.recycle()
+        scaledBitmap
+    }
+
+    /**
      * 从 URI 读取图片，压缩并编码为 Base64
      */
     suspend fun compressAndEncode(
@@ -41,41 +85,10 @@ object ImageCompressor {
         maxLongEdge: Int = DEFAULT_MAX_LONG_EDGE,
         quality: Int = DEFAULT_QUALITY,
     ): CompressionResult = withContext(Dispatchers.IO) {
-        val inputStream = context.contentResolver.openInputStream(uri)
-            ?: throw IllegalArgumentException("Cannot open URI: $uri")
+        val scaledBitmap = decodeScaled(context, uri, maxLongEdge)
+            ?: throw IllegalArgumentException("Failed to decode image from URI: $uri")
 
-        // Step 1: Decode bounds only
-        val boundsOptions = BitmapFactory.Options().apply {
-            inJustDecodeBounds = true
-        }
-        BitmapFactory.decodeStream(inputStream, null, boundsOptions)
-        inputStream.close()
-
-        val origW = boundsOptions.outWidth
-        val origH = boundsOptions.outHeight
-
-        // Step 2: Calculate target size and sample size
-        val (targetW, targetH) = calculateTargetSize(origW, origH, maxLongEdge)
-        val sampleSize = calculateSampleSize(origW, origH, targetW, targetH)
-
-        // Step 3: Decode with sample size
-        val decodeOptions = BitmapFactory.Options().apply {
-            inSampleSize = sampleSize
-        }
-        val secondStream = context.contentResolver.openInputStream(uri)
-            ?: throw IllegalArgumentException("Cannot reopen URI: $uri")
-        val roughBitmap = BitmapFactory.decodeStream(secondStream, null, decodeOptions)
-        secondStream.close()
-
-        if (roughBitmap == null) {
-            throw IllegalArgumentException("Failed to decode image from URI: $uri")
-        }
-
-        // Step 4: Scale to exact target size
-        val scaledBitmap = scaleBitmap(roughBitmap, targetW, targetH)
-        if (roughBitmap != scaledBitmap) roughBitmap.recycle()
-
-        // Step 5: Compress to JPEG and Base64 encode
+        // 压缩到 JPEG 并 Base64 编码
         val (base64, sizeBytes) = bitmapToBase64(scaledBitmap, quality)
 
         CompressionResult(
@@ -96,10 +109,8 @@ object ImageCompressor {
         quality: Int = DEFAULT_QUALITY,
     ): CompressionResult = withContext(Dispatchers.IO) {
         val (targetW, targetH) = calculateTargetSize(bitmap.width, bitmap.height, maxLongEdge)
+        // 缩放产生新实例；调用方可能仍持有原 bitmap，这里不回收原件
         val scaledBitmap = scaleBitmap(bitmap, targetW, targetH)
-        if (bitmap != scaledBitmap) {
-            // Don't recycle the original since caller may still need it
-        }
 
         val (base64, sizeBytes) = bitmapToBase64(scaledBitmap, quality)
 

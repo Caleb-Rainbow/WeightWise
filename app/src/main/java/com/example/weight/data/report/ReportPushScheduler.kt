@@ -1,8 +1,8 @@
 package com.example.weight.data.report
 
 import android.content.Context
-import androidx.work.ExistingWorkPolicy
-import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.example.weight.data.LocalStorageData
 import java.time.DayOfWeek
@@ -11,11 +11,13 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.TemporalAdjusters
+import java.util.concurrent.TimeUnit
 
 /**
- * 周报推送调度：WorkManager OneTime 自排链，每周一固定时刻触发一次。
+ * 周报推送调度：WorkManager PeriodicWork（周期 7 天），每周一固定时刻触发一次。
  * 与每日称重提醒同机制：免精确闹钟权限、重启自动恢复，
  * Doze 下可能有约 10 分钟级延迟，对周报可接受。
+ * 周期任务由 WorkManager 自动续排，不再用「发完通知再 OneTime 自排」的链。
  */
 object ReportPushScheduler {
 
@@ -36,13 +38,15 @@ object ReportPushScheduler {
         else Duration.between(now, thisMonday.plusWeeks(1).atTime(pushTime))
     }
 
-    /** 排入（或以新时刻替换）下一次周报推送 */
+    /** 排入（或以新时刻替换）周期周报推送 */
     fun schedule(context: Context, time: String = LocalStorageData.weeklyReportPushTime.value) {
         val delay = delayUntilNextMonday(LocalDateTime.now(), parsePushTime(time))
-        WorkManager.getInstance(context).enqueueUniqueWork(
+        val workManager = WorkManager.getInstance(context)
+        // 见 ReminderScheduler：CANCEL_AND_REENQUEUE 原子替换，避免 KEEP 被历史残留任务挡住
+        workManager.enqueueUniquePeriodicWork(
             ReportPushWorker.WORK_NAME,
-            ExistingWorkPolicy.REPLACE,
-            OneTimeWorkRequestBuilder<ReportPushWorker>()
+            ExistingPeriodicWorkPolicy.CANCEL_AND_REENQUEUE,
+            PeriodicWorkRequestBuilder<ReportPushWorker>(7, TimeUnit.DAYS)
                 .setInitialDelay(delay)
                 .build(),
         )

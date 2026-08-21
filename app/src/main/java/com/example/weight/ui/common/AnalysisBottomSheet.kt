@@ -26,6 +26,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -36,12 +40,13 @@ import com.mikepenz.markdown.m3.markdownTypography
 import com.mikepenz.markdown.model.rememberMarkdownState
 
 /**
- * 用于显示AI分析结果的BottomSheet Composable，内容区三态：加载中 / 结果 / 失败（可重试）
+ * 用于显示AI分析结果的BottomSheet Composable，内容区三态：加载中 / 流式结果 / 失败（可重试）
  *
  * @param showSheet 是否显示此BottomSheet
  * @param onDismissRequest 请求关闭时的回调
  * @param analysisResult 从ViewModel观察的、持续更新的分析结果字符串
  * @param isLoading 是否处于加载状态（等待API首次返回）
+ * @param isStreaming 流式进行中：用纯文本渲染避免逐帧全文重解析 Markdown，结束后由调用方置 false 再整篇渲染
  * @param errorMessage 失败原因，非 null 时展示错误态
  * @param onRetry 错误态下点击"重新生成"的回调
  */
@@ -52,6 +57,7 @@ fun AnalysisBottomSheet(
     onDismissRequest: () -> Unit,
     analysisResult: String,
     isLoading: Boolean,
+    isStreaming: Boolean = false,
     errorMessage: String? = null,
     onRetry: () -> Unit = {}
 ) {
@@ -123,17 +129,31 @@ fun AnalysisBottomSheet(
 
                     else -> {
                         val scrollState = rememberScrollState()
-                        LaunchedEffect(analysisResult) {
-                            scrollState.animateScrollTo(scrollState.maxValue)
+                        // 内容增高时瞬时贴底（不做动画，避免流式期间动画反复重启）；用户主动上滑翻看时不打扰
+                        LaunchedEffect(scrollState.maxValue) {
+                            val nearBottom = scrollState.value >= scrollState.maxValue - 50
+                            if (isStreaming && scrollState.maxValue > 0 && nearBottom) {
+                                scrollState.scrollTo(scrollState.maxValue)
+                            }
                         }
-                        val markdownState = rememberMarkdownState(analysisResult, retainState = true)
-                        // 显示流式返回的文本
-                        Markdown(
-                            markdownState = markdownState,
-                            modifier = Modifier.verticalScroll(scrollState),
-                            colors = markdownColor(),
-                            typography = markdownTypography()
-                        )
+                        if (isStreaming) {
+                            // 流式期间纯文本渲染：Markdown 以全量为 key，逐帧重解析成本随文本长度平方增长
+                            Text(
+                                text = analysisResult,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .verticalScroll(scrollState),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        } else {
+                            val markdownState = rememberMarkdownState(analysisResult, retainState = true)
+                            Markdown(
+                                markdownState = markdownState,
+                                modifier = Modifier.verticalScroll(scrollState),
+                                colors = markdownColor(),
+                                typography = markdownTypography()
+                            )
+                        }
                     }
                 }
             }

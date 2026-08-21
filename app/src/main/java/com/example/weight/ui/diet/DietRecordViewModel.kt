@@ -7,6 +7,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.weight.data.LocalStorageData
+import com.example.weight.data.RecommendedIntakeProvider
 import com.example.weight.data.chat.ChatRepository
 import com.example.weight.data.diet.AiDietResponse
 import com.example.weight.data.diet.DietRecord
@@ -15,20 +16,13 @@ import com.example.weight.data.diet.DietPromptBuilder
 import com.example.weight.data.diet.FallbackDietAnalyzer
 import com.example.weight.data.diet.Macros
 import com.example.weight.data.diet.RecognizedFoodItem
-import com.example.weight.data.record.RecordDao
-import com.example.weight.util.ActivityLevel
-import com.example.weight.util.CalorieCalculator
-import com.example.weight.util.Gender
 import com.example.weight.util.ImageCompressor
 import com.example.weight.util.TimeUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
@@ -50,7 +44,6 @@ enum class MealType(val label: String, val displayName: String) {
 data class DietRecordUiState(
     val selectedImageUri: Uri? = null,
     val hasCapturedBitmap: Boolean = false,
-    val userNote: String = "",
     val selectedMealType: MealType = MealType.LUNCH,
     val isAnalyzing: Boolean = false,
     val aiResponse: AiDietResponse? = null,
@@ -65,21 +58,12 @@ data class DietRecordUiState(
     val recommendedCalories: Int? = null,
 )
 
-/** 档案快照：建议摄入计算的输入集合 */
-private data class ProfileSnapshot(
-    val heightCm: Double,
-    val age: Int,
-    val gender: Gender?,
-    val activityLevel: ActivityLevel?,
-    val targetWeightKg: Double,
-)
-
 @KoinViewModel
 class DietRecordViewModel(
     private val dietRecordDao: DietRecordDao,
-    private val recordDao: RecordDao,
     private val chatRepository: ChatRepository,
     private val json: Json,
+    recommendedIntakeProvider: RecommendedIntakeProvider,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DietRecordUiState())
@@ -100,44 +84,12 @@ class DietRecordViewModel(
     /** Active analysis coroutine, cancelled when a new analysis starts */
     private var analysisJob: Job? = null
 
-    private lateinit var todayCaloriesFlow: StateFlow<Int>
-
     init {
         loadTodayRecords()
         observeTodayCalories()
-        observeRecommendedIntake()
-    }
-
-    /** 档案设置或最新体重变化时重算每日建议摄入，档案不全或无体重记录时回退 null */
-    private fun observeRecommendedIntake() {
+        // 每日建议摄入与报告页共用的冷流，档案/最新体重变化时自动重算
         viewModelScope.launch {
-            val profileFlow = combine(
-                LocalStorageData.height,
-                LocalStorageData.age,
-                LocalStorageData.gender,
-                LocalStorageData.activityLevel,
-                LocalStorageData.targetWeight,
-            ) { height, age, gender, activityLevel, targetWeight ->
-                ProfileSnapshot(
-                    heightCm = height,
-                    age = age,
-                    gender = Gender.entries.find { it.name == gender },
-                    activityLevel = ActivityLevel.entries.find { it.name == activityLevel },
-                    targetWeightKg = targetWeight,
-                )
-            }
-            combine(profileFlow, recordDao.getLastDataFlow()) { profile, lastRecord ->
-                val weightKg = lastRecord?.weight
-                if (weightKg == null) null
-                else CalorieCalculator.recommendedIntake(
-                    gender = profile.gender,
-                    weightKg = weightKg,
-                    heightCm = profile.heightCm,
-                    age = profile.age,
-                    activityLevel = profile.activityLevel,
-                    targetWeightKg = profile.targetWeightKg,
-                )
-            }.collect { recommended ->
+            recommendedIntakeProvider.flow.collect { recommended ->
                 _uiState.update { it.copy(recommendedCalories = recommended) }
             }
         }
@@ -156,10 +108,6 @@ class DietRecordViewModel(
         _uiState.update { it.copy(hasCapturedBitmap = true, selectedImageUri = null) }
     }
 
-    fun onUserNoteChanged(note: String) {
-        _uiState.update { it.copy(userNote = note) }
-    }
-
     fun onMealTypeSelected(mealType: MealType) {
         _uiState.update { it.copy(selectedMealType = mealType) }
     }
@@ -170,14 +118,13 @@ class DietRecordViewModel(
         _uiState.update { it.copy(selectedImageUri = null, hasCapturedBitmap = false) }
     }
 
-    fun analyzeImage(context: Context) {
+    fun analyzeImage(context: Context, userNote: String) {
         analysisJob?.cancel()
         analysisJob = viewModelScope.launch(Dispatchers.IO) {
             // Snapshot all needed state upfront to avoid TOCTOU races
             val snapshot = _uiState.value
             val bitmap = _capturedBitmap
             val uri = snapshot.selectedImageUri
-            val userNote = snapshot.userNote
             val mealType = snapshot.selectedMealType
 
             _uiState.update { it.copy(isAnalyzing = true) }
@@ -215,12 +162,12 @@ class DietRecordViewModel(
         }
     }
 
-    fun analyzeTextOnly() {
+    fun analyzeTextOnly(userNote: String) {
         analysisJob?.cancel()
         analysisJob = viewModelScope.launch(Dispatchers.IO) {
             val snapshot = _uiState.value
             _uiState.update { it.copy(isAnalyzing = true) }
-            performTextOnlyAnalysis(snapshot.userNote, snapshot.selectedMealType)
+            performTextOnlyAnalysis(userNote, snapshot.selectedMealType)
         }
     }
 
@@ -299,7 +246,7 @@ class DietRecordViewModel(
         }
     }
 
-    fun saveRecord(context: Context) {
+    fun saveRecord(context: Context, userNote: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val state = _uiState.value
             if (state.recognizedFoods.isEmpty()) return@launch
@@ -311,7 +258,7 @@ class DietRecordViewModel(
                 timestamp = System.currentTimeMillis(),
                 mealType = state.selectedMealType.name,
                 imageUri = imagePath,
-                userInput = state.userNote,
+                userInput = userNote,
                 recognizedFoodJson = json.encodeToString(
                     serializer = kotlinx.serialization.serializer<List<RecognizedFoodItem>>(),
                     value = state.recognizedFoods,
@@ -328,7 +275,6 @@ class DietRecordViewModel(
                 it.copy(
                     selectedImageUri = null,
                     hasCapturedBitmap = false,
-                    userNote = "",
                     aiResponse = null,
                     recognizedFoods = emptyList(),
                     editableCalories = 0,
@@ -350,8 +296,11 @@ class DietRecordViewModel(
         }
         val uri = state.selectedImageUri ?: return ""
         return try {
+            // 缓存未命中时只做「解码+降采样」：保存路径只要 Bitmap，
+            // 不必重跑 JPEG 压缩 + Base64 编码再把大字符串直接丢弃
             val bitmap = _cachedCompressionResult?.bitmap
-                ?: ImageCompressor.compressAndEncode(context, uri).bitmap
+                ?: ImageCompressor.decodeScaled(context, uri)
+                    ?: return ""
             ImageCompressor.saveImage(context, bitmap)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to save image", e)
@@ -376,9 +325,7 @@ class DietRecordViewModel(
 
     private fun observeTodayCalories() {
         viewModelScope.launch {
-            todayCaloriesFlow = dietRecordDao.getDailyCaloriesFlow(todayDate)
-                .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
-            todayCaloriesFlow.collect { calories ->
+            dietRecordDao.getDailyCaloriesFlow(todayDate).collect { calories ->
                 _uiState.update { it.copy(todayTotalCalories = calories) }
             }
         }

@@ -97,7 +97,14 @@ interface DietRecordDao {
 
     @Query("SELECT * FROM DietRecord ORDER BY timestamp ASC")
     suspend fun getAllOnce(): List<DietRecord>
+
+    /** 去重用轻量投影：只取 (date, timestamp, mealType)，避免全量物化 recognizedFoodJson 等大字段 */
+    @Query("SELECT date, timestamp, mealType FROM DietRecord")
+    suspend fun getDedupKeys(): List<DietRecordDedupKey>
 }
+
+/** 备份去重键：与 [com.example.weight.data.backup.BackupDeduplicator] 的 (date, timestamp, mealType) 口径一致 */
+data class DietRecordDedupKey(val date: String, val timestamp: Long, val mealType: String)
 
 data class TrafficLightCount(val trafficLight: String, val count: Int)
 

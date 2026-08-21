@@ -70,7 +70,8 @@ class ChatRemoteDataSource(
                 }
             }
         } catch (e: HttpRequestTimeoutException) {
-            e.printStackTrace()
+            // 超时不再静默吞掉：向上抛出携带语义的异常，让调用方的 fallback 能记录/展示真实原因
+            throw ChatApiException("AI 请求超时，请检查网络后重试")
         }
     }
 

@@ -1,5 +1,6 @@
 package com.example.weight.data.diet
 
+import androidx.compose.runtime.Immutable
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
@@ -12,7 +13,8 @@ import kotlinx.serialization.Serializable
  *@create: 2026/4/11
  **/
 
-@Entity(tableName = "DietRecord", indices = [Index("date"), Index("mealType")])
+// timestamp 索引供分页排序；mealType 无任何查询使用，不给它付写入维护成本
+@Entity(tableName = "DietRecord", indices = [Index("date"), Index("timestamp")])
 data class DietRecord(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
@@ -30,6 +32,8 @@ data class DietRecord(
     val trafficLight: String = "",
 )
 
+// 以下 DTO 均为只读数据类，标记 @Immutable 让 Compose 恢复对其参数的跳过能力
+@Immutable
 @Serializable
 data class RecognizedFoodItem(
     val name: String,
@@ -39,6 +43,7 @@ data class RecognizedFoodItem(
     val isHealthy: Boolean = true,
 )
 
+@Immutable
 @Serializable
 data class AiDietResponse(
     val foods: List<RecognizedFoodItem>,
@@ -49,6 +54,7 @@ data class AiDietResponse(
     val adjustedDescription: String = "",
 )
 
+@Immutable
 @Serializable
 data class Macros(
     val protein: Int = 0,
