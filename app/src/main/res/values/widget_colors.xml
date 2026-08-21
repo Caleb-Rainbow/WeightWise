@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 桌面小组件配色，取自 ui/theme/Color.kt 的昼夜 surface / onSurface -->
+    <!-- 桌面小组件静态预览配色(RemoteViews 无法动态)。动态内容走 ThemePreset 跟随所选主题;口径同 ui/record/WeightTrendColors 与 IntakeRingColors;主题中心换色仅影响 Glance 动态部分,此静态预览保持默认钢蓝 -->
     <color name="widget_background">#FFF7F9FF</color>
     <color name="widget_on_surface">#FF181C20</color>
     <color name="widget_on_surface_variant">#FF42474E</color>
     <color name="widget_primary">#FF2B638B</color>
-    <color name="widget_decrease">#FF4CAF50</color>
-    <color name="widget_increase">#FFEF5350</color>
-    <color name="widget_track">#FFB9C2CC</color>
+    <color name="widget_decrease">#FF378646</color>
+    <color name="widget_increase">#FFD44439</color>
+    <color name="widget_track">#FFE3EAF0</color>
 </resources>

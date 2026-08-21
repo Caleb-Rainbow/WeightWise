@@ -26,6 +26,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,6 +40,7 @@ import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
+import com.example.weight.data.LocalStorageData
 import com.example.weight.ui.common.navPopTransitionSpec
 import com.example.weight.ui.common.navTransitionSpec
 import com.example.weight.ui.common.prependNavTransitionSpec
@@ -48,6 +50,8 @@ import com.example.weight.ui.record.RecordScreen
 import com.example.weight.ui.report.ReportScreen
 import com.example.weight.ui.setting.SettingScreen
 import com.example.weight.ui.theme.AppTheme
+import com.example.weight.ui.theme.AppearanceMode
+import com.example.weight.ui.theme.ThemePreset
 import com.patrykandpatrick.vico.compose.common.ProvideVicoTheme
 import com.patrykandpatrick.vico.compose.m3.common.rememberM3VicoTheme
 import kotlinx.coroutines.launch
@@ -67,7 +71,12 @@ class MainActivity : ComponentActivity() {
         openAddDialogRequest = intent.consumeBooleanExtra(EXTRA_OPEN_ADD_DIALOG)
         openReportRequest = intent.consumeBooleanExtra(EXTRA_OPEN_REPORT)
         setContent {
-            AppTheme {
+            val themePreset by LocalStorageData.themeId.collectAsState()
+            val appearanceMode by LocalStorageData.appearanceMode.collectAsState()
+            AppTheme(
+                themePreset = ThemePreset.fromId(themePreset),
+                appearanceMode = AppearanceMode.fromId(appearanceMode),
+            ) {
                 ProvideVicoTheme(rememberM3VicoTheme()) {
                     ProvideSnackBarHost {
                         MainNav3(

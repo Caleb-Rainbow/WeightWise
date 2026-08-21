@@ -40,6 +40,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.weight.ui.diet.TrafficLightColors
+import com.example.weight.ui.theme.resolve
 import com.patrykandpatrick.vico.compose.cartesian.axis.rememberAxisGuidelineComponent
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianValueFormatter
 import com.patrykandpatrick.vico.compose.cartesian.marker.CartesianMarker
@@ -242,7 +244,7 @@ fun BMIIndexChart(
                             .onGloballyPositioned { coordinates ->
                                 itemCoordinates[index] = coordinates
                             },
-                        color = bmiEnum.color,
+                        color = bmiColor(bmiEnum),
                         leftRadius = leftRadius,
                         rightRadius = rightRadius
                     )
@@ -284,7 +286,7 @@ fun BMIIndexChart(
                         Spacer(
                             modifier = Modifier
                                 .clip(MaterialTheme.shapes.extraSmall)
-                                .background(color = bmiEnum.color)
+                                .background(color = bmiColor(bmiEnum))
                                 .width(10.dp)
                                 .height(10.dp))
                         Spacer(modifier = Modifier.width(5.dp))
@@ -327,7 +329,7 @@ fun BMIIndexChart(
 }
 
 @Composable
-private fun BMIIndexItem(modifier: Modifier, color: Color = Color(0xff3aadcd), leftRadius: Dp = 0.dp, rightRadius: Dp = 0.dp) {
+private fun BMIIndexItem(modifier: Modifier, color: Color, leftRadius: Dp = 0.dp, rightRadius: Dp = 0.dp) {
     Spacer(
         modifier = modifier
             .clip(RoundedCornerShape(topStart = leftRadius, bottomStart = leftRadius, bottomEnd = rightRadius, topEnd = rightRadius))
@@ -335,11 +337,11 @@ private fun BMIIndexItem(modifier: Modifier, color: Color = Color(0xff3aadcd), l
             .height(15.dp)
     )
 }
-enum class BMI(val start: Double, val end: Double, val label: String, val color: Color, val advice: String){
-    LOW(start = 10.0, end = 18.4, label = "偏低", color = Color(0xff3aadcd), advice = "体重偏轻，注意均衡营养、适度增肌"),
-    STANDARD(start = 18.5, end = 23.9, label = "标准", color = Color(0xff2abc6d), advice = "体重处于健康区间，继续保持"),
-    OVERWEIGHT(start = 24.0, end = 27.9, label = "偏高", color = Color(0xffffb700), advice = "体重略超标准，留意饮食与运动"),
-    OBESE(start = 28.0, end = 38.0, label = "过高", color = Color(0xffff8e00), advice = "超出健康范围较多，建议系统管理体重");
+enum class BMI(val start: Double, val end: Double, val label: String, val advice: String){
+    LOW(start = 10.0, end = 18.4, label = "偏低", advice = "体重偏轻，注意均衡营养、适度增肌"),
+    STANDARD(start = 18.5, end = 23.9, label = "标准", advice = "体重处于健康区间，继续保持"),
+    OVERWEIGHT(start = 24.0, end = 27.9, label = "偏高", advice = "体重略超标准，留意饮食与运动"),
+    OBESE(start = 28.0, end = 38.0, label = "过高", advice = "超出健康范围较多，建议系统管理体重");
 
     companion object {
         fun fromBMIValue(bmi: Double): BMI? {
@@ -349,6 +351,15 @@ enum class BMI(val start: Double, val end: Double, val label: String, val color:
             }
         }
     }
+}
+
+/** BMI 分段色:偏低跟随主题 primary(品牌层),标准/偏高/过高并入全局语义绿/琥珀/红,昼夜自适应 */
+@Composable
+fun bmiColor(bmi: BMI): Color = when (bmi) {
+    BMI.LOW -> MaterialTheme.colorScheme.primary
+    BMI.STANDARD -> TrafficLightColors.Green.resolve()
+    BMI.OVERWEIGHT -> TrafficLightColors.Amber.resolve()
+    BMI.OBESE -> TrafficLightColors.Red.resolve()
 }
 
 @Preview

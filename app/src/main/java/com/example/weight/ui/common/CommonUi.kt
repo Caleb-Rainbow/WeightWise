@@ -325,7 +325,7 @@ fun BaseDropdownMenu(
             expanded = isExpend,
             shape = RoundedCornerShape(bottomStart = 5.dp, bottomEnd = 5.dp),
             onDismissRequest = { onExpandedChange(false) },
-            containerColor = Color.White
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         ) {
             content()
         }

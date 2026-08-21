@@ -65,8 +65,8 @@ import com.example.weight.LocalSnackBarShow
 import com.example.weight.data.record.Record
 import com.example.weight.ui.common.DeleteDialog
 import com.example.weight.ui.common.MyTopBar
-import com.example.weight.ui.diet.TrafficLightColors
 import com.example.weight.ui.main.AddRecordDialog
+import com.example.weight.ui.theme.resolve
 import com.example.weight.util.TimeUtils
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -74,9 +74,6 @@ import org.koin.androidx.compose.koinViewModel
 import java.text.DecimalFormat
 import kotlin.math.abs
 import kotlin.math.roundToInt
-
-/** 体重上涨展示色;下降色引用饮食域红绿灯常量,两页同源不再各写一份色值(T7/OV5) */
-private val IncreaseColor = Color(0xFFEF5350)
 
 @Composable
 fun RecordScreen(
@@ -443,8 +440,8 @@ private fun WeightChangeText(
     val delta = weight - previousWeight
     val format = remember { DecimalFormat("#.#") }
     when {
-        delta < 0 -> WeightChangeBadge(text = "↓ ${format.format(abs(delta))}", color = TrafficLightColors.Green)
-        delta > 0 -> WeightChangeBadge(text = "↑ ${format.format(delta)}", color = IncreaseColor)
+        delta < 0 -> WeightChangeBadge(text = "↓ ${format.format(abs(delta))}", color = WeightTrendColors.Decrease.resolve())
+        delta > 0 -> WeightChangeBadge(text = "↑ ${format.format(delta)}", color = WeightTrendColors.Increase.resolve())
         else -> WeightChangeBadge(text = "持平", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
     }
 }

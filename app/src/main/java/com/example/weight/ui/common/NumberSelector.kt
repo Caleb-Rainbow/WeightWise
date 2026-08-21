@@ -17,6 +17,7 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -26,7 +27,6 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -89,7 +89,7 @@ fun NumberSelector(
                     .padding(horizontal = 30.dp)
                     .size(5.dp)
                     .clip(CircleShape)
-                    .background(color = Color.Gray)
+                    .background(color = MaterialTheme.colorScheme.outline)
             )
             CustomVerticalPager(pagerState = decimalPagerState, list = decimalList) {
                 val integer = integerList[integerPagerState.currentPage]
@@ -99,7 +99,7 @@ fun NumberSelector(
         Text(
             modifier = Modifier.padding(start = 1.dp, bottom = 6.dp),
             text = unit,
-            color = Color.Gray,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 14.sp
         )
     }

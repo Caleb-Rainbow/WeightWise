@@ -44,11 +44,11 @@ import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import androidx.glance.color.ColorProvider as DayNightColorProvider
 import com.example.weight.MainActivity
+import com.example.weight.data.LocalStorageData
 import com.example.weight.data.record.DailyMinWeight
 import com.example.weight.data.widget.WeightWidgetData
 import com.example.weight.ui.common.BMI
-import com.example.weight.ui.theme.darkScheme
-import com.example.weight.ui.theme.lightScheme
+import com.example.weight.ui.theme.ThemePreset
 import java.util.Locale
 import kotlin.math.abs
 
@@ -56,27 +56,28 @@ import kotlin.math.abs
 private val openAddDialogKey = ActionParameters.Key<Boolean>(MainActivity.EXTRA_OPEN_ADD_DIALOG)
 private val openReportKey = ActionParameters.Key<Boolean>(MainActivity.EXTRA_OPEN_REPORT)
 
-/** 涨跌配色与记录页交通灯口径一致：降为利好绿、升为提醒红（昼夜两套） */
-private val DecreaseColor = DayNightColorProvider(day = Color(0xFF4CAF50), night = Color(0xFF81C784))
-private val IncreaseColor = DayNightColorProvider(day = Color(0xFFEF5350), night = Color(0xFFEF9A9A))
-/** 超过 [STALE_REMIND_DAYS] 天未记录时的琥珀提醒色 */
-private val StaleColor = DayNightColorProvider(day = Color(0xFFB25E00), night = Color(0xFFFFB959))
-/** 进度条的底轨色 */
-private val TrackColor = DayNightColorProvider(day = Color(0xFFB9C2CC), night = Color(0xFF3A4048))
-
-/** 小组件背景色：取自 ui/theme/Color.kt 的昼夜 surface */
-private const val BackgroundDay = 0xFFF7F9FF
-private const val BackgroundNight = 0xFF101418
+/** 涨跌配色口径同 ui/record/WeightTrendColors：降为利好绿、升为提醒红（昼夜两套） */
+private val DecreaseColor = DayNightColorProvider(day = Color(0xFF378646), night = Color(0xFF87D98F))
+private val IncreaseColor = DayNightColorProvider(day = Color(0xFFD44439), night = Color(0xFFFFB4AA))
+/** 超过 [STALE_REMIND_DAYS] 天未记录时的琥珀提醒色，口径同饮食域琥珀 */
+private val StaleColor = DayNightColorProvider(day = Color(0xFF9B7000), night = Color(0xFFF8BD42))
+/** 进度条的底轨色，口径同 IntakeRingColors.Track */
+private val TrackColor = DayNightColorProvider(day = Color(0xFFE3EAF0), night = Color(0xFF3A4048))
 
 /** 超过该天数未记录时，「较 7 天前」参考价值下降，变化行改为陈旧提醒 */
 private const val STALE_REMIND_DAYS = 3
 private const val DAY_MS = 24 * 60 * 60 * 1000L
 
-/** BMI 区间色，口径同 ui/common/Chart.kt 的 BMI 枚举，夜间提亮一档 */
-private val BmiLowColor = DayNightColorProvider(day = Color(0xFF3AADCD), night = Color(0xFF8AD0E3))
-private val BmiStandardColor = DayNightColorProvider(day = Color(0xFF2ABC6D), night = Color(0xFF86D9A8))
-private val BmiOverweightColor = DayNightColorProvider(day = Color(0xFFFFB700), night = Color(0xFFFFD54F))
-private val BmiObeseColor = DayNightColorProvider(day = Color(0xFFFF8E00), night = Color(0xFFFFAB60))
+/**
+ * BMI 区间色，口径同 ui/common/Chart.kt 的 [bmiColor]：偏低跟随所选主题 primary，
+ * 其余并入全局语义绿/琥珀/红，夜间取深色变体
+ */
+private fun bmiBandColor(band: BMI, preset: ThemePreset): ColorProvider = when (band) {
+    BMI.LOW -> DayNightColorProvider(day = preset.light.primary, night = preset.dark.primary)
+    BMI.STANDARD -> DayNightColorProvider(day = Color(0xFF378646), night = Color(0xFF87D98F))
+    BMI.OVERWEIGHT -> DayNightColorProvider(day = Color(0xFF9B7000), night = Color(0xFFF8BD42))
+    BMI.OBESE -> DayNightColorProvider(day = Color(0xFFD44439), night = Color(0xFFFFB4AA))
+}
 
 /** 趋势线逻辑尺寸与位图倍率：110x64dp，3x 渲染保证低密度屏不糊 */
 private const val SPARKLINE_WIDTH_DP = 110
@@ -90,18 +91,20 @@ fun WeightWidgetContent(data: WeightWidgetData?) {
     // 趋势线是预渲染位图，昼夜色无法交给宿主解析，需在组合期按系统深色模式自行取色
     val isNight = LocalContext.current.resources.configuration.uiMode and
         Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
-    GlanceTheme(colors = androidx.glance.material3.ColorProviders(lightScheme, darkScheme)) {
+    // 主题中心:小组件跟随用户所选配色(MMKV),与 App 内 ColorProviders 同源
+    val preset = ThemePreset.fromId(LocalStorageData.themeId.value)
+    GlanceTheme(colors = androidx.glance.material3.ColorProviders(preset.light, preset.dark)) {
         val openAdd = actionStartActivity<MainActivity>(
             parameters = actionParametersOf(openAddDialogKey to true),
         )
         val openReport = actionStartActivity<MainActivity>(
             parameters = actionParametersOf(openReportKey to true),
         )
-        // 1.1.1 无 background(ImageProvider)，用昼夜色 + cornerRadius 达成圆角卡片
+        // 1.1.1 无 background(ImageProvider)，用所选主题昼夜 surface + cornerRadius 达成圆角卡片
         Box(
             modifier = GlanceModifier
                 .fillMaxSize()
-                .background(day = Color(BackgroundDay), night = Color(BackgroundNight))
+                .background(day = preset.light.surface, night = preset.dark.surface)
                 .cornerRadius(16.dp)
                 .clickable(openAdd)
                 .padding(14.dp),
@@ -113,6 +116,7 @@ fun WeightWidgetContent(data: WeightWidgetData?) {
                     data = data,
                     compact = size.width < 200.dp,
                     isNight = isNight,
+                    preset = preset,
                     openReport = openReport,
                 )
             }
@@ -148,6 +152,7 @@ private fun WidgetDataContent(
     data: WeightWidgetData,
     compact: Boolean,
     isNight: Boolean,
+    preset: ThemePreset,
     openReport: Action,
 ) {
     val current = data.currentWeight ?: return
@@ -196,7 +201,7 @@ private fun WidgetDataContent(
                         modifier = GlanceModifier.padding(start = 10.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        SparklineImage(points = data.dailyWeights, isNight = isNight, openReport = openReport)
+                        SparklineImage(points = data.dailyWeights, isNight = isNight, preset = preset, openReport = openReport)
                         Text(
                             text = String.format(
                                 Locale.CHINA, "7天均 %.1f", data.dailyWeights.map { it.minWeight }.average()
@@ -209,7 +214,7 @@ private fun WidgetDataContent(
                     }
                 }
             }
-            BottomStrip(data = data)
+            BottomStrip(data = data, preset = preset)
         }
     }
 }
@@ -297,15 +302,15 @@ private fun TargetText(targetWeight: Double, current: Double? = null) {
     )
 }
 
-/** 底部信息条：BMI 区间（红绿灯口径同 ui/common/Chart.kt 的 BMI 枚举）+ 连续打卡 + 趋势预测 */
+/** 底部信息条：BMI 区间（口径同 ui/common/Chart.kt 的 bmiColor）+ 连续打卡 + 趋势预测 */
 @Composable
-private fun BottomStrip(data: WeightWidgetData) {
+private fun BottomStrip(data: WeightWidgetData, preset: ThemePreset) {
     val variant = GlanceTheme.colors.onSurfaceVariant
     val segments = buildList {
         data.bmi?.let { bmi ->
             add("BMI ${String.format(Locale.CHINA, "%.1f", bmi)}" to variant)
             BMI.fromBMIValue(bmi)?.let { band ->
-                add(band.label to bmiBandColor(band))
+                add(band.label to bmiBandColor(band, preset))
             }
         }
         if (data.currentStreak > 0) {
@@ -332,13 +337,6 @@ private fun BottomStrip(data: WeightWidgetData) {
     }
 }
 
-private fun bmiBandColor(band: BMI): ColorProvider = when (band) {
-    BMI.LOW -> BmiLowColor
-    BMI.STANDARD -> BmiStandardColor
-    BMI.OVERWEIGHT -> BmiOverweightColor
-    BMI.OBESE -> BmiObeseColor
-}
-
 @Composable
 private fun DeltaText(delta: Double) {
     val text = when {
@@ -359,9 +357,15 @@ private fun DeltaText(delta: Double) {
 
 /** 近 7 天趋势线：Glance 无画布组件，预渲染位图后经 ImageProvider(bitmap) 上屏 */
 @Composable
-private fun SparklineImage(points: List<DailyMinWeight>, isNight: Boolean, openReport: Action) {
-    val lineColor = (if (isNight) Color(0xFF98CCF9) else Color(0xFF2B638B)).toArgb()
-    val bitmap = remember(points, isNight) {
+private fun SparklineImage(
+    points: List<DailyMinWeight>,
+    isNight: Boolean,
+    preset: ThemePreset,
+    openReport: Action,
+) {
+    // 趋势线取所选主题的昼夜 primary
+    val lineColor = (if (isNight) preset.dark.primary else preset.light.primary).toArgb()
+    val bitmap = remember(points, isNight, preset) {
         drawSparkline(
             weights = points.map { it.minWeight },
             widthPx = SPARKLINE_WIDTH_DP * SPARKLINE_SCALE,

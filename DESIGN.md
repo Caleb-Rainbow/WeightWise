@@ -15,7 +15,18 @@
 | 主按钮 | 全宽 12dp 圆角 | `Button(shape = RoundedCornerShape(12.dp))` |
 | chips | 视觉 32dp + 触控 48dp | FilterChip + `minimumInteractiveComponentSize()` |
 
-## 颜色:三套语义编码,互不借用(出处 `ui/diet/DietTrafficLight.kt`)
+## 颜色:两层体系——品牌主题层 + 固定语义层
+
+### 品牌主题层(主题中心,2026-08-21 起)
+
+`ui/theme/ThemePresets.kt` 五套预设:钢蓝(默认,视觉基准走 Color.kt)/靛青/紫藤/蔷薇/陶土。
+色板由 `tools/generate_themes.py`(material-color-utilities,TONALSPOT + contrast 0)离线生成到
+`ThemePalettes.kt`;加主题先改脚本重跑再登记枚举。偏好存 MMKV(`themeId`/`appearanceMode`),
+`AppTheme(themePreset, appearanceMode)` 深浅三态(跟随系统/浅色/深色)覆写;设置页 AppearanceCard
+即点即换,小组件 ColorProviders 同步跟随。当前生效深浅模式统一读 `LocalIsDarkTheme`,
+勿直接用 isSystemInDarkTheme。
+
+### 固定语义层(`ui/diet/DietTrafficLight.kt`,不随主题变)
 
 | 常量对象 | 语义 | 使用位置 |
 |---|---|---|
@@ -23,15 +34,26 @@
 | `IntakeRingColors` | **额度状态**(今日热量预算) | 今日页 hero 圆环(唯一使用处) |
 | `DietMacroColors` | **宏量营养类别**(蛋白钢蓝/碳水 teal/脂肪棕) | 堆叠条、图例、结果卡宏量行 |
 
-规则:红绿灯三色永远配文字标签(lightchip),不做纯颜色语义;文字用深色变体(琥珀 #B8860B 级)保 ≥4.5:1。数值相同也要用各自常量对象,靠 import 边界隔离语义。
+规则:红绿灯三色永远配文字标签(lightchip),不做纯颜色语义;数值相同也要用各自常量对象,
+靠 import 边界隔离语义。**跨域同样隔离**:体重涨跌用 `ui/record/WeightTrendColors`
+(降绿/升红),BMI 分段用 `Chart.kt bmiColor()`(偏低=主题 primary,其余并入语义绿/琥珀/红),
+报表堆叠条直接引 TrafficLightColors(本就是食物质量语义)。
+
+**昼夜成对**:全部语义色是 `DayNightColor(light, dark)`——浅色取 tonal t50 系、深色 t80 系,
+chip 容器 t90/t30、文字 t20/t90(对容器 ≥4.5:1)。组合内 `.resolve()`,非组合环境传 isDark;
+对比度由 `SemanticColorContrastTest` 锁定。
 
 ## 共享组件(ui/diet/)
 
 - **B 行** `DietRecordRow`:4dp 红绿灯色条 + 40dp 缩略图(有图才出现)+ 食物名标题 + 克数·备注副标 + 右对齐 kcal;点击整行进编辑器,行上无图标按钮
-- **lightchip** `lightChipColors(light)`:三态容器底/圆点/深色文字
-- **SelectedFoodsSection**:「已选 n 项 · 共 X kcal」汇总条 + 可改可删条目行(添加页与 QuickAddSheet 共用)
+- **lightchip** `lightChipColors(light)`:三态容器底/圆点/深色文字,昼夜自适应
+- **SelectedFoodsSection**:「已选 n 项 · 共 X kcal」汇总条(复用绿 chip 色板)+ 可改可删条目行(添加页与 QuickAddSheet 共用)
 - **状态圆环** `RingBox`:额度唯一编码,环心中性「已用 N%」,超支画满红
 - **DietPrimaryAction** `dietPrimaryAction()`:添加页主按钮四输入状态机(纯函数,有单测)
+
+## 设置页卡片(ui/setting/)
+
+目标 → 身体档案 → **外观(AppearanceCard:5 色板圆点+深浅三段)** → 提醒推送 → AI 模型 → 数据管理。
 
 ## 列表行模式
 
@@ -47,5 +69,6 @@ label(bodyLarge/600) 左,value(bodyMedium/600) 右,副标 bodySmall + onSurfaceV
 
 ## 已知例外
 
-- `RecordScreen.IncreaseColor`(0xFFEF5350)是体重上涨色,语义独立,不属红绿灯
 - 旧记录无宏量字段:堆叠条区域显示「宏量数据 —」降级
+- 小部件 XML 静态预览(`widget_colors.xml`)保持默认钢蓝口径——RemoteViews 无法动态换主题,Glance 动态内容才跟随 ThemePreset
+- `TrafficLightColors.Unknown` 占位灰刻意弱化,不参与 ≥3:1 可见度断言

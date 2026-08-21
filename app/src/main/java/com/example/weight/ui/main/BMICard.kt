@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import com.example.weight.data.record.DailyMinWeight
 import com.example.weight.ui.common.BMI
 import com.example.weight.ui.common.BMIIndexChart
+import com.example.weight.ui.common.bmiColor
 import java.text.DecimalFormat
 
 @Composable
@@ -55,7 +56,7 @@ fun BMIContent(modifier: Modifier, record: DailyMinWeight?, bmi: Double) {
                 Text(
                     text = leave.advice,
                     style = MaterialTheme.typography.bodySmall,
-                    color = leave.color,
+                    color = bmiColor(leave),
                     modifier = Modifier.padding(top = 8.dp),
                 )
             }

@@ -43,4 +43,11 @@ object LocalStorageData : MMKVOwner(mmapID = "settings") {
 
     /*--------AI 提供商相关---------*/
     val doubaoModelId by mmkvString(default = "doubao-seed-2-0-lite-260215").asStateFlow()
+
+    /*--------外观(主题中心)---------*/
+    /** 主题预设,存 [com.example.weight.ui.theme.ThemePreset].name */
+    val themeId by mmkvString(default = "STEEL_BLUE").asStateFlow()
+
+    /** 深浅模式,存 [com.example.weight.ui.theme.AppearanceMode].name */
+    val appearanceMode by mmkvString(default = "SYSTEM").asStateFlow()
 }

@@ -103,6 +103,7 @@ import com.example.weight.data.diet.Macros
 import com.example.weight.data.diet.MealType
 import com.example.weight.data.diet.RecognizedFoodItem
 import com.example.weight.ui.common.MyTopBar
+import com.example.weight.ui.theme.resolve
 import com.example.weight.util.CalorieCalculator
 import com.example.weight.util.IntakeStatus
 import com.example.weight.util.ImageCompressor
@@ -832,9 +833,9 @@ private fun AiResultSection(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    MacroLegend("蛋白质", "${macros.protein}g", DietMacroColors.Protein)
-                    MacroLegend("碳水", "${macros.carbs}g", DietMacroColors.Carbs)
-                    MacroLegend("脂肪", "${macros.fat}g", DietMacroColors.Fat)
+                    MacroLegend("蛋白质", "${macros.protein}g", DietMacroColors.Protein.resolve())
+                    MacroLegend("碳水", "${macros.carbs}g", DietMacroColors.Carbs.resolve())
+                    MacroLegend("脂肪", "${macros.fat}g", DietMacroColors.Fat.resolve())
                 }
             }
 
@@ -1121,7 +1122,7 @@ private fun IntakeHero(
                             if (over) "已超出 ${-remaining} kcal" else "$remaining kcal",
                             style = MaterialTheme.typography.displaySmall,
                             fontWeight = FontWeight.ExtraBold,
-                            color = if (over) IntakeRingColors.Over else MaterialTheme.colorScheme.onSurface,
+                            color = if (over) IntakeRingColors.Over.resolve() else MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                         )
                     }
@@ -1146,9 +1147,9 @@ private fun IntakeHero(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
                         ) {
-                            MacroLegend("蛋白质", "${macros.protein}g", DietMacroColors.Protein)
-                            MacroLegend("碳水", "${macros.carbs}g", DietMacroColors.Carbs)
-                            MacroLegend("脂肪", "${macros.fat}g", DietMacroColors.Fat)
+                            MacroLegend("蛋白质", "${macros.protein}g", DietMacroColors.Protein.resolve())
+                            MacroLegend("碳水", "${macros.carbs}g", DietMacroColors.Carbs.resolve())
+                            MacroLegend("脂肪", "${macros.fat}g", DietMacroColors.Fat.resolve())
                         }
                         if (macros.skippedRecords > 0) {
                             Spacer(modifier = Modifier.height(4.dp))
@@ -1227,12 +1228,14 @@ private fun RingBox(usedPercent: Int, color: Color, over: Boolean) {
         modifier = Modifier.size(72.dp),
         contentAlignment = Alignment.Center,
     ) {
+        // Canvas 内是 DrawScope 非组合期,轨道色先在组合期解析
+        val trackColor = IntakeRingColors.Track.resolve()
         Canvas(modifier = Modifier.fillMaxSize()) {
             val stroke = 8.dp.toPx()
             val inset = stroke / 2
             val arcSize = Size(size.width - stroke, size.height - stroke)
             drawArc(
-                color = IntakeRingColors.Track,
+                color = trackColor,
                 startAngle = 0f,
                 sweepAngle = 360f,
                 useCenter = false,
@@ -1275,7 +1278,7 @@ private fun MacroStackedBar(weights: Triple<Float, Float, Float>) {
                 modifier = Modifier
                     .weight(weights.first)
                     .fillMaxHeight()
-                    .background(DietMacroColors.Protein)
+                    .background(DietMacroColors.Protein.resolve())
             )
         }
         if (weights.second > 0f) {
@@ -1283,7 +1286,7 @@ private fun MacroStackedBar(weights: Triple<Float, Float, Float>) {
                 modifier = Modifier
                     .weight(weights.second)
                     .fillMaxHeight()
-                    .background(DietMacroColors.Carbs)
+                    .background(DietMacroColors.Carbs.resolve())
             )
         }
         if (weights.third > 0f) {
@@ -1291,7 +1294,7 @@ private fun MacroStackedBar(weights: Triple<Float, Float, Float>) {
                 modifier = Modifier
                     .weight(weights.third)
                     .fillMaxHeight()
-                    .background(DietMacroColors.Fat)
+                    .background(DietMacroColors.Fat.resolve())
             )
         }
     }
@@ -1505,7 +1508,7 @@ private fun HistoryTabPage(
                         Box(
                             modifier = Modifier
                                 .size(6.dp)
-                                .background(TrafficLightColors.Unknown, CircleShape)
+                                .background(TrafficLightColors.Unknown.resolve(), CircleShape)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
@@ -1529,7 +1532,7 @@ private fun HistoryTabPage(
                                     .size(8.dp)
                                     .background(
                                         day.trafficLight?.let { trafficLightColor(it) }
-                                            ?: TrafficLightColors.Unknown,
+                                            ?: TrafficLightColors.Unknown.resolve(),
                                         CircleShape
                                     )
                             )

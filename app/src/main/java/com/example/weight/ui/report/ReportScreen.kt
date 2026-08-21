@@ -57,6 +57,8 @@ import com.example.weight.ui.common.AnalysisBottomSheet
 import com.example.weight.ui.common.MyTopBar
 import com.example.weight.ui.common.WeightChart
 import com.example.weight.ui.common.movingAverage
+import com.example.weight.ui.diet.TrafficLightColors
+import com.example.weight.ui.theme.resolve
 import com.example.weight.util.ReportCaloriesStats
 import com.example.weight.util.ReportType
 import com.example.weight.util.ReportWeightStats
@@ -66,11 +68,6 @@ import com.patrykandpatrick.vico.compose.common.vicoTheme
 import org.koin.androidx.compose.koinViewModel
 import java.time.LocalDate
 import java.util.Locale
-
-/** 报告页红绿灯配色，与饮食页交通灯保持一致 */
-private val GreenColor = Color(0xFF4CAF50)
-private val YellowColor = Color(0xFFFFC107)
-private val RedColor = Color(0xFFF44336)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -517,9 +514,9 @@ private fun CaloriesCard(
                         .clip(RoundedCornerShape(5.dp)),
                 ) {
                     listOf(
-                        GreenColor to caloriesStats.greenCount,
-                        YellowColor to caloriesStats.yellowCount,
-                        RedColor to caloriesStats.redCount,
+                        TrafficLightColors.Green.resolve() to caloriesStats.greenCount,
+                        TrafficLightColors.Amber.resolve() to caloriesStats.yellowCount,
+                        TrafficLightColors.Red.resolve() to caloriesStats.redCount,
                     ).forEach { (color, count) ->
                         if (count > 0) {
                             Box(
@@ -538,9 +535,9 @@ private fun CaloriesCard(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    TrafficLightLegend(GreenColor, "健康饮食", caloriesStats.greenCount)
-                    TrafficLightLegend(YellowColor, "尚可", caloriesStats.yellowCount)
-                    TrafficLightLegend(RedColor, "放纵一下", caloriesStats.redCount)
+                    TrafficLightLegend(TrafficLightColors.Green.resolve(), "健康饮食", caloriesStats.greenCount)
+                    TrafficLightLegend(TrafficLightColors.Amber.resolve(), "尚可", caloriesStats.yellowCount)
+                    TrafficLightLegend(TrafficLightColors.Red.resolve(), "放纵一下", caloriesStats.redCount)
                 }
             }
         }

@@ -16,7 +16,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.graphics.Color
 import kotlinx.coroutines.delay
 
 @Composable
@@ -52,7 +51,7 @@ fun DeleteDialog(
         TextButton(enabled = isButtonEnabled, onClick = onConfirmClick) {
             Text(
                 text = if (isButtonEnabled) "确认" else "确认(${countDown}秒)",
-                color = if (isButtonEnabled) MaterialTheme.colorScheme.error else Color.Gray
+                color = if (isButtonEnabled) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }, dismissButton = {

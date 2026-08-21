@@ -4,7 +4,7 @@
     <color name="widget_on_surface">#FFE0E3E8</color>
     <color name="widget_on_surface_variant">#FFC2C7CE</color>
     <color name="widget_primary">#FF98CCF9</color>
-    <color name="widget_decrease">#FF81C784</color>
-    <color name="widget_increase">#FFEF9A9A</color>
+    <color name="widget_decrease">#FF87D98F</color>
+    <color name="widget_increase">#FFFFB4AA</color>
     <color name="widget_track">#FF3A4048</color>
 </resources>
