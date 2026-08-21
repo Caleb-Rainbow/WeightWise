@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 小组件选择器预览用近 7 天趋势线示意，与实际渲染的 sparkline 样式保持一致 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="110dp"
+    android:height="64dp"
+    android:viewportWidth="110"
+    android:viewportHeight="64">
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M3,52 L21,42 L39,45 L57,30 L75,36 L93,17 L107,11"
+        android:strokeColor="@color/widget_primary"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:strokeWidth="3" />
+</vector>

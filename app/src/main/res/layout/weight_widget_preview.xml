@@ -1,149 +1,119 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- API 31+ 选择器里的静态预览（假数据，样式与实际渲染保持一致） -->
+<!-- API 31+ 选择器里的静态预览（假数据，样式与宽卡实际渲染保持一致：左体重右趋势线+底部信息条） -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_background"
+    android:gravity="center_vertical"
     android:orientation="vertical"
     android:padding="14dp">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="↓ 0.8 kg · 较7天前"
-        android:textColor="@color/widget_decrease"
-        android:textSize="12sp" />
-
     <LinearLayout
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
-        android:gravity="bottom"
-        android:orientation="horizontal">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="75.2"
-            android:textColor="@color/widget_on_surface"
-            android:textSize="34sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text=" kg"
-            android:textColor="@color/widget_on_surface_variant"
-            android:textSize="13sp" />
-    </LinearLayout>
-
-    <LinearLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
-        <View
-            android:layout_width="8dp"
-            android:layout_height="8dp"
-            android:background="@color/widget_primary" />
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
 
-        <View
-            android:layout_width="2dp"
-            android:layout_height="8dp" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="↓ 0.8 kg · 较7天前"
+                android:textColor="@color/widget_decrease"
+                android:textSize="12sp" />
 
-        <View
-            android:layout_width="8dp"
-            android:layout_height="8dp"
-            android:background="@color/widget_primary" />
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:gravity="bottom"
+                android:orientation="horizontal">
 
-        <View
-            android:layout_width="2dp"
-            android:layout_height="8dp" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="75.2"
+                    android:textColor="@color/widget_on_surface"
+                    android:textSize="34sp"
+                    android:textStyle="bold" />
 
-        <View
-            android:layout_width="8dp"
-            android:layout_height="8dp"
-            android:background="@color/widget_primary" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text=" kg"
+                    android:textColor="@color/widget_on_surface_variant"
+                    android:textSize="13sp" />
+            </LinearLayout>
 
-        <View
-            android:layout_width="2dp"
-            android:layout_height="8dp" />
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
-        <View
-            android:layout_width="8dp"
-            android:layout_height="8dp"
-            android:background="@color/widget_primary" />
+                <FrameLayout
+                    android:layout_width="68dp"
+                    android:layout_height="6dp"
+                    android:background="@drawable/widget_progress_track">
 
-        <View
-            android:layout_width="2dp"
-            android:layout_height="8dp" />
+                    <View
+                        android:layout_width="42dp"
+                        android:layout_height="6dp"
+                        android:background="@drawable/widget_progress_fill" />
+                </FrameLayout>
 
-        <View
-            android:layout_width="8dp"
-            android:layout_height="8dp"
-            android:background="@color/widget_primary" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:text="62%"
+                    android:textColor="@color/widget_on_surface_variant"
+                    android:textSize="12sp" />
+            </LinearLayout>
 
-        <View
-            android:layout_width="2dp"
-            android:layout_height="8dp" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="距目标 16.2 kg"
+                android:textColor="@color/widget_on_surface_variant"
+                android:textSize="12sp" />
+        </LinearLayout>
 
-        <View
-            android:layout_width="8dp"
-            android:layout_height="8dp"
-            android:background="@color/widget_primary" />
-
-        <View
-            android:layout_width="2dp"
-            android:layout_height="8dp" />
-
-        <View
-            android:layout_width="8dp"
-            android:layout_height="8dp"
-            android:background="@color/widget_track" />
-
-        <View
-            android:layout_width="2dp"
-            android:layout_height="8dp" />
-
-        <View
-            android:layout_width="8dp"
-            android:layout_height="8dp"
-            android:background="@color/widget_track" />
-
-        <View
-            android:layout_width="2dp"
-            android:layout_height="8dp" />
-
-        <View
-            android:layout_width="8dp"
-            android:layout_height="8dp"
-            android:background="@color/widget_track" />
-
-        <View
-            android:layout_width="2dp"
-            android:layout_height="8dp" />
-
-        <View
-            android:layout_width="8dp"
-            android:layout_height="8dp"
-            android:background="@color/widget_track" />
-
-        <TextView
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="4dp"
-            android:text="62%"
-            android:textColor="@color/widget_on_surface_variant"
-            android:textSize="12sp" />
+            android:layout_marginStart="8dp"
+            android:gravity="center_horizontal"
+            android:orientation="vertical">
+
+            <ImageView
+                android:layout_width="110dp"
+                android:layout_height="64dp"
+                android:contentDescription="@string/weight_widget_description"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_sparkline" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="7天均 101.1"
+                android:textColor="@color/widget_on_surface_variant"
+                android:textSize="11sp" />
+        </LinearLayout>
     </LinearLayout>
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:text="目标 70.0 kg"
+        android:layout_marginTop="6dp"
+        android:text="BMI 29.6 偏高 · 🔥 连续9天 · 预计167天"
         android:textColor="@color/widget_on_surface_variant"
-        android:textSize="12sp" />
+        android:textSize="11sp" />
 </LinearLayout>

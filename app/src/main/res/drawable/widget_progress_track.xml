@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 小组件选择器预览用进度条底轨，颜色随 values(-night)/widget_colors 昼夜切换 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <corners android:radius="3dp" />
+    <solid android:color="@color/widget_track" />
+</shape>
