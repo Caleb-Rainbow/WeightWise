@@ -24,7 +24,7 @@ class Migration7To8 : AutoMigrationSpec
  * DietRecord 的 mealType 索引（无查询使用）换成 timestamp 索引（分页排序用）。
  */
 @Database(
-    version = 9,
+    version = 10,
     entities = [Record::class, DietRecord::class],
     exportSchema = true,
     autoMigrations = [
@@ -36,6 +36,7 @@ class Migration7To8 : AutoMigrationSpec
         AutoMigration(from = 6, to = 7),
         AutoMigration(from = 7, to = 8, spec = Migration7To8::class),
         AutoMigration(from = 8, to = 9),
+        AutoMigration(from = 9, to = 10),
     ],
 )
 abstract class AppDataBase : RoomDatabase() {

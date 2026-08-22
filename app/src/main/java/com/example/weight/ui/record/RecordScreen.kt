@@ -22,13 +22,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -38,6 +41,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -62,7 +66,9 @@ import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import com.example.weight.LocalSnackBarShow
+import com.example.weight.data.record.BodyCompositionJson
 import com.example.weight.data.record.Record
+import com.example.weight.ui.common.BodyCompositionGrid
 import com.example.weight.ui.common.DeleteDialog
 import com.example.weight.ui.common.MyTopBar
 import com.example.weight.ui.main.AddRecordDialog
@@ -89,6 +95,7 @@ fun RecordScreen(
 
     var deleteTarget by remember { mutableStateOf<Record?>(null) }
     var editTarget by remember { mutableStateOf<Record?>(null) }
+    var compositionTarget by remember { mutableStateOf<Record?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
 
     deleteTarget?.let { target ->
@@ -112,6 +119,36 @@ fun RecordScreen(
                 snackBarShow("修改成功")
             }
         )
+    }
+
+    // 身体成分详情：体脂秤记录点卡片弹出全指标网格；手动记录无成分不响应
+    compositionTarget?.let { target ->
+        val composition = BodyCompositionJson.decode(target.bodyComposition)
+        if (composition != null && composition.hasAny) {
+            AlertDialog(
+                onDismissRequest = { compositionTarget = null },
+                title = {
+                    Text(
+                        "身体成分 · ${TimeUtils.convertMillisToHM(target.timestamp)}",
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                },
+                text = {
+                    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                        BodyCompositionGrid(composition = composition)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "指标为 App 依据阻抗与身体档案估算（±3-5%），仅供参考",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { compositionTarget = null }) { Text("关闭") }
+                },
+            )
+        }
     }
     if (showAddDialog) {
         AddRecordDialog(onDismissRequest = { showAddDialog = false })
@@ -189,7 +226,13 @@ fun RecordScreen(
                                             previousWeight = if (hasOlderLoaded) {
                                                 recordList[index + 1]?.weight
                                             } else null,
-                                            isOldestRecord = !hasOlderLoaded && isEndOfPagination
+                                            isOldestRecord = !hasOlderLoaded && isEndOfPagination,
+                                            // 有成分的记录点卡片看全指标；无成分点击无动作（侧滑仍是编辑/删除）
+                                            onClick = {
+                                                if (BodyCompositionJson.decode(record.bodyComposition)?.hasAny == true) {
+                                                    compositionTarget = record
+                                                }
+                                            },
                                         )
                                     }
                                 }
@@ -332,10 +375,13 @@ private fun SummaryItem(
 private fun RecordItemContent(
     record: Record,
     previousWeight: Double?,
-    isOldestRecord: Boolean
+    isOldestRecord: Boolean,
+    onClick: () -> Unit = {},
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
@@ -349,11 +395,29 @@ private fun RecordItemContent(
             DateBlock(timestamp = record.timestamp)
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = TimeUtils.convertMillisToHM(record.timestamp),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = TimeUtils.convertMillisToHM(record.timestamp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    // 体脂秤测得的成分：时间旁一颗小标签（仅体脂率，成分全无则不显示）
+                    BodyCompositionJson.decode(record.bodyComposition)?.fatRatio
+                        ?.takeIf { it > 0 }?.let { fat ->
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "体脂 ${DecimalFormat("#.#").format(fat)}%",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .background(
+                                        color = MaterialTheme.colorScheme.primaryContainer,
+                                        shape = RoundedCornerShape(6.dp)
+                                    )
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                }
                 if (record.log.isNotBlank()) {
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(

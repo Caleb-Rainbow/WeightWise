@@ -51,6 +51,10 @@ Uses **Navigation3** (`androidx.navigation3`), not traditional Navigation Compos
 - **MMKV**: User preferences (height, target weight, exercise preferences). All values exposed as `StateFlow` via MMKV-KTX.
 - **Ktor + OkHttp**: Network calls to DeepSeek API. SSE streaming for AI responses. API key via `BuildConfig.DEEPSEEK_KEY` from `secrets.properties` (git-ignored).
 
+### Bluetooth Scale (icomon)
+
+`data/scale/` connects to ICOMON white-label body fat scales (BLE name "icomon", service FFB0/write FFB1/notify FFB2). `IcomonFrameParser` is pure Kotlin and unit-tested against known frame variants plus frames captured from this repo's actual hardware (AC 27 variant, tag-35 firmware: grams = raw24BE − 0x8C0000, stable flag = byte2 high bit, impedance = u16BE bytes 4-5 on result frames type 0x01/0x02, profile command checksum = sum(bytes[2..18]) & 0x1F sent write-no-response). `ScaleBleEngine` drives scan→connect→subscribe→profile push→parse→insert; after the stable weight frame it waits up to 5 s for the BIA result frame. Body composition (14 metrics: fat/water/muscle mass/bone/SMM/protein/subcutaneous/visceral level/body type/body score) is computed app-side by `BodyFatCalculator` from published equations (Sun 2003 FFM, Janssen 2000 SMM, Deurenberg 1991 fallback + physiological-constant decomposition; no GPL code). Two entry points: Settings → 体脂秤 card (`ui/setting/ScaleCard.kt`, auto-insert with 2-min dedup) and the 记录体重 dialog (`ui/main/MainDialog.kt`, `autoInsert=false` — fills the wheel on Done, saves composition on user confirm, falls back to manual entry). Needs BLUETOOTH_SCAN **and** BLUETOOTH_CONNECT on Android 12+. Raw frame log mirrors to logcat tag `ScaleBle`.
+
 ### Global UI Communication
 
 `MainActivity.kt` defines `CompositionLocal` providers for SnackBar, loading dialog, and message dialog. Access via `LocalSnackBarShow`, `LocalShowLoadingDialog`, `LocalHideLoadingDialog`, `LocalShowMessageDialog`.

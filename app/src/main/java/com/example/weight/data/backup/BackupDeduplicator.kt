@@ -27,7 +27,14 @@ object BackupDeduplicator {
             if (RecordKey(item.timestamp, item.weight) in existing) {
                 skipped++
             } else {
-                toInsert.add(Record(weight = item.weight, log = item.log, timestamp = item.timestamp))
+                toInsert.add(
+                    Record(
+                        weight = item.weight,
+                        log = item.log,
+                        timestamp = item.timestamp,
+                        bodyComposition = item.bodyComposition,
+                    )
+                )
             }
         }
         return DedupResult(toInsert, skipped)

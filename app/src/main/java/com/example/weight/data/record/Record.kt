@@ -13,7 +13,10 @@ data class Record(
     val weight: Double,
     @ColumnInfo(defaultValue = "")
     val log:String,
-    val timestamp: Long
+    val timestamp: Long,
+    /** 体脂秤测得的身体成分（JSON，[BodyComposition]）；空串表示手动记录/秤未测体脂 */
+    @ColumnInfo(defaultValue = "")
+    val bodyComposition: String = "",
 )
 
 data class DailyMinWeight(

@@ -5,6 +5,8 @@ import androidx.room.Room
 import com.example.weight.data.AppDataBase
 import com.example.weight.data.createDefaultHttpClient
 import com.example.weight.data.diet.DietRecordDao
+import com.example.weight.data.record.RecordDao
+import com.example.weight.data.scale.ScaleBleEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.serialization.json.Json
 import org.koin.core.annotation.ComponentScan
@@ -23,6 +25,13 @@ class KoinModule {
 
     @Single
     fun provideRecordDao(appDataBase: AppDataBase)= appDataBase.recordDao()
+
+    @Single
+    fun provideScaleBleEngine(
+        application: Application,
+        appScope: CoroutineScope,
+        recordDao: RecordDao,
+    ): ScaleBleEngine = ScaleBleEngine(application, appScope, recordDao)
 
     @Single
     fun provideDietRecordDao(appDataBase: AppDataBase): DietRecordDao = appDataBase.dietRecordDao()

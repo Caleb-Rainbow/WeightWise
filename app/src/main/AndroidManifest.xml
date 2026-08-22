@@ -3,6 +3,11 @@
     xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.VIBRATE"/>
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- 体脂秤 BLE：扫描结果在 Android 12+ 依赖 NEARBY_BLUETOOTH_DEVICES，11 及以下依赖精确定位 -->
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <!-- CAMERA 权限已随拍照升级移除：TakePicture 委托系统相机拍摄，无需本 App 持有权限；
          注意 manifest 一旦声明 CAMERA，TakePicture 启动前必须已授权，否则抛 SecurityException -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>

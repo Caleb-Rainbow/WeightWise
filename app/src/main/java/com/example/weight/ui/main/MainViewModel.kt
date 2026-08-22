@@ -153,13 +153,21 @@ class MainViewModel(
         }
     }
 
-    fun insertRecord(date: String, time: String, log: String, weight: Double, onSuccess: () -> Unit) {
+    fun insertRecord(
+        date: String,
+        time: String,
+        log: String,
+        weight: Double,
+        bodyComposition: String = "",
+        onSuccess: () -> Unit,
+    ) {
         viewModelScope.launch(Dispatchers.IO) {
             recordDao.insert(
                 Record(
                     timestamp = TimeUtils.convertTimeToMillis("$date $time:00"),
                     weight = weight,
-                    log = log
+                    log = log,
+                    bodyComposition = bodyComposition,
                 )
             )
             // 小组件刷新走独立协程：updateAll 含跨进程 binder + RemoteViews 组合，

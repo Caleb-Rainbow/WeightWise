@@ -25,6 +25,8 @@ data class RecordBackup(
     val weight: Double,
     val log: String = "",
     val timestamp: Long,
+    /** 体脂秤成分 JSON（[com.example.weight.data.record.BodyComposition]）；旧备份缺字段时为空串 */
+    val bodyComposition: String = "",
 )
 
 @Serializable
