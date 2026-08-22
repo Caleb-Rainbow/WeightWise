@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -37,6 +36,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -212,110 +213,155 @@ private object MetricStatusColors {
 
 /**
  * 分段式指标刻度条：
- * - 状态色段铺满显示区间（段间 2dp 间隙、圆角），正常段中央标「标准」；
- * - 当前值为带描边的指针圆点叠加在条上；
- * - 段边界标刻度数字（相邻 <26dp 自动省略防重叠，首尾必标）；
- * - 指针下方跟随显示当前数值（clamp 防溢出）。
+ * - 当前值气泡跟随指针，先回答「我在哪」；
+ * - 状态色段收成一条连续细轨，当前区间强调、其他区间降噪；
+ * - 区间文字按比例对齐在轨道下方，颜色不是唯一的状态表达。
  */
 @Composable
 private fun MetricRangeBar(bar: MetricGuide.Bar) {
     val span = (bar.max - bar.min).takeIf { it > 0 } ?: return
     fun frac(v: Double) = (((v - bar.min) / span).toFloat()).coerceIn(0f, 1f)
 
-    // 先测宽再分三行布局（色段/刻度/当前值），各行用同一 trackWidth 定位保证严格对齐
-    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+    // 分带口径是「偏低 [min, low)、标准 [low, normal]、偏高 (normal, high]」。
+    // 边界值不能只用 first/last 匹配，否则 10、20 这类临界值会落到错误区间。
+    val currentSegment = bar.segments.firstOrNull { segment ->
+        when (segment.status) {
+            MetricGuide.Status.LOW -> bar.value < segment.end
+            else -> bar.value <= segment.end
+        }
+    } ?: if (bar.value < bar.min) bar.segments.first() else bar.segments.last()
+    val currentColor = MetricStatusColors.of(currentSegment.status)
+    val currentLabel = "当前 ${trim(bar.value)}"
+
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics {
+                contentDescription =
+                    "$currentLabel，${currentSegment.status.label}，显示范围 ${trim(bar.min)} 到 ${trim(bar.max)}"
+            },
+    ) {
         val trackWidth = maxWidth
-        val gap = 2.dp
-        val barHeight = 14.dp
-        val dotSize = 14.dp
-        val labelWidth = 24.dp // labelSmall 两字符近似宽，用于首尾防溢出与防重叠判定
+        val trackHeight = 8.dp
+        val markerSize = 18.dp
+        val badgeWidth = 80.dp
+        val segmentLabelWidth = 36.dp
+        val compactLabelWidth = 20.dp
+        val markerCenter = trackWidth * frac(bar.value)
+        val markerX = (markerCenter - markerSize / 2).coerceIn(0.dp, trackWidth - markerSize)
+        val badgeX = (markerCenter - badgeWidth / 2).coerceIn(0.dp, trackWidth - badgeWidth)
 
         Column(modifier = Modifier.fillMaxWidth()) {
-            // ── 色段条 + 指针圆点 ──
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(barHeight),
-            ) {
-                bar.segments.forEach { seg ->
-                    val segStart = trackWidth * frac(seg.start)
-                    val segEnd = trackWidth * frac(seg.end) - gap
-                    Box(
-                        modifier = Modifier
-                            .offset(x = segStart)
-                            .width(maxOf(segEnd - segStart, 3.dp))
-                            .fillMaxHeight()
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(MetricStatusColors.of(seg.status)),
-                    )
-                }
-                // 正常段中央「标准」小字（段宽放得下才显示）
-                val normalSeg = bar.segments.firstOrNull { it.status == MetricGuide.Status.NORMAL }
-                if (normalSeg != null) {
-                    val normalWidth = trackWidth * (frac(normalSeg.end) - frac(normalSeg.start))
-                    if (normalWidth >= 44.dp) {
+            // 当前值从轨道中移出，避免数字、指针和区间文字挤在同一层。
+            Box(modifier = Modifier.fillMaxWidth().height(30.dp)) {
+                Surface(
+                    modifier = Modifier
+                        .offset(x = badgeX)
+                        .width(badgeWidth)
+                        .height(26.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    color = currentColor.copy(alpha = 0.14f),
+                    contentColor = currentColor,
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
                         Text(
-                            text = "标准",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.95f),
-                            modifier = Modifier
-                                .offset(
-                                    x = trackWidth * (frac(normalSeg.start) + frac(normalSeg.end)) / 2 -
-                                        labelWidth / 2,
-                                ),
+                            text = currentLabel,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
                         )
                     }
                 }
-                // 指针：描边圆点叠在条上，clamp 进条内
+            }
+
+            // 连续细轨道：用明度区分当前区间，减少整条高饱和色块带来的视觉噪声。
+            Box(modifier = Modifier.fillMaxWidth().height(markerSize)) {
                 Box(
                     modifier = Modifier
-                        .offset(x = (trackWidth - dotSize) * frac(bar.value))
-                        .align(Alignment.TopStart)
-                        .offset(y = (barHeight - dotSize) / 2)
-                        .size(dotSize)
+                        .fillMaxWidth()
+                        .height(trackHeight)
+                        .align(Alignment.Center)
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.onSurface)
-                        .border(3.dp, MaterialTheme.colorScheme.surface, CircleShape),
-                )
-            }
-
-            // ── 刻度数字行：段边界（含首尾）标数值，相邻过近自动省略 ──
-            val bounds = buildList {
-                add(bar.min)
-                bar.segments.forEach { add(it.end) }
-            }.distinct()
-            Box(modifier = Modifier.fillMaxWidth()) {
-                var lastRight = (-100).dp
-                bounds.forEachIndexed { index, bound ->
-                    val x = when (index) {
-                        0 -> 0.dp
-                        bounds.lastIndex -> trackWidth - labelWidth
-                        else -> trackWidth * frac(bound) - labelWidth / 2
-                    }
-                    if (index == 0 || index == bounds.lastIndex || x > lastRight + 4.dp) {
-                        Text(
-                            text = trim(bound),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.offset(x = x),
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+                ) {
+                    bar.segments.forEachIndexed { index, segment ->
+                        val segmentStart = trackWidth * frac(segment.start)
+                        val segmentWidth = trackWidth * (frac(segment.end) - frac(segment.start))
+                        Box(
+                            modifier = Modifier
+                                .offset(x = segmentStart)
+                                .width(maxOf(segmentWidth, 1.dp))
+                                .height(trackHeight)
+                                .background(
+                                    MetricStatusColors.of(segment.status).copy(
+                                        alpha = if (segment == currentSegment) 0.82f else 0.34f,
+                                    ),
+                                ),
                         )
-                        lastRight = x + labelWidth
+                        if (index > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .offset(x = segmentStart)
+                                    .width(1.dp)
+                                    .height(trackHeight)
+                                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)),
+                            )
+                        }
                     }
+                }
+
+                // 空心把手比黑色实心圆更轻，内点继续使用当前状态色保证定位清晰。
+                Box(
+                    modifier = Modifier
+                        .offset(x = markerX)
+                        .size(markerSize)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surface)
+                        .border(2.dp, currentColor, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .clip(CircleShape)
+                            .background(currentColor),
+                    )
                 }
             }
 
-            // ── 当前值跟随行（clamp 防溢出）──
-            Text(
-                text = trim(bar.value),
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .offset(
-                        x = ((trackWidth - labelWidth) * frac(bar.value))
-                            .coerceIn(0.dp, trackWidth - labelWidth),
-                    ),
-            )
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // 每个色段都有文字标签，兼顾色觉差异，也让分区结构一眼可扫。
+            Box(modifier = Modifier.fillMaxWidth().height(20.dp)) {
+                bar.segments.forEach { segment ->
+                    val segmentWidth = trackWidth * (frac(segment.end) - frac(segment.start))
+                    val (label, labelWidth) = when {
+                        segmentWidth >= segmentLabelWidth -> segment.status.label to segmentLabelWidth
+                        segmentWidth >= compactLabelWidth -> when (segment.status) {
+                            MetricGuide.Status.LOW -> "低"
+                            MetricGuide.Status.NORMAL -> "标"
+                            MetricGuide.Status.HIGH -> "高"
+                            MetricGuide.Status.VERY_HIGH -> "高+"
+                        } to compactLabelWidth
+                        else -> null to compactLabelWidth
+                    }
+                    if (label != null) {
+                        val center = trackWidth * (frac(segment.start) + frac(segment.end)) / 2
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = if (segment == currentSegment) FontWeight.SemiBold else FontWeight.Normal,
+                            color = if (segment == currentSegment) {
+                                currentColor
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            modifier = Modifier.offset(x = center - labelWidth / 2),
+                            maxLines = 1,
+                        )
+                    }
+                }
+            }
         }
     }
 }
