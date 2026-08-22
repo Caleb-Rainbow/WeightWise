@@ -20,6 +20,11 @@ object IcomonFrameParser {
         val waterRatio: Double? = null,
         /** 结果帧（AC 27 type 0x01/0x02）解析出的阻抗 Ω；体重流帧无此值 */
         val impedanceOhm: Double? = null,
+        /**
+         * 阻抗命中的候选字节偏移（4=本机实测主字段，6/17=其他固件口径候选，-1=未命中）。
+         * 主字段以外的候选命中意味着协议假设可能不成立，由上层打日志留证。
+         */
+        val impedanceSourceOffset: Int = -1,
         /** true = 这是稳定后的 BIA 结果帧（携带阻抗），用于引擎区分普通稳定体重帧 */
         val isResultFrame: Boolean = false,
     )
@@ -146,17 +151,20 @@ object IcomonFrameParser {
 
         val c4 = u16be(p, 4).toDouble()          // 本机实测：原始 Ω
         val c6 = u16be(p, 6).toDouble()          // AFU-WL-TZ-A1 口径
-        val c17 = u16be(p, 17) / 5.532           // MY_SCALE 口径
-        val impedance = when {
-            c4 in IMPEDANCE_RANGE -> c4
-            c6 in IMPEDANCE_RANGE -> c6
-            c17 in IMPEDANCE_RANGE -> c17
-            else -> null
+        val c17 = u16be(p, 17) / 5.532           // MY_SCALE 口径（17-18 在部分固件是序列号，慎信）
+        val impedance: Double?
+        val sourceOffset: Int
+        when {
+            c4 in IMPEDANCE_RANGE -> { impedance = c4; sourceOffset = 4 }
+            c6 in IMPEDANCE_RANGE -> { impedance = c6; sourceOffset = 6 }
+            c17 in IMPEDANCE_RANGE -> { impedance = c17; sourceOffset = 17 }
+            else -> { impedance = null; sourceOffset = -1 }
         }
         return Measurement(
             weightKg = grams / 1000.0,
             isFinal = true,
             impedanceOhm = impedance,
+            impedanceSourceOffset = sourceOffset,
             isResultFrame = true,
         )
     }
@@ -172,35 +180,10 @@ object IcomonFrameParser {
             (p[off + 2].toInt() and 0xFF)
 
     /**
-     * 变体 A 的 FFB1 握手配置包序列（开通知后依次写入）：
-     * 唤醒、初始化、用户档案（性别/年龄/身高）、日期、时间、单位 kg。
-     * 校验和 = 除首尾外字节求和取低 8 位。
+     * 变体 A 的 FFB1 握手配置包序列已随引擎改走 AC 27 档案命令而移除：
+     * 变体 A 秤的自报成分（体脂/肌肉/骨量/水分）由引擎在稳定后经
+     * [BodyFatCalculator.resolve] 的秤自报体脂路径入库，无需向其下发配置。
      */
-    fun buildHandshake(sexMale: Boolean, age: Int, heightCm: Int, nowMs: Long): List<ByteArray> {
-        val cal = java.util.Calendar.getInstance().apply { timeInMillis = nowMs }
-        val yy = cal.get(java.util.Calendar.YEAR) - 2000
-        val mm = cal.get(java.util.Calendar.MONTH) + 1
-        val dd = cal.get(java.util.Calendar.DAY_OF_MONTH)
-        val hh = cal.get(java.util.Calendar.HOUR_OF_DAY)
-        val mi = cal.get(java.util.Calendar.MINUTE)
-        val ss = cal.get(java.util.Calendar.SECOND)
-        return listOf(
-            cfg(0xF7, 0x00, 0x00, 0x00),
-            cfg(0xFA, 0x00, 0x00, 0x00),
-            cfg(0xFB, if (sexMale) 0x01 else 0x02, age.coerceIn(0, 0xFF), heightCm.coerceIn(0, 0xFF)),
-            cfg(0xFD, yy, mm, dd),
-            cfg(0xFC, hh, mi, ss),
-            cfg(0xFE, 0x06, 0x01, 0x00), // 单位 kg
-        )
-    }
-
-    private fun cfg(op: Int, b3: Int, b4: Int, b5: Int): ByteArray {
-        val sum = op + b3 + b4 + b5 + 0xCC
-        return byteArrayOf(
-            0xAC.toByte(), 0x02, op.toByte(), b3.toByte(), b4.toByte(), b5.toByte(),
-            0xCC.toByte(), sum.toByte(),
-        )
-    }
 
     /**
      * 变体 B 的用户档案下发命令（20 字节）。秤收到档案后才会进行 BIA 测量并回发阻抗结果帧。

@@ -19,6 +19,7 @@ import com.example.weight.data.record.BodyComposition
 import com.example.weight.data.record.BodyCompositionJson
 import com.example.weight.data.record.Record
 import com.example.weight.data.record.RecordDao
+import com.example.weight.util.Gender
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -70,6 +71,12 @@ class ScaleBleEngine(
 
         /** 失败/超时，message 为中文用户可读原因 */
         data class Failed(val message: String) : State
+
+        /**
+         * 身体档案不完整（性别/年龄未设置）：体成分公式缺输入，称重结果会系统性偏差，
+         * 拒绝开始并引导用户先去设置页补全。体重仍可手动记录。
+         */
+        data class ProfileIncomplete(val missing: List<String>) : State
     }
 
     private val _state = MutableStateFlow<State>(State.Idle)
@@ -113,6 +120,8 @@ class ScaleBleEngine(
      * 开始一次称重会话：扫描最长 60 秒，发现秤后连接并等待数据。
      * [autoInsert] false 时完成后不写库（记录弹窗读秤用，由调用方保存）。
      * 重复调用时先清理上一会话。
+     * 性别/年龄未设置时直接进入 [State.ProfileIncomplete]：体成分公式的性别项与年龄项
+     * 缺失会让全部指标系统性偏差（未设置性别默认按男性算），宁可拒绝也不出脏数据。
      */
     fun startSession(autoInsert: Boolean = true) {
         stopSession()
@@ -122,8 +131,18 @@ class ScaleBleEngine(
             bt == null -> { _state.value = State.Failed("此设备不支持蓝牙"); return }
             !bt.isEnabled -> { _state.value = State.Failed("请先打开手机蓝牙"); return }
         }
+        val missing = buildList {
+            if (Gender.entries.none { it.name == LocalStorageData.gender.value }) add("性别")
+            if (LocalStorageData.age.value <= 0) add("年龄")
+        }
+        if (missing.isNotEmpty()) {
+            log("档案缺失：${missing.joinToString("、")}，拒绝开始体成分测量")
+            _state.value = State.ProfileIncomplete(missing)
+            return
+        }
         sessionActive = true
         stableWeightKg = null
+        scaleReported.clear()
         lastComposition = null
         impedanceWaitJob?.cancel()
         impedanceWaitJob = null
@@ -297,6 +316,15 @@ class ScaleBleEngine(
     private var stableWeightKg: Double? = null
     private var impedanceWaitJob: Job? = null
 
+    /**
+     * 变体 A 秤的自报成分（体脂率/肌肉率/骨量/水分分属两个 20 字节包）：跨帧暂存，
+     * 稳定体重到齐后经 [BodyFatCalculator.resolve] 的秤自报路径入库。
+     */
+    private val scaleReported = mutableMapOf<String, Double>()
+
+    /** 档案快照：会话期间固定，避免称重中途改档案导致同一轮数据口径不一致 */
+    private data class Profile(val sexMale: Boolean, val age: Int, val heightCm: Int)
+
     private fun handleFrame(payload: ByteArray) {
         log("通知 ${hex(payload)}")
         val m = IcomonFrameParser.parse(payload)
@@ -304,15 +332,29 @@ class ScaleBleEngine(
             log("↑ 未能识别")
             return
         }
+        // 变体 A 自报成分先于状态机采集：体脂与体重同在第一包（isFinal），
+        // 肌肉/骨量/水分在其后的第二包，两包都必须落进暂存
+        var reportedSomething = false
+        m.fatRatio?.let { scaleReported[FAT_KEY] = it; reportedSomething = true }
+        m.muscleRatio?.let { scaleReported[MUSCLE_KEY] = it; reportedSomething = true }
+        m.boneKg?.let { scaleReported[BONE_KEY] = it; reportedSomething = true }
+        m.waterRatio?.let { scaleReported[WATER_KEY] = it; reportedSomething = true }
+        if (reportedSomething) {
+            log("自报成分：${scaleReported.entries.joinToString { "${it.key}=${it.value}" }}")
+        }
         when {
             m.weightKg > 0 && !m.isFinal ->
                 _state.value = State.Measuring(weightKg = round01(m.weightKg))
 
             m.isResultFrame -> {
+                if (m.impedanceOhm != null && m.impedanceSourceOffset != 4) {
+                    // 非主字段候选命中：协议假设可能不成立，留证据供真机核对
+                    log("阻抗取自备选偏移 ${m.impedanceSourceOffset}=${m.impedanceOhm}Ω，非本机实测主字段")
+                }
                 impedanceWaitJob?.cancel()
                 val weight = m.weightKg.takeIf { it > 0 } ?: stableWeightKg
                 if (weight != null) {
-                    finalize(weight, m.impedanceOhm)
+                    finalize(weight, m.impedanceOhm, scaleReported)
                 } else {
                     log("结果帧缺体重且无稳定值，忽略")
                 }
@@ -321,35 +363,47 @@ class ScaleBleEngine(
             m.weightKg > 0 && m.isFinal -> {
                 stableWeightKg = m.weightKg
                 _state.value = State.Stabilized(weightKg = round01(m.weightKg))
+                // 变体 B：等阻抗结果帧；变体 A：等第二包成分。窗口内被结果帧提前收尾则作废
                 impedanceWaitJob?.cancel()
                 impedanceWaitJob = appScope.launch {
                     delay(IMPEDANCE_WAIT_MS)
-                    log("等阻抗超时，仅按体重入库")
-                    finalize(m.weightKg, null)
+                    log("等阻抗超时，按${if (scaleReported.isEmpty()) "纯体重" else "秤自报成分"}入库")
+                    finalize(m.weightKg, null, scaleReported)
                 }
             }
 
-            else -> log("成分包：肌肉=${m.muscleRatio} 骨骼=${m.boneKg} 水分=${m.waterRatio}")
+            else -> if (!reportedSomething && m.weightKg == 0.0 && !m.isResultFrame) {
+                log("空帧忽略")
+            }
         }
     }
 
-    private fun finalize(weightKg: Double, impedanceOhm: Double?) {
+    /**
+     * 统一收尾：阻抗优先走 Sun 方程；无阻抗但有变体 A 自报体脂时按质量平衡补全；
+     * 都没有则只记体重。[reported] 为空 map 时视作无自报成分。
+     */
+    private fun finalize(weightKg: Double, impedanceOhm: Double?, reported: Map<String, Double>) {
         if (!sessionActive) return
         sessionActive = false
         impedanceWaitJob?.cancel()
         val rounded = round01(weightKg)
         appScope.launch {
-            // 阻抗 + 身体档案 → 全套身体成分；档案不全或阻抗缺测时仅存阻抗/不存成分
-            val composition = impedanceOhm?.let { z ->
-                BodyFatCalculator.calculate(
-                    sexMale = LocalStorageData.gender.value != "FEMALE",
-                    age = LocalStorageData.age.value,
-                    heightCm = LocalStorageData.height.value.toInt(),
-                    weightKg = rounded,
-                    impedanceOhm = z,
-                )?.copy(impedance = z.toInt())
-                    ?: BodyComposition(impedance = z.toInt())
-            }
+            val profile = Profile(
+                sexMale = Gender.entries.firstOrNull { it.name == LocalStorageData.gender.value } != Gender.FEMALE,
+                age = LocalStorageData.age.value,
+                heightCm = LocalStorageData.height.value.toInt(),
+            )
+            // 阻抗 + 身体档案 → 全套身体成分；自报体脂兜底；公式全部失效时仍保留原始阻抗备查
+            val composition = BodyFatCalculator.resolve(
+                sexMale = profile.sexMale,
+                age = profile.age,
+                heightCm = profile.heightCm,
+                weightKg = rounded,
+                impedanceOhm = impedanceOhm,
+                scaleFatRatio = reported[FAT_KEY],
+            )?.copy(
+                impedance = impedanceOhm?.toInt() ?: 0,
+            ) ?: impedanceOhm?.let { BodyComposition(impedance = it.toInt()) }
             lastComposition = composition
 
             if (autoInsertOnDone) {
@@ -403,6 +457,12 @@ class ScaleBleEngine(
         const val DEVICE_NAME = "icomon"
         private const val SCAN_TIMEOUT_SECONDS = 60
         private const val MAX_LOG_LINES = 200
+
+        /** 变体 A 自报成分在 [scaleReported] 里的键 */
+        private const val FAT_KEY = "fat%"
+        private const val MUSCLE_KEY = "muscle%"
+        private const val BONE_KEY = "boneKg"
+        private const val WATER_KEY = "water%"
 
         /** 防重复入库窗口：同一重量 2 分钟内只记一次 */
         private const val DEDUP_WINDOW_MS = 2 * 60 * 1000L

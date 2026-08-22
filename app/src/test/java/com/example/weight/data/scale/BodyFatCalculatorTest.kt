@@ -70,6 +70,46 @@ class BodyFatCalculatorTest {
         assertEquals("肥胖型", BodyTypeGrid.judge(false, 32.0, 35.0))
     }
 
+    // ---- resolve 统一入口：阻抗 / 秤自报体脂 / 双缺失回退 ----
+
+    @Test
+    fun `resolve_阻抗路径与calculate等价`() {
+        val a = BodyFatCalculator.resolve(true, 24, 185, 101.9, 536.0, scaleFatRatio = null)!!
+        val b = BodyFatCalculator.calculate(true, 24, 185, 101.9, 536.0)!!
+        assertEquals(a, b)
+    }
+
+    @Test
+    fun `resolve_无阻抗走秤自报体脂质量平衡`() {
+        // FFM=57.268 与阻抗锚点几乎同值；肌肉量 = 57.268×0.945 = 54.12 → 54.1（阻抗路径为 54.2）
+        val c = BodyFatCalculator.resolve(true, 24, 185, 101.9, null, scaleFatRatio = 43.8)!!
+        assertEquals(57.3, c.ffm, 0.1)
+        assertEquals(43.8, c.fatRatio, 0.1)
+        assertEquals(41.2, c.waterRatio, 0.15)
+        assertEquals(54.1, c.muscleMass, 0.05)
+        assertEquals(0.0, c.skeletalMuscleMass, 0.001)
+        assertEquals(0.0, c.skeletalMuscleRatio, 0.001)
+        assertEquals(0, c.impedance)
+        // 无阻抗 → SMM 未测得 → 九宫格肌肉维度按"未知不误判"回退：高脂+未知肌 = 肥胖型（非虚胖型）
+        assertEquals("肥胖型", c.bodyType)
+        // 体脂偏离 23.8×0.8=19.04，水分 41.2 偏离带扣 8，SMM/内脏不扣 → 73
+        assertEquals(73, c.bodyScore)
+    }
+
+    @Test
+    fun `resolve_自报体脂越界忽略走Deurenberg回退`() {
+        val c = BodyFatCalculator.resolve(true, 30, 170, 70.0, null, scaleFatRatio = 99.0)!!
+        // BMI = 24.2 → Deurenberg 男 30 岁 = 19.8（与阻抗越界回退用例同值）
+        assertEquals(19.8, c.fatRatio, 0.1)
+        assertEquals(0.0, c.ffm, 0.001)
+    }
+
+    @Test
+    fun `resolve_双缺失且Deurenberg域外返回null`() {
+        // BMI = 12.5 < 13 下限 → 回退也出不来
+        assertNull(BodyFatCalculator.resolve(true, 30, 170, 25.0, null, scaleFatRatio = null))
+    }
+
     // ---- 回退与防线 ----
 
     @Test

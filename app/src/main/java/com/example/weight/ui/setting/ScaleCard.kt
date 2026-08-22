@@ -172,6 +172,18 @@ fun ScaleCard() {
                         Text("重试")
                     }
                 }
+
+                is ScaleBleEngine.State.ProfileIncomplete -> {
+                    StatusText(
+                        "缺少${s.missing.joinToString("、")}信息，无法测算体脂/肌肉率等身体成分" +
+                            "（会严重偏差）。请先在下方「个人档案」中补全；体重仍可手动记录。",
+                        isError = true,
+                    )
+                    OutlinedButton(
+                        onClick = { engine.stopSession() },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("知道了") }
+                }
             }
 
             if (rawLog.isNotEmpty()) {

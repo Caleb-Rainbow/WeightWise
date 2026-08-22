@@ -165,27 +165,7 @@ class IcomonFrameParserTest {
     }
 
     // ---- 握手包构造 ----
-
-    @Test
-    fun `握手包校验和为求和低八位`() {
-        val hs = IcomonFrameParser.buildHandshake(
-            sexMale = true, age = 43, heightCm = 172,
-            nowMs = java.util.Calendar.getInstance().apply { set(2026, 6, 22, 18, 23, 40) }.timeInMillis,
-        )
-        assertEquals(6, hs.size)
-        hs.forEach { pkg ->
-            assertEquals(8, pkg.size)
-            assertEquals(0xAC.toByte(), pkg[0])
-            var sum = 0
-            for (i in 2..6) sum += pkg[i].toInt() and 0xFF
-            assertEquals((sum and 0xFF).toByte(), pkg[7])
-        }
-        // 用户档案包：男/43岁/172cm → AC 02 FB 01 2B AC CC 9F（openScale issue #1428 原始抓包）
-        assertEquals(
-            listOf(0xAC, 0x02, 0xFB, 0x01, 0x2B, 0xAC, 0xCC, 0x9F).map { it.toByte() },
-            hs[2].toList(),
-        )
-    }
+    // 变体 A 的 FFB1 buildHandshake 已删除：引擎统一走 AC 27 档案命令，变体 A 秤自报成分直接入库。
 
     // ---- AC 27 档案命令构造 ----
 
@@ -241,6 +221,8 @@ class IcomonFrameParserTest {
         assertTrue(m!!.isResultFrame)
         assertEquals(101.4, m.weightKg, 0.001)
         assertEquals(2560 / 5.532, m.impedanceOhm!!, 0.01)
+        // 命中的是备选偏移 17（序列号慎信区），供上层告警
+        assertEquals(17, m.impedanceSourceOffset)
     }
 
     @Test
@@ -258,6 +240,7 @@ class IcomonFrameParserTest {
         assertNotNull(m)
         assertEquals(77.5, m!!.weightKg, 0.001)
         assertEquals(500.0, m.impedanceOhm!!, 0.001)
+        assertEquals(4, m.impedanceSourceOffset)
     }
 
     @Test
@@ -272,6 +255,7 @@ class IcomonFrameParserTest {
         assertTrue(m!!.isResultFrame)
         assertEquals(0.0, m.weightKg, 0.001)
         assertEquals(530.0, m.impedanceOhm!!, 0.001)
+        assertEquals(4, m.impedanceSourceOffset)
     }
 
     @Test
@@ -287,6 +271,7 @@ class IcomonFrameParserTest {
         assertNotNull(m)
         assertEquals(77.5, m!!.weightKg, 0.001)
         assertNull(m.impedanceOhm)
+        assertEquals(-1, m.impedanceSourceOffset)
     }
 
     // ---- 杂项 ----

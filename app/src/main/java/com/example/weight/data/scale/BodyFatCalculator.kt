@@ -31,13 +31,15 @@ import kotlin.math.roundToInt
  * 11. 身体得分：100 起评，体脂偏离理想带 0.8/百分点(cap 40)、骨骼肌率低 −15、
  *     水分率偏离带 −8、内脏 >9 级 2/级(cap 15)，clamp 1..100
  *
- * 阻抗缺测/越界/FFM 异常时逐级回退：Deurenberg 1991 BMI 体脂方程
+ * 阻抗缺测/越界/FFM 异常时逐级回退：先试秤自报体脂率的质量平衡，再退 Deurenberg 1991
+ * BMI 体脂方程
  * （fat% = 1.20×BMI + 0.23×age − 10.8×男 − 5.4，Br J Nutr 1991;65:105-114），
  * 回退路径下仅体脂率/体型/得分有值，阻抗派生指标为 0。
  */
 object BodyFatCalculator {
 
     /**
+     * 阻抗路径入口（AC 27 协议秤）；等价于 [resolve] 只带阻抗。
      * @return 成分估算；体重/身高非法（除零防线）时返回 null
      */
     fun calculate(
@@ -46,13 +48,35 @@ object BodyFatCalculator {
         heightCm: Int,
         weightKg: Double,
         impedanceOhm: Double,
+    ): BodyComposition? =
+        resolve(sexMale, age, heightCm, weightKg, impedanceOhm, scaleFatRatio = null)
+
+    /**
+     * 统一入口：优先 Sun 2003 阻抗方程；无阻抗但秤自报了体脂率（变体 A 协议只上报算好的
+     * 成分不出阻抗）时按质量平衡 FFM = W×(1−fat%) 补全派生指标，口径与阻抗路径一致；
+     * 两者都不可用时回退 Deurenberg 仅体脂率/体型/得分。
+     *
+     * @param scaleFatRatio 秤自报体脂率 %；超出合理域视为脏数据忽略
+     */
+    fun resolve(
+        sexMale: Boolean,
+        age: Int,
+        heightCm: Int,
+        weightKg: Double,
+        impedanceOhm: Double?,
+        scaleFatRatio: Double?,
     ): BodyComposition? {
         if (weightKg <= 0 || heightCm <= 0) return null
         val heightM = heightCm / 100.0
         val bmi = weightKg / (heightM * heightM)
 
-        val ffm = sun2003Ffm(sexMale, heightCm, weightKg, impedanceOhm)
-        if (ffm != null) return fullComposition(sexMale, age, heightCm, weightKg, bmi, ffm, impedanceOhm)
+        if (impedanceOhm != null) {
+            sun2003Ffm(sexMale, heightCm, weightKg, impedanceOhm)
+                ?.let { return fullComposition(sexMale, age, heightCm, weightKg, bmi, it, impedanceOhm) }
+        } else if (scaleFatRatio != null && scaleFatRatio in 3.0..60.0) {
+            val ffm = weightKg * (1 - scaleFatRatio / 100.0)
+            return fullComposition(sexMale, age, heightCm, weightKg, bmi, ffm, resistanceOhm = 0.0)
+        }
 
         // 回退：Deurenberg 仅出体脂率/体型/得分
         val fat = deurenbergFat(sexMale, age, bmi) ?: return null
@@ -80,7 +104,10 @@ object BodyFatCalculator {
 
         val bone = (ffm * if (sexMale) 0.055 else 0.05).coerceIn(1.5, 4.5)
         val muscleMass = ffm - bone
-        val smm = janssenSmm(sexMale, age, heightCm, resistanceOhm).coerceIn(0.0, muscleMass)
+        val smm = janssenSmm(sexMale, age, heightCm, resistanceOhm)
+            .takeIf { resistanceOhm > 0 }
+            ?.coerceIn(0.0, muscleMass)
+            ?: 0.0
         val smmRatio = if (smm > 0) (smm / weightKg * 100.0).coerceIn(15.0, 60.0) else 0.0
         val proteinRatio = (0.85 * (ffm - tbw - bone) / weightKg * 100.0).coerceIn(5.0, 25.0)
 
@@ -118,9 +145,8 @@ object BodyFatCalculator {
         return ffm
     }
 
-    /** Janssen 2000 骨骼肌量；阻抗无效时返回 0（SMM 指标记为未测得） */
+    /** Janssen 2000 骨骼肌量；调用方保证 resistanceOhm > 0（无阻抗时 SMM 记为未测得） */
     private fun janssenSmm(sexMale: Boolean, age: Int, heightCm: Int, resistanceOhm: Double): Double {
-        if (resistanceOhm !in 100.0..1500.0) return 0.0
         val h2OverR = heightCm.toDouble() * heightCm / resistanceOhm
         return 0.401 * h2OverR + (if (sexMale) 3.825 else 0.0) - 0.071 * age + 5.102
     }

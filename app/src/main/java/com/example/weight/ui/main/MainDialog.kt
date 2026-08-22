@@ -257,12 +257,14 @@ private fun ScaleSyncHint(state: ScaleBleEngine.State, composition: BodyComposit
             }
         }
         is ScaleBleEngine.State.Failed -> "未连上体脂秤，手动记录即可"
+        is ScaleBleEngine.State.ProfileIncomplete ->
+            "设置页补全${state.missing.joinToString("、")}后才能测体脂，本次手动记录体重即可"
     }
     if (text.isEmpty()) return
     Text(
         text = text,
         style = MaterialTheme.typography.labelSmall,
-        color = if (state is ScaleBleEngine.State.Failed) {
+        color = if (state is ScaleBleEngine.State.Failed || state is ScaleBleEngine.State.ProfileIncomplete) {
             MaterialTheme.colorScheme.onSurfaceVariant
         } else {
             MaterialTheme.colorScheme.primary
