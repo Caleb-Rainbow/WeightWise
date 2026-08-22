@@ -1,6 +1,7 @@
 package com.example.weight.data.record
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -17,15 +18,13 @@ class BodyCompositionMetricItemsTest {
         )
         val items = c.metricItems()
         assertEquals(13, items.size)
-        // 结论项在前
-        assertEquals("体型" to "虚胖型", items[0])
-        assertEquals("身体得分" to "58", items[1])
-        assertEquals("体脂率" to "43.6%", items[2])
-        // 数值项逐个可寻
-        assertTrue("内脏脂肪" to "等级 7" in items)
-        assertTrue("肌肉量" to "54.3 kg" in items)
-        assertTrue("骨量" to "3.2 kg" in items)
-        assertTrue("阻抗" to "534 Ω" in items)
+        // 结论项在前，key 供解读弹窗反查
+        assertEquals(MetricDisplay("bodyType", "体型", "虚胖型"), items[0])
+        assertEquals(MetricDisplay("bodyScore", "身体得分", "58"), items[1])
+        assertEquals(MetricDisplay("fatRatio", "体脂率", "43.6%"), items[2])
+        assertTrue(items.any { it == MetricDisplay("visceralFatLevel", "内脏脂肪", "等级 7") })
+        assertTrue(items.any { it == MetricDisplay("muscleMass", "肌肉量", "54.3 kg") })
+        assertTrue(items.any { it == MetricDisplay("impedance", "阻抗", "534 Ω") })
     }
 
     @Test
@@ -33,7 +32,7 @@ class BodyCompositionMetricItemsTest {
         // 回退路径：仅体脂率 + 体型/得分
         val c = BodyComposition(fatRatio = 19.8, bodyType = "标准型", bodyScore = 92)
         val items = c.metricItems()
-        assertEquals(listOf("体型", "身体得分", "体脂率"), items.map { it.first })
+        assertEquals(listOf("bodyType", "bodyScore", "fatRatio"), items.map { it.key })
     }
 
     @Test
@@ -45,7 +44,20 @@ class BodyCompositionMetricItemsTest {
     fun `整数化数值不带小数尾零`() {
         val c = BodyComposition(boneMass = 3.0, impedance = 500)
         val items = c.metricItems()
-        assertTrue("骨量" to "3 kg" in items)
-        assertTrue("阻抗" to "500 Ω" in items)
+        assertTrue(items.any { it == MetricDisplay("boneMass", "骨量", "3 kg") })
+        assertTrue(items.any { it == MetricDisplay("impedance", "阻抗", "500 Ω") })
+    }
+
+    @Test
+    fun `rawValueOf反查与未测返回null`() {
+        val c = BodyComposition(
+            fatRatio = 43.6, visceralFatLevel = 7, bodyScore = 58, bodyType = "虚胖型",
+        )
+        assertEquals(43.6, c.rawValueOf("fatRatio")!!, 0.001)
+        assertEquals(7.0, c.rawValueOf("visceralFatLevel")!!, 0.001)
+        assertEquals(58.0, c.rawValueOf("bodyScore")!!, 0.001)
+        assertNull(c.rawValueOf("bodyType"))     // 文本型
+        assertNull(c.rawValueOf("waterRatio"))   // 未测
+        assertNull(c.rawValueOf("nonexistent"))
     }
 }

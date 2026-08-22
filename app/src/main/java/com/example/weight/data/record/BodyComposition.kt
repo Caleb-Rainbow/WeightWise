@@ -44,29 +44,48 @@ data class BodyComposition(
     val hasAny: Boolean get() = fatRatio > 0 || waterRatio > 0 || muscleRatio > 0 || impedance > 0
 
     /**
-     * 面向展示的指标项列表（标签 to 显示值），按重要性排序：结论项（体型/得分）→
-     * 脂肪类 → 水分肌肉类 → 基础量 → 原始阻抗；未测得的项（0/空）自动跳过，
-     * 因此手动记录（无成分）与回退路径（仅体脂）都能安全复用同一网格 UI。
+     * 面向展示的指标项，按重要性排序：结论项（体型/得分）→ 脂肪类 → 水分肌肉类 →
+     * 基础量 → 原始阻抗。[key] 供指标解读弹窗（[MetricGuide]）反查定义；
+     * 未测得的项（0/空）自动跳过，手动记录与回退路径都能安全复用同一网格 UI。
      */
-    fun metricItems(): List<Pair<String, String>> = buildList {
-        if (bodyType.isNotBlank()) add("体型" to bodyType)
-        if (bodyScore > 0) add("身体得分" to "$bodyScore")
-        if (fatRatio > 0) add("体脂率" to "${fmt(fatRatio)}%")
-        if (visceralFatLevel > 0) add("内脏脂肪" to "等级 $visceralFatLevel")
-        if (subcutaneousFatRatio > 0) add("皮下脂肪率" to "${fmt(subcutaneousFatRatio)}%")
-        if (waterRatio > 0) add("水分率" to "${fmt(waterRatio)}%")
-        if (muscleMass > 0) add("肌肉量" to "${fmt(muscleMass)} kg")
-        if (skeletalMuscleMass > 0) add("骨骼肌量" to "${fmt(skeletalMuscleMass)} kg")
-        if (skeletalMuscleRatio > 0) add("骨骼肌率" to "${fmt(skeletalMuscleRatio)}%")
-        if (proteinRatio > 0) add("蛋白质率" to "${fmt(proteinRatio)}%")
-        if (ffm > 0) add("去脂体重" to "${fmt(ffm)} kg")
-        if (boneMass > 0) add("骨量" to "${fmt(boneMass)} kg")
-        if (impedance > 0) add("阻抗" to "$impedance Ω")
+    fun metricItems(): List<MetricDisplay> = buildList {
+        if (bodyType.isNotBlank()) add(MetricDisplay("bodyType", "体型", bodyType))
+        if (bodyScore > 0) add(MetricDisplay("bodyScore", "身体得分", "$bodyScore"))
+        if (fatRatio > 0) add(MetricDisplay("fatRatio", "体脂率", "${fmt(fatRatio)}%"))
+        if (visceralFatLevel > 0) add(MetricDisplay("visceralFatLevel", "内脏脂肪", "等级 $visceralFatLevel"))
+        if (subcutaneousFatRatio > 0) add(MetricDisplay("subcutaneousFatRatio", "皮下脂肪率", "${fmt(subcutaneousFatRatio)}%"))
+        if (waterRatio > 0) add(MetricDisplay("waterRatio", "水分率", "${fmt(waterRatio)}%"))
+        if (muscleMass > 0) add(MetricDisplay("muscleMass", "肌肉量", "${fmt(muscleMass)} kg"))
+        if (skeletalMuscleMass > 0) add(MetricDisplay("skeletalMuscleMass", "骨骼肌量", "${fmt(skeletalMuscleMass)} kg"))
+        if (skeletalMuscleRatio > 0) add(MetricDisplay("skeletalMuscleRatio", "骨骼肌率", "${fmt(skeletalMuscleRatio)}%"))
+        if (proteinRatio > 0) add(MetricDisplay("proteinRatio", "蛋白质率", "${fmt(proteinRatio)}%"))
+        if (ffm > 0) add(MetricDisplay("ffm", "去脂体重", "${fmt(ffm)} kg"))
+        if (boneMass > 0) add(MetricDisplay("boneMass", "骨量", "${fmt(boneMass)} kg"))
+        if (impedance > 0) add(MetricDisplay("impedance", "阻抗", "$impedance Ω"))
     }
 
     private fun fmt(v: Double): String =
         if (v == v.toLong().toDouble()) v.toLong().toString() else String.format("%.1f", v)
+
+    /** 按指标 key 反查原始数值（未测/非数值型返回 null），供 [MetricGuide] 状态判定 */
+    fun rawValueOf(key: String): Double? = when (key) {
+        "fatRatio" -> fatRatio.takeIf { it > 0 }
+        "visceralFatLevel" -> visceralFatLevel.takeIf { it > 0 }?.toDouble()
+        "subcutaneousFatRatio" -> subcutaneousFatRatio.takeIf { it > 0 }
+        "waterRatio" -> waterRatio.takeIf { it > 0 }
+        "muscleMass" -> muscleMass.takeIf { it > 0 }
+        "skeletalMuscleMass" -> skeletalMuscleMass.takeIf { it > 0 }
+        "skeletalMuscleRatio" -> skeletalMuscleRatio.takeIf { it > 0 }
+        "proteinRatio" -> proteinRatio.takeIf { it > 0 }
+        "ffm" -> ffm.takeIf { it > 0 }
+        "boneMass" -> boneMass.takeIf { it > 0 }
+        "bodyScore" -> bodyScore.takeIf { it > 0 }?.toDouble()
+        else -> null
+    }
 }
+
+/** 网格展示项：key 对应 [MetricGuide] 的指标定义 */
+data class MetricDisplay(val key: String, val label: String, val value: String)
 
 /** Record.bodyComposition 列的编解码；坏数据返回 null 而不是抛异常 */
 object BodyCompositionJson {
