@@ -1522,10 +1522,11 @@ private fun HistoryTabPage(
 ) {
     val today = remember { LocalDate.now() }
     val mealTypeByName = remember { MealType.entries.associateBy { it.name } }
+    val recordedDays = remember(state.days) { state.days.filter { it.records.isNotEmpty() } }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 15.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         // 时间口径:复用主屏 ScopeSelector 的心智(近30天/近3月/近6月)
         item(key = "range_selector") {
@@ -1545,7 +1546,7 @@ private fun HistoryTabPage(
             }
         }
 
-        if (state.days.all { it.records.isEmpty() }) {
+        if (recordedDays.isEmpty()) {
             item(key = "empty_history") {
                 Column(
                     modifier = Modifier
@@ -1553,84 +1554,89 @@ private fun HistoryTabPage(
                         .padding(vertical = 32.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
+                    Box(
+                        modifier = Modifier
+                            .size(52.dp)
+                            .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            MealType.LUNCH.icon,
+                            contentDescription = null,
+                            modifier = Modifier.size(26.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
                     Text(
                         "该时段暂无记录",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
                         textAlign = TextAlign.Center,
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        "记录一餐后，这里会按日期汇总",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
                     OutlinedButton(onClick = onGoAdd, shape = RoundedCornerShape(12.dp)) {
                         Text("去记第一笔")
                     }
                 }
             }
         } else {
-            items(state.days, key = { "day_${it.date}" }) { day ->
-                if (day.records.isEmpty()) {
-                    // 空档日(OV4B):紧凑行,无合计
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp, bottom = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
+            item(key = "history_count") {
+                Text(
+                    "有记录 ${recordedDays.size} 天",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            items(recordedDays, key = { "day_${it.date}" }) { day ->
+                // 日期头:人性化日期+当日红绿灯点+日合计
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
-                                .size(6.dp)
-                                .background(TrafficLightColors.Unknown.resolve(), CircleShape)
+                                .size(8.dp)
+                                .background(
+                                    day.trafficLight?.let { trafficLightColor(it) }
+                                        ?: TrafficLightColors.Unknown.resolve(),
+                                    CircleShape
+                                )
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            "${TimeUtils.humanizeDate(today, day.date)} · 当天未记录",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            TimeUtils.humanizeDate(today, day.date),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
                         )
                     }
-                } else {
-                    // 日期头:人性化日期+当日红绿灯点+日合计
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .background(
-                                        day.trafficLight?.let { trafficLightColor(it) }
-                                            ?: TrafficLightColors.Unknown.resolve(),
-                                        CircleShape
-                                    )
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                TimeUtils.humanizeDate(today, day.date),
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                            )
-                        }
-                        Text(
-                            "${day.totalCalories} kcal",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    day.records.forEach { record ->
-                        val texts = rememberRecordTexts(
-                            record,
-                            mealLabel = mealTypeByName[record.mealType]?.displayName,
-                        )
-                        DietRecordRow(
-                            record = record,
-                            title = texts.first,
-                            subtitle = texts.second,
-                            onClick = { onEditRecord(record) },
-                        )
-                    }
+                    Text(
+                        "${day.totalCalories} kcal",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                day.records.forEach { record ->
+                    val texts = rememberRecordTexts(
+                        record,
+                        mealLabel = mealTypeByName[record.mealType]?.displayName,
+                    )
+                    DietRecordRow(
+                        record = record,
+                        title = texts.first,
+                        subtitle = texts.second,
+                        onClick = { onEditRecord(record) },
+                    )
                 }
             }
         }
