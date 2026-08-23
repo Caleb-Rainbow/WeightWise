@@ -94,7 +94,6 @@ fun SettingScreen(modifier: Modifier = Modifier, goBack: () -> Unit) {
         ) {
             item { GoalCard() }
             item { ProfileCard() }
-            item { ScaleCard() }
             item { AppearanceCard() }
             item { ReminderPushCard() }
             item { AiModelCard() }
