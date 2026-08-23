@@ -65,6 +65,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -157,8 +159,11 @@ fun DietRecordScreen(
     }
 
     // 备注放本地状态:进 ViewModel 的 StateFlow 会让整个页面的每个 item 逐字符重组,
-    // 只在发起分析/保存时把最终值传给 VM;HorizontalPager 保活使切 Tab 不丢
-    var userNote by rememberSaveable { mutableStateOf("") }
+    // 只在发起分析/保存时把最终值传给 VM;HorizontalPager 保活使切 Tab 不丢。
+    // 传 MutableState 对象而非值:逐键击只有输入框叶子重组,列表其余 item 不被卷入;
+    // hasNote 走 derivedStateOf,仅在 空↔非空 翻转时才触发上层重组(驱动主按钮形态)
+    val noteState = rememberSaveable { mutableStateOf("") }
+    val hasNote by remember { derivedStateOf { noteState.value.isNotBlank() } }
 
     // 「添加」Tab 的食物项编辑弹窗(index=-1 表示新增)
     var showFoodEditor by remember { mutableStateOf(false) }
@@ -218,7 +223,7 @@ fun DietRecordScreen(
         viewModel.events.collect { event ->
             when (event) {
                 is DietEvent.RecordSaved -> {
-                    userNote = ""
+                    noteState.value = ""
                     snackBarShow(
                         event.remainingCalories?.let { "已记录,今日还可摄入 $it kcal" } ?: "已记录"
                     )
@@ -306,8 +311,8 @@ fun DietRecordScreen(
                         state = addState,
                         todayTotalCalories = todayState.totalCalories,
                         recommendedCalories = todayState.recommendedCalories,
-                        userNote = userNote,
-                        onUserNoteChange = { userNote = it },
+                        noteState = noteState,
+                        hasNote = hasNote,
                         onMealTypeSelected = viewModel::onMealTypeSelected,
                         onTakePhoto = { launchCamera() },
                         onPickFromGallery = {
@@ -316,14 +321,14 @@ fun DietRecordScreen(
                             )
                         },
                         onClearImage = viewModel::clearImage,
-                        onStartAnalysis = { viewModel.startAnalysis(userNote) },
+                        onStartAnalysis = { viewModel.startAnalysis(noteState.value) },
                         onCancelAnalysis = viewModel::cancelAnalysis,
                         onDiscardAnalysis = viewModel::discardAnalysis,
                         onQuickAddFood = viewModel::addFoodItem,
                         onEditFood = ::openFoodEditor,
                         onRemoveFood = viewModel::removeFoodItem,
                         onClearFoods = viewModel::clearFoods,
-                        onSave = { viewModel.saveRecord(userNote) },
+                        onSave = { viewModel.saveRecord(noteState.value) },
                         listState = addListState,
                     )
                     TAB_TODAY -> TodayTabPage(
@@ -350,8 +355,8 @@ private fun AddTabPage(
     state: AddTabState,
     todayTotalCalories: Int,
     recommendedCalories: Int?,
-    userNote: String,
-    onUserNoteChange: (String) -> Unit,
+    noteState: MutableState<String>,
+    hasNote: Boolean,
     onMealTypeSelected: (MealType) -> Unit,
     onTakePhoto: () -> Unit,
     onPickFromGallery: () -> Unit,
@@ -369,7 +374,7 @@ private fun AddTabPage(
     // D11/OV2A:四输入穷举;isAnalyzing 时按钮由「取消识别」分支覆盖
     val action = dietPrimaryAction(
         hasImage = state.hasImage,
-        hasNote = userNote.isNotBlank(),
+        hasNote = hasNote,
         hasFoods = state.recognizedFoods.isNotEmpty(),
         hasResult = state.aiResponse != null,
     )
@@ -490,13 +495,7 @@ private fun AddTabPage(
                         }
                     }
 
-                    OutlinedTextField(
-                        value = userNote,
-                        onValueChange = onUserNoteChange,
-                        label = { Text("添加备注(如:只吃了一半)") },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                    )
+                    NoteField(noteState)
                 }
             }
         }
@@ -536,7 +535,7 @@ private fun AddTabPage(
                                 }
                                 Text("保存这餐 · $quickTotal kcal", fontWeight = FontWeight.Bold)
                             }
-                            if (userNote.isNotBlank()) {
+                            if (hasNote) {
                                 TextButton(onClick = onStartAnalysis) {
                                     Text("改用文本识别", fontSize = 13.sp)
                                 }
@@ -547,7 +546,7 @@ private fun AddTabPage(
                                 onClick = if (state.isAnalyzing) onCancelAnalysis else onStartAnalysis,
                                 modifier = Modifier.fillMaxWidth(),
                                 // 分析中该按钮是「取消识别」,必须可点;空闲时要求有图或有备注
-                                enabled = !state.isSaving && (state.isAnalyzing || state.hasImage || userNote.isNotBlank()),
+                                enabled = !state.isSaving && (state.isAnalyzing || state.hasImage || hasNote),
                                 shape = RoundedCornerShape(12.dp),
                             ) {
                                 if (state.isAnalyzing) {
@@ -647,6 +646,21 @@ private fun AddTabPage(
             runCatching { listState.animateScrollToItem(1) }
         }
     }
+}
+
+/**
+ * 备注输入框:独立叶子组件持有对 [noteState] 的读写,逐键击只重组本组件,
+ * 输入卡其余部分(餐次 chips/图片区/常用食物)与下方列表 item 均不受影响。
+ */
+@Composable
+private fun NoteField(noteState: MutableState<String>) {
+    OutlinedTextField(
+        value = noteState.value,
+        onValueChange = { noteState.value = it },
+        label = { Text("添加备注(如:只吃了一半)") },
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+    )
 }
 
 /** 食物编辑弹窗状态由屏幕宿主持有,编辑器/添加页共用 */
@@ -950,6 +964,9 @@ private fun TodayTabPage(
     goSetting: () -> Unit,
 ) {
     val mealTypeByName = remember { MealType.entries.associateBy { it.name } }
+    // 按餐次分组结果 remember 键住记录列表：无关重组（额度刷新等）不必重建分组；
+    // LazyListScope 构建块不是 @Composable 上下文，remember 须放在 LazyColumn 之外
+    val groupedByMeal = remember(state.records) { state.records.groupBy { it.mealType } }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 15.dp, vertical = 12.dp),
@@ -993,10 +1010,9 @@ private fun TodayTabPage(
                 }
             }
         } else {
-            // 按餐次分组:组头=图标+餐次+首条时间+小计
-            val grouped = state.records.groupBy { it.mealType }
+            // 按餐次分组:组头=图标+餐次+首条时间+小计（分组结果见 LazyColumn 上方的 remember）
             MealType.entries.forEach { mealType ->
-                val mealRecords = grouped[mealType.name] ?: return@forEach
+                val mealRecords = groupedByMeal[mealType.name] ?: return@forEach
                 val subtotal = mealRecords.sumOf { it.estimatedCalories }
                 val firstTime = TimeUtils.convertMillisToHM(mealRecords.minOf { it.timestamp })
                 item(key = "meal_header_${mealType.name}") {

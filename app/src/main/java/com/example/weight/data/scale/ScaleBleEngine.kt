@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * icomon 体脂秤蓝牙引擎：扫描 → 连接 → 订阅 FFB2 通知 → 解析体重 → 去重入库。
@@ -165,12 +166,17 @@ class ScaleBleEngine(
         sessionActive = false
         scanTimeoutJob?.cancel()
         scanTimeoutJob = null
-        runCatching { adapter?.bluetoothLeScanner?.stopScan(scanCallback) }
-        runCatching { gatt?.close() }
-        gatt = null
+        releaseBluetooth()
         if (_state.value !is State.Done && _state.value !is State.Failed) {
             _state.value = State.Idle
         }
+    }
+
+    /** 停止扫描并关闭 GATT；幂等，可从任意线程调用 */
+    private fun releaseBluetooth() {
+        runCatching { adapter?.bluetoothLeScanner?.stopScan(scanCallback) }
+        runCatching { gatt?.close() }
+        gatt = null
     }
 
     // ---------------- 扫描 ----------------
@@ -312,20 +318,25 @@ class ScaleBleEngine(
 
     // ---------------- 数据解析与入库 ----------------
 
-    /** 稳定帧先到、阻抗结果帧晚约 3 秒：暂存稳定值，等阻抗或超时再入库 */
+    /** 稳定帧先到、阻抗结果帧晚约 3 秒：暂存稳定值，等阻抗或超时再入库（Binder 线程写、IO 协程读） */
+    @Volatile
     private var stableWeightKg: Double? = null
     private var impedanceWaitJob: Job? = null
 
     /**
      * 变体 A 秤的自报成分（体脂率/肌肉率/骨量/水分分属两个 20 字节包）：跨帧暂存，
      * 稳定体重到齐后经 [BodyFatCalculator.resolve] 的秤自报路径入库。
+     * Binder 线程写、finalize 的 IO 协程读，用并发容器防撕裂遍历。
      */
-    private val scaleReported = mutableMapOf<String, Double>()
+    private val scaleReported = ConcurrentHashMap<String, Double>()
 
     /** 档案快照：会话期间固定，避免称重中途改档案导致同一轮数据口径不一致 */
     private data class Profile(val sexMale: Boolean, val age: Int, val heightCm: Int)
 
     private fun handleFrame(payload: ByteArray) {
+        // 会话已收尾（Done/Failed/手动停止）后秤仍会重发稳定帧：直接丢弃，防止状态机
+        // 从终态回退到 Measuring/Stabilized 卡死，也省掉每帧的解析、日志与分配
+        if (!sessionActive) return
         log("通知 ${hex(payload)}")
         val m = IcomonFrameParser.parse(payload)
         if (m == null) {
@@ -386,6 +397,9 @@ class ScaleBleEngine(
         if (!sessionActive) return
         sessionActive = false
         impedanceWaitJob?.cancel()
+        // 数据已取齐（阻抗帧已到或自报成分窗口已过），及时断开：
+        // 否则连接与通知流会一直活到用户离开页面，秤端持续耗电、手机端持续处理空帧
+        releaseBluetooth()
         val rounded = round01(weightKg)
         appScope.launch {
             val profile = Profile(
@@ -440,13 +454,35 @@ class ScaleBleEngine(
         if (!sessionActive) return
         sessionActive = false
         scanTimeoutJob?.cancel()
+        // 失败路径同样要停扫描、断连接：否则扫描超时后 LE scanner 仍在全占空比扫，
+        // 订阅失败的 GATT 句柄被单例一直持有
+        releaseBluetooth()
         _state.value = State.Failed(message)
     }
+
+    /** 日志环形缓冲：Binder 线程与 IO 协程并发写入，攒批后整体推给 UI */
+    private val logBuffer = ArrayDeque<String>(MAX_LOG_LINES)
+    private val logLock = Any()
+    private var logFlushJob: Job? = null
 
     private fun log(line: String) {
         // Log.d 在 MIUI 上默认被吞，用 info 级保证真机抓包可见
         android.util.Log.i("ScaleBle", line)
-        _rawLog.value = (_rawLog.value + line).takeLast(MAX_LOG_LINES)
+        synchronized(logLock) {
+            if (logBuffer.size >= MAX_LOG_LINES) logBuffer.removeFirst()
+            logBuffer.addLast(line)
+            // 测量帧速率为每秒数包，逐条发射会让 UI 每帧重组整卡并整表拷贝；
+            // 攒 LOG_FLUSH_INTERVAL_MS 一批再推，发射频率降一个数量级
+            if (logFlushJob == null) {
+                logFlushJob = appScope.launch {
+                    delay(LOG_FLUSH_INTERVAL_MS)
+                    synchronized(logLock) {
+                        logFlushJob = null
+                        _rawLog.value = logBuffer.toList()
+                    }
+                }
+            }
+        }
     }
 
     private fun round01(v: Double) = kotlin.math.round(v * 10) / 10
@@ -457,6 +493,9 @@ class ScaleBleEngine(
         const val DEVICE_NAME = "icomon"
         private const val SCAN_TIMEOUT_SECONDS = 60
         private const val MAX_LOG_LINES = 200
+
+        /** rawLog 攒批推送间隔：远小于人眼感知阈值，只用于削掉逐帧发射的重组风暴 */
+        private const val LOG_FLUSH_INTERVAL_MS = 200L
 
         /** 变体 A 自报成分在 [scaleReported] 里的键 */
         private const val FAT_KEY = "fat%"

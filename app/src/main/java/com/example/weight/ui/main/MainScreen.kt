@@ -151,16 +151,11 @@ fun MainScreen(
             )
         }
     ) { paddingValues ->
-        // null 表示范围切换的加载瞬间，用上一次数据兜底，避免内容闪烁
-        val currentScopeDataList by viewModel.currentScopeData.collectAsStateWithLifecycle(initialValue = null)
-        var cachedData by remember { mutableStateOf<List<DailyMinWeight>?>(null) }
-        val scopeData = currentScopeDataList ?: cachedData
-        LaunchedEffect(currentScopeDataList) {
-            val list = currentScopeDataList
-            if (list != null) {
-                cachedData = list
-                viewModel.setSelectedRecord(list.lastOrNull())
-            }
+        // 缓存在 ViewModel 的 StateFlow 里：导航返回直接回放旧值，null 仅表示真正的首次加载
+        val currentScopeData by viewModel.currentScopeData.collectAsStateWithLifecycle()
+        val scopeData = currentScopeData
+        LaunchedEffect(currentScopeData) {
+            currentScopeData?.let { viewModel.setSelectedRecord(it.lastOrNull()) }
         }
 
         Column(
@@ -175,7 +170,7 @@ fun MainScreen(
                 else -> {
                     val maxWeightRecord = remember(scopeData) { scopeData.maxByOrNull { it.minWeight } }
                     val minWeightRecord = remember(scopeData) { scopeData.minByOrNull { it.minWeight } }
-                    val predictionDataList by viewModel.predictionData.collectAsStateWithLifecycle(initialValue = emptyList())
+                    val predictionDataList by viewModel.predictionData.collectAsStateWithLifecycle()
                     val targetWeight by LocalStorageData.targetWeight.collectAsStateWithLifecycle()
                     // Y 轴范围并入目标体重，保证目标参考虚线始终可见
                     val chartMaxWeight = remember(maxWeightRecord, targetWeight) {
@@ -727,9 +722,10 @@ private fun StatsSummaryCard(
             )
             VerticalDivider(Modifier.height(40.dp))
             val delta = lastWeightRecord?.minWeight?.minus(firstWeightRecord?.minWeight ?: 0.0) ?: 0.0
+            val deltaFormat = remember { DecimalFormat("+#.#;-#.#") }
             StatItem(
                 modifier = Modifier.weight(1f),
-                value = DecimalFormat("+#.#;-#.#").format(delta),
+                value = deltaFormat.format(delta),
                 label = "变化",
                 sub = buildString {
                     firstWeightRecord?.timestamp?.let { append(TimeUtils.convertMillisToDate(it).takeLast(5)) }

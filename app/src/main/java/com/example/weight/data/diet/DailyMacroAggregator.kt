@@ -22,18 +22,27 @@ data class DailyMacros(
  **/
 object DailyMacroAggregator {
 
-    fun aggregate(records: List<DietRecord>, json: Json): DailyMacros {
+    fun aggregate(records: List<DietRecord>, json: Json): DailyMacros = aggregate(records) { text ->
+        runCatching { json.decodeFromString<List<RecognizedFoodItem>>(text) }.getOrNull()
+    }
+
+    /**
+     * 解码器注入版：调用方可传带缓存的解码器。Room 表级失效会让任一记录写入
+     * 重发全量列表，未变化记录的 JSON 逐条重新解码是纯浪费。
+     * 解码器返回 null 视为该条解析失败（跳过并计数）。
+     */
+    fun aggregate(records: List<DietRecord>, decode: (String) -> List<RecognizedFoodItem>?): DailyMacros {
         var protein = 0
         var carbs = 0
         var fat = 0
         var hasMacroData = false
         var skipped = 0
         for (record in records) {
-            val foods = runCatching {
-                json.decodeFromString<List<RecognizedFoodItem>>(record.recognizedFoodJson)
-            }.onFailure {
+            val foods = decode(record.recognizedFoodJson)
+            if (foods == null) {
                 skipped++
-            }.getOrNull() ?: continue
+                continue
+            }
             for (food in foods) {
                 protein += food.protein
                 carbs += food.carbs

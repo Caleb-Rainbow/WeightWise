@@ -81,6 +81,9 @@ import java.text.DecimalFormat
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
+/** 共享格式器：DecimalFormat 构造含 pattern 编译，组合体内逐条目新建是滚动热路径的纯浪费；仅主线程组合使用 */
+private val oneDecimalFormat = DecimalFormat("#.#")
+
 @Composable
 fun RecordScreen(
     modifier: Modifier = Modifier,
@@ -313,7 +316,7 @@ private fun RecordSummaryContent(latestRecord: Record?, recordCount: Int) {
         ) {
             SummaryItem(
                 modifier = Modifier.weight(1f),
-                value = latestRecord?.let { DecimalFormat("#.#").format(it.weight) } ?: "--",
+                value = latestRecord?.let { oneDecimalFormat.format(it.weight) } ?: "--",
                 unit = "kg",
                 label = "最新体重"
             )
@@ -401,12 +404,16 @@ private fun RecordItemContent(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    // 体脂秤测得的成分：时间旁一颗小标签（仅体脂率，成分全无则不显示）
-                    BodyCompositionJson.decode(record.bodyComposition)?.fatRatio
-                        ?.takeIf { it > 0 }?.let { fat ->
+                    // 体脂秤测得的成分：时间旁一颗小标签（仅体脂率，成分全无则不显示）。
+                    // remember 键住 JSON 文本：列表项每次重组（增删/分页追加）不必重新解码
+                    val fatLabelText = remember(record.bodyComposition) {
+                        BodyCompositionJson.decode(record.bodyComposition)?.fatRatio
+                            ?.takeIf { it > 0 }?.let { "体脂 ${oneDecimalFormat.format(it)}%" }
+                    }
+                    fatLabelText?.let { fat ->
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "体脂 ${DecimalFormat("#.#").format(fat)}%",
+                                text = fat,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier
@@ -416,7 +423,7 @@ private fun RecordItemContent(
                                     )
                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                             )
-                        }
+                    }
                 }
                 if (record.log.isNotBlank()) {
                     Spacer(modifier = Modifier.height(2.dp))
@@ -433,7 +440,7 @@ private fun RecordItemContent(
             Column(horizontalAlignment = Alignment.End) {
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
-                        text = DecimalFormat("#.#").format(record.weight),
+                        text = oneDecimalFormat.format(record.weight),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary

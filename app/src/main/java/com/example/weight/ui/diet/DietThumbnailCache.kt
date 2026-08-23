@@ -35,9 +35,10 @@ class DietThumbnailCache(private val application: Application) {
             )
         }.onFailure { android.util.Log.w("DietThumb", "缩略图解码失败 $path", it) }
             .getOrNull()
-            ?: // decodeScaled 内部已降采样;极端坏图再退一次原始 BitmapFactory 兜底
+            ?: // decodeScaled 内部已降采样;极端坏图再退一次原始 BitmapFactory 兜底。
+            // 包进 IO：get() 的调用方协程在主线程时，全尺寸解码不能落在主线程
             runCatching {
-                BitmapFactory.decodeFile(path)
+                withContext(Dispatchers.IO) { BitmapFactory.decodeFile(path) }
             }.getOrNull()
             ?: return null
         val imageBitmap = bitmap.asImageBitmap()

@@ -40,8 +40,6 @@ fun ScaleCard() {
     val snackBarShow = LocalSnackBarShow.current
 
     val state by engine.state.collectAsStateWithLifecycle()
-    val rawLog by engine.rawLog.collectAsStateWithLifecycle()
-    var showLog by remember { mutableStateOf(false) }
 
     // 入库后刷新小组件并提示；state 变化驱动，Done 只会触发一次
     LaunchedEffect(state) {
@@ -186,19 +184,30 @@ fun ScaleCard() {
                 }
             }
 
-            if (rawLog.isNotEmpty()) {
-                OutlinedButton(onClick = { showLog = !showLog }) {
-                    Text(if (showLog) "收起调试日志" else "查看调试日志（${rawLog.size}）")
-                }
-                if (showLog) {
-                    Text(
-                        rawLog.joinToString("\n"),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
+            RawLogSection(engine)
+        }
+    }
+}
+
+/**
+ * 折叠的原始蓝牙日志区。自行收集 rawLog：测量期间日志以攒批节奏持续追加，
+ * 收集在本组件内只重绘这一段，不把上面的状态卡与按钮卷进重组。
+ */
+@Composable
+private fun RawLogSection(engine: ScaleBleEngine) {
+    val rawLog by engine.rawLog.collectAsStateWithLifecycle()
+    var showLog by remember { mutableStateOf(false) }
+    if (rawLog.isNotEmpty()) {
+        OutlinedButton(onClick = { showLog = !showLog }) {
+            Text(if (showLog) "收起调试日志" else "查看调试日志（${rawLog.size}）")
+        }
+        if (showLog) {
+            Text(
+                rawLog.joinToString("\n"),
+                style = MaterialTheme.typography.labelSmall,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

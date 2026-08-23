@@ -35,8 +35,9 @@ interface RecordDao {
     )
     fun pagingSource(query: String): PagingSource<Int, Record>
 
+    // suspend：Room 自动调度到 IO 执行器，杜绝调用方忘包 withContext 时阻塞主线程的隐患
     @Query("SELECT * FROM Record ORDER BY id DESC LIMIT 1")
-    fun getLastData(): Record?
+    suspend fun getLastData(): Record?
 
     @Query("SELECT * FROM Record ORDER BY timestamp DESC LIMIT 1")
     fun getLastDataFlow(): Flow<Record?>
@@ -45,7 +46,7 @@ interface RecordDao {
     fun getRecordCount(): Flow<Int>
 
     @Query("SELECT * FROM Record ORDER BY id asc LIMIT 1")
-    fun getFirstData(): Record?
+    suspend fun getFirstData(): Record?
 
     @Query("SELECT * FROM Record ORDER BY id asc LIMIT 1")
     fun getFirstDataFlow(): Flow<Record?>

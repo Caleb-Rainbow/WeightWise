@@ -16,11 +16,20 @@ import kotlinx.coroutines.launch
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.GlobalContext
 import org.koin.plugin.module.dsl.startKoin
+import androidx.work.Configuration
 
-class App : Application() {
+class App : Application(), Configuration.Provider {
 
     /** 应用级协程域：饮食删除撤销窗口等必须活过 ViewModel 生命周期的异步工作挂这里 */
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /**
+     * WorkManager 按需初始化：默认 Initializer 会在每次进程启动时提前打开 WorkDatabase；
+     * 实现本接口 + manifest 移除 WorkManagerInitializer 后，首次 getInstance 才初始化
+     * （本应用调度全部来自设置页，Worker 执行时系统会自动完成初始化）
+     */
+    override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder().build()
 
     override fun onCreate() {
         super.onCreate()

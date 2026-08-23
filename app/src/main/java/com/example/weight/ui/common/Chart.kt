@@ -122,15 +122,27 @@ internal data class TargetWeightLine(
 ) : Decoration {
     private val paint = Paint()
 
+    /** 虚线效果按像素间距缓存：drawOverLayers 在图表滚动/标记动画期间逐帧执行，每帧新建 PathEffect 是纯分配浪费 */
+    private var cachedDashEffect: PathEffect? = null
+    private var cachedDashPx = -1f
+    private var cachedGapPx = -1f
+
     override fun drawOverLayers(context: CartesianDrawingContext) {
         with(context) {
             val yRange = ranges.getYRange(null)
             if (yRange.length <= 0 || y !in yRange.minY..yRange.minY + yRange.length) return
             val canvasY =
                 layerBounds.bottom - ((y - yRange.minY) / yRange.length).toFloat() * layerBounds.height
+            val dashPx = dashLength.pixels
+            val gapPx = gapLength.pixels
+            if (cachedDashEffect == null || cachedDashPx != dashPx || cachedGapPx != gapPx) {
+                cachedDashEffect = PathEffect.dashPathEffect(floatArrayOf(dashPx, gapPx), 0f)
+                cachedDashPx = dashPx
+                cachedGapPx = gapPx
+            }
             paint.color = color
             paint.strokeWidth = thickness.pixels
-            paint.pathEffect = PathEffect.dashPathEffect(floatArrayOf(dashLength.pixels, gapLength.pixels), 0f)
+            paint.pathEffect = cachedDashEffect
             canvas.drawLine(Offset(layerBounds.left, canvasY), Offset(layerBounds.right, canvasY), paint)
             if (label == null) return
             // 标签贴图层右缘、优先放线上方；线贴近顶部时翻到下方，避免被裁剪
@@ -254,6 +266,7 @@ fun BMIIndexChart(
                 }
             }
             if (rowWidthPx > 0) {
+                val boundaryFormat = remember { DecimalFormat("0.0") }
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -269,7 +282,7 @@ fun BMIIndexChart(
                                 val spacerCenterXDp = with(density) { spacerCenterX.toDp() }
                                 val labelValue = bmiEnum.end // 当前区间的结束值就是分割点
                                 Text(
-                                    text = DecimalFormat("0.0").format(labelValue+0.1),
+                                    text = boundaryFormat.format(labelValue+0.1),
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier

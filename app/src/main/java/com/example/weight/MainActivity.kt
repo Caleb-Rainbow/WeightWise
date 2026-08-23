@@ -27,12 +27,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -190,21 +190,23 @@ private fun MainNav3(
         })
 }
 
-val LocalSnackBarShow = compositionLocalOf<(String) -> Unit> {
+// static：这些入口在 ProvideSnackBarHost 里经 remember 固定为单例，值不再变化，
+// 用 static 让读取方免于逐次失效追踪，弹窗开关不再波及各页面
+val LocalSnackBarShow = staticCompositionLocalOf<(String) -> Unit> {
     error("No LocalSnackBarShow provided")
 }
 
 /** 饮食删除撤销等需要带 action 按钮 SnackBar 的场景直接拿宿主状态自行 showSnackbar（可控制时长/取消重发） */
-val LocalSnackbarHostState = compositionLocalOf<SnackbarHostState> {
+val LocalSnackbarHostState = staticCompositionLocalOf<SnackbarHostState> {
     error("No LocalSnackbarHostState provided")
 }
-val LocalShowLoadingDialog = compositionLocalOf<() -> Unit> {
+val LocalShowLoadingDialog = staticCompositionLocalOf<() -> Unit> {
     error("No LocalShowLoadingDialog provided")
 }
-val LocalHideLoadingDialog = compositionLocalOf<() -> Unit> {
+val LocalHideLoadingDialog = staticCompositionLocalOf<() -> Unit> {
     error("No LocalHideLoadingDialog provided")
 }
-val LocalShowMessageDialog = compositionLocalOf<(String, String, () -> Unit) -> Unit> {
+val LocalShowMessageDialog = staticCompositionLocalOf<(String, String, () -> Unit) -> Unit> {
     error("No LocalShowMessageDialog provided")
 }
 
@@ -241,16 +243,22 @@ fun ProvideSnackBarHost(
         mutableStateOf<GlobalMessageDialogData?>(null)
     }
 
-    val snackBarShow: (String) -> Unit = { message: String ->
-        scope.launch {
-            snackBarHostState.showSnackbar(message, withDismissAction = true)
+    // remember 固定引用：这些 lambda 经 CompositionLocal 下发到各页面，若每次重组都新建，
+    // 加载/消息弹窗的开关会让所有读取方整批失效重组
+    val snackBarShow: (String) -> Unit = remember(snackBarHostState, scope) {
+        { message: String ->
+            scope.launch {
+                snackBarHostState.showSnackbar(message, withDismissAction = true)
+            }
         }
     }
-    val hideLoadingDialog: () -> Unit = { isShowLoadingDialog = false }
-    val showLoadingDialog: () -> Unit = { isShowLoadingDialog = true }
+    val hideLoadingDialog: () -> Unit = remember { { isShowLoadingDialog = false } }
+    val showLoadingDialog: () -> Unit = remember { { isShowLoadingDialog = true } }
 
-    val showMessageDialog: (String, String, () -> Unit) -> Unit = { title, message, onConfirm ->
-        globalMessageDialogData = GlobalMessageDialogData(title, message, onConfirm)
+    val showMessageDialog: (String, String, () -> Unit) -> Unit = remember {
+        { title, message, onConfirm ->
+            globalMessageDialogData = GlobalMessageDialogData(title, message, onConfirm)
+        }
     }
 
     CompositionLocalProvider(

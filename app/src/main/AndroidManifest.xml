@@ -53,6 +53,18 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+        <!-- WorkManager 改按需初始化：默认 Initializer 会在每次进程启动（含系统拉起小部件/闹钟）时
+             提前打开 WorkDatabase；本应用所有调度都发生在设置页，首帧前无需任何 WorkManager 状态 -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
     </application>
 
 </manifest>

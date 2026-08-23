@@ -1,6 +1,7 @@
-package com.example.weight.ui.diet
+﻿package com.example.weight.ui.diet
 
 import android.app.Application
+import android.graphics.Bitmap
 import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
@@ -152,8 +153,29 @@ class DietRecordViewModel(
     /** 「今天」的口径：跨午夜后由 UI 在 ON_RESUME 时调用 [refreshTodayDate] 刷新 */
     private val _todayDate = MutableStateFlow(TimeUtils.getCurrentDate())
 
-    /** 缓存压缩结果，保存时复用避免二次解码压缩 */
-    private var cachedCompressionResult: ImageCompressor.CompressionResult? = null
+    /** 分析时压缩出的位图缓存，保存路径复用避免二次解码降采样 */
+    private var cachedAnalysisBitmap: Bitmap? = null
+
+    /**
+     * 食物 JSON 解析缓存（含解析失败的负缓存）。Room 表级失效让任一记录写入都会
+     * 重发今日列表与整个历史区间的全量记录，未变化记录的 JSON 逐条重新解码是纯浪费；
+     * 以 JSON 文本为键（记录未变则文本相同），容量上限防长期驻留膨胀。
+     * 今日聚合在主线程、历史聚合在 Default 线程并发访问，须同步。
+     */
+    private val foodDecodeCache =
+        object : LinkedHashMap<String, List<RecognizedFoodItem>?>(128, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, List<RecognizedFoodItem>?>): Boolean =
+                size > 512
+        }
+
+    private fun decodeFoodsCached(text: String): List<RecognizedFoodItem>? = synchronized(foodDecodeCache) {
+        if (foodDecodeCache.containsKey(text)) {
+            foodDecodeCache[text]
+        } else {
+            runCatching { json.decodeFromString<List<RecognizedFoodItem>>(text) }.getOrNull()
+                .also { foodDecodeCache[text] = it }
+        }
+    }
 
     /** 活跃分析协程，「取消分析」与重新分析时取消 */
     private var analysisJob: Job? = null
@@ -181,8 +203,13 @@ class DietRecordViewModel(
      */
     fun refreshTodayDate() {
         val today = TimeUtils.getCurrentDate()
-        // 保留当前会话刚拍的照片：从相机返回正好触发 ON_RESUME
-        ImageCompressor.clearCameraCaptures(application, keep = _addTab.value.captureFile)
+        // 目录 stat+删除是磁盘操作，丢到 IO 执行：ON_RESUME 挂在主线程，
+        // 回前台不该同步做文件操作；keep 先快照，避免与新拍照赋值竞态
+        val keepFile = _addTab.value.captureFile
+        viewModelScope.launch(Dispatchers.IO) {
+            // 保留当前会话刚拍的照片：从相机返回正好触发 ON_RESUME
+            ImageCompressor.clearCameraCaptures(application, keep = keepFile)
+        }
         if (_todayDate.value != today) {
             _todayDate.value = today
             _addTab.update {
@@ -202,7 +229,7 @@ class DietRecordViewModel(
     }
 
     fun onGallerySelected(uri: Uri) {
-        cachedCompressionResult = null
+        cachedAnalysisBitmap = null
         _addTab.update { it.copy(selectedImageUri = uri, captureFile = null) }
     }
 
@@ -212,12 +239,12 @@ class DietRecordViewModel(
             _events.trySend(DietEvent.CaptureInvalid)
             return
         }
-        cachedCompressionResult = null
+        cachedAnalysisBitmap = null
         _addTab.update { it.copy(captureFile = file, selectedImageUri = null) }
     }
 
     fun clearImage() {
-        cachedCompressionResult = null
+        cachedAnalysisBitmap = null
         _addTab.update { it.copy(selectedImageUri = null, captureFile = null) }
     }
 
@@ -235,9 +262,9 @@ class DietRecordViewModel(
             try {
                 val base64: String? = when {
                     snapshot.captureFile != null ->
-                        compressAndCache(Uri.fromFile(snapshot.captureFile)).base64
+                        compressAndEncodeForAnalysis(Uri.fromFile(snapshot.captureFile))
                     snapshot.selectedImageUri != null ->
-                        compressAndCache(snapshot.selectedImageUri).base64
+                        compressAndEncodeForAnalysis(snapshot.selectedImageUri)
                     else -> null
                 }
                 if (base64 != null) {
@@ -281,11 +308,16 @@ class DietRecordViewModel(
         }
     }
 
-    private suspend fun compressAndCache(uri: Uri): ImageCompressor.CompressionResult {
+    /**
+     * 压缩编码供 AI 分析用。缓存只留位图给保存路径复用：Base64 大字符串
+     * （UTF-16 约为字节数两倍）仅在构造分析请求的瞬间需要，取走即弃、不进缓存，
+     * 否则从分析完成到用户保存的整个交互期，它与 Bitmap（长边 1024 约 3MB）双份驻留
+     */
+    private suspend fun compressAndEncodeForAnalysis(uri: Uri): String {
         // 用 applicationContext：分析协程存活可达数十秒，持有 Activity 会在旋转/退出时泄漏
         val result = ImageCompressor.compressAndEncode(application, uri)
-        cachedCompressionResult = result
-        return result
+        cachedAnalysisBitmap = result.bitmap
+        return result.base64
     }
 
     private suspend fun callAi(chatBody: com.example.weight.data.chat.ChatBodyModel): AiDietResponse {
@@ -385,7 +417,7 @@ class DietRecordViewModel(
                         ),
                     )
                 )
-                cachedCompressionResult = null
+                cachedAnalysisBitmap = null
                 _addTab.update {
                     it.copy(
                         selectedImageUri = null,
@@ -422,7 +454,7 @@ class DietRecordViewModel(
         return try {
             // 缓存未命中时只做「解码+降采样」：保存路径只要 Bitmap，
             // 不必重跑 JPEG 压缩 + Base64 编码再把大字符串直接丢弃
-            val bitmap = cachedCompressionResult?.bitmap
+            val bitmap = cachedAnalysisBitmap
                 ?: ImageCompressor.decodeScaled(application, sourceUri)
                 ?: return ""
             ImageCompressor.saveImage(application, bitmap)
@@ -461,7 +493,7 @@ class DietRecordViewModel(
                     it.copy(
                         records = records,
                         totalCalories = calories,
-                        macros = DailyMacroAggregator.aggregate(records, json),
+                        macros = DailyMacroAggregator.aggregate(records) { decodeFoodsCached(it) },
                     )
                 }
             }
@@ -520,9 +552,8 @@ class DietRecordViewModel(
     private fun computeDayLights(records: List<DietRecord>): Map<String, String> {
         val foodsByDate = HashMap<String, MutableList<RecognizedFoodItem>>()
         for (record in records) {
-            runCatching {
-                json.decodeFromString<List<RecognizedFoodItem>>(record.recognizedFoodJson)
-            }.getOrNull()?.let { foodsByDate.getOrPut(record.date) { mutableListOf() }.addAll(it) }
+            decodeFoodsCached(record.recognizedFoodJson)
+                ?.let { foodsByDate.getOrPut(record.date) { mutableListOf() }.addAll(it) }
         }
         return foodsByDate.mapValues { (_, foods) -> TrafficLightCalculator.compute(foods) }
     }
@@ -591,7 +622,7 @@ class DietRecordViewModel(
     override fun onCleared() {
         super.onCleared()
         analysisJob?.cancel()
-        cachedCompressionResult = null
+        cachedAnalysisBitmap = null
     }
 
     companion object {

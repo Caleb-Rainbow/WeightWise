@@ -46,6 +46,8 @@ import com.example.weight.ui.common.DatePickerDocked
 import com.example.weight.ui.common.NumberSelector
 import com.example.weight.ui.common.TimePickerOutlineTextFiled
 import com.example.weight.util.TimeUtils
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.update
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
@@ -105,7 +107,6 @@ fun AddRecordDialog(onDismissRequest: () -> Unit, viewModel: MainViewModel = koi
 
     // ── 体脂秤联动：打开弹窗即开始监听，读到稳定值自动填入滚轮；读不到就手动记录 ──
     val engine = koinInject<ScaleBleEngine>()
-    val scaleState by engine.state.collectAsStateWithLifecycle()
     var measuredWeight by remember { mutableStateOf<Double?>(null) }
 
     // 权限未授予时不自动开扫描（避免打开弹窗就弹系统授权窗），由用户点按钮发起
@@ -134,12 +135,14 @@ fun AddRecordDialog(onDismissRequest: () -> Unit, viewModel: MainViewModel = koi
     DisposableEffect(Unit) {
         onDispose { engine.stopSession() }
     }
-    LaunchedEffect(scaleState) {
-        val s = scaleState
-        if (s is ScaleBleEngine.State.Done) {
-            measuredWeight = s.weightKg
-            weight = s.weightKg
-            initialWeight = s.weightKg // 复用回填通道，滚轮动画滚到测得值
+    // 以收集而非状态读取 Done：实时体重帧只重組 ScaleSyncHint，不把滚轮/表单/网格卷进来
+    LaunchedEffect(Unit) {
+        engine.state.collect { s ->
+            if (s is ScaleBleEngine.State.Done) {
+                measuredWeight = s.weightKg
+                weight = s.weightKg
+                initialWeight = s.weightKg // 复用回填通道，滚轮动画滚到测得值
+            }
         }
     }
 
@@ -154,7 +157,7 @@ fun AddRecordDialog(onDismissRequest: () -> Unit, viewModel: MainViewModel = koi
         ) {
             if (hasBlePermission) {
                 ScaleSyncHint(
-                    state = scaleState,
+                    stateFlow = engine.state,
                     composition = engine.lastComposition,
                 )
                 // 读秤完成后展示全指标网格；手改体重过大则视为放弃秤数据一并隐藏
@@ -240,31 +243,38 @@ fun AddRecordDialog(onDismissRequest: () -> Unit, viewModel: MainViewModel = koi
     })
 }
 
-/** 弹窗顶部的秤状态提示行：读到秤时展示实测概要，读不到时提示手动输入即可 */
+/**
+ * 弹窗顶部的秤状态提示行：读到秤时展示实测概要，读不到时提示手动输入即可。
+ * 自行收集状态：测量中体重以 BLE 帧率变化，若在弹窗层收集会让滚轮、日期/时间、
+ * 成分网格每帧跟着重组；收到本组件内只有一行 Text 重绘。
+ */
 @Composable
-private fun ScaleSyncHint(state: ScaleBleEngine.State, composition: BodyComposition?) {
-    val text = when (state) {
+private fun ScaleSyncHint(stateFlow: StateFlow<ScaleBleEngine.State>, composition: BodyComposition?) {
+    val state by stateFlow.collectAsStateWithLifecycle()
+    // 委托属性不能 smart cast，先落到局部 val 再分派
+    val s = state
+    val text = when (s) {
         is ScaleBleEngine.State.Idle -> ""
-        is ScaleBleEngine.State.Scanning -> "正在寻找体脂秤…（${state.secondsLeft}s）"
+        is ScaleBleEngine.State.Scanning -> "正在寻找体脂秤…（${s.secondsLeft}s）"
         is ScaleBleEngine.State.Connecting -> "正在连接体脂秤…"
-        is ScaleBleEngine.State.Ready -> "已连接 ${state.deviceName}，请上秤站稳"
-        is ScaleBleEngine.State.Measuring -> "体脂秤 ${state.weightKg} kg · 测量中"
+        is ScaleBleEngine.State.Ready -> "已连接 ${s.deviceName}，请上秤站稳"
+        is ScaleBleEngine.State.Measuring -> "体脂秤 ${s.weightKg} kg · 测量中"
         is ScaleBleEngine.State.Stabilized -> "体重已稳定，测量体脂中…"
         is ScaleBleEngine.State.Done -> buildString {
-            append("已读取 ${state.weightKg} kg")
+            append("已读取 ${s.weightKg} kg")
             composition?.takeIf { it.fatRatio > 0 }?.let {
                 append(" · 体脂 ${it.fatRatio}% · ${it.bodyType} · ${it.bodyScore}分")
             }
         }
         is ScaleBleEngine.State.Failed -> "未连上体脂秤，手动记录即可"
         is ScaleBleEngine.State.ProfileIncomplete ->
-            "设置页补全${state.missing.joinToString("、")}后才能测体脂，本次手动记录体重即可"
+            "设置页补全${s.missing.joinToString("、")}后才能测体脂，本次手动记录体重即可"
     }
     if (text.isEmpty()) return
     Text(
         text = text,
         style = MaterialTheme.typography.labelSmall,
-        color = if (state is ScaleBleEngine.State.Failed || state is ScaleBleEngine.State.ProfileIncomplete) {
+        color = if (s is ScaleBleEngine.State.Failed || s is ScaleBleEngine.State.ProfileIncomplete) {
             MaterialTheme.colorScheme.onSurfaceVariant
         } else {
             MaterialTheme.colorScheme.primary
@@ -278,8 +288,15 @@ private fun ScaleSyncHint(state: ScaleBleEngine.State, composition: BodyComposit
 
 @Composable
 fun SetHeightDialog(onDismissRequest: () -> Unit) {
-    val height by LocalStorageData.height.collectAsStateWithLifecycle()
-    val weight by LocalStorageData.targetWeight.collectAsStateWithLifecycle()
+    val storedHeight by LocalStorageData.height.collectAsStateWithLifecycle()
+    val storedTargetWeight by LocalStorageData.targetWeight.collectAsStateWithLifecycle()
+    // 草稿本地暂存、保存时一次性提交：逐刻度写 MMKV 会把发射扇出到弹窗背后的首页
+    // （BMI/图表 min-max 重算），且回灌 initialWeight 会让滚轮的回滚动画和用户的滚动抢位
+    var draftHeight by remember { mutableStateOf(storedHeight) }
+    var draftTargetWeight by remember { mutableStateOf(storedTargetWeight) }
+    // 打开时回填一次即可；滚动期间滚轮自身是事实源
+    val initialHeight = remember { storedHeight }
+    val initialTargetWeight = remember { storedTargetWeight }
     AlertDialog(onDismissRequest = onDismissRequest, title = {
         Text("输入信息")
     }, text = {
@@ -291,22 +308,20 @@ fun SetHeightDialog(onDismissRequest: () -> Unit) {
             NumberSelector(integerList = remember { (150..200).toList() }, decimalList = remember {
                 (0..9).toList()
             }, onWeightChange = { change ->
-                LocalStorageData.height.update {
-                    change
-                }
-            }, initialWeight = height, unit = "cm")
+                draftHeight = change
+            }, initialWeight = initialHeight, unit = "cm")
             HorizontalDivider()
             Text("你的目标")
             NumberSelector(integerList = remember { (50..120).toList() }, decimalList = remember {
                 (0..9).toList()
             }, onWeightChange = { change ->
-                LocalStorageData.targetWeight.update {
-                    change
-                }
-            }, initialWeight = weight, unit = "kg")
+                draftTargetWeight = change
+            }, initialWeight = initialTargetWeight, unit = "kg")
         }
     }, confirmButton = {
         Button(onClick = {
+            LocalStorageData.height.update { draftHeight }
+            LocalStorageData.targetWeight.update { draftTargetWeight }
             onDismissRequest()
             LocalStorageData.isFirst = false
         }) {

@@ -30,6 +30,7 @@ fun BMIContent(modifier: Modifier, record: DailyMinWeight?, bmi: Double) {
     val bmiLeave by remember(bmi) {
         mutableStateOf(BMI.fromBMIValue(bmi))
     }
+    val bmiFormat = remember { DecimalFormat("0.0") }
     Card(modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -39,7 +40,7 @@ fun BMIContent(modifier: Modifier, record: DailyMinWeight?, bmi: Double) {
                 BMIDataItem(
                     modifier = Modifier.weight(1f),
                     title = "BMI",
-                    content = DecimalFormat("0.0").format(bmi)
+                    content = bmiFormat.format(bmi)
                 )
                 VerticalDivider(Modifier.height(40.dp))
                 BMIDataItem(

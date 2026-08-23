@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 夜间限定同名主题：parent 换到深色框架主题，让首帧之前的窗口背景/系统栏呈深色，
+     消除深色模式冷启动的白屏闪烁（首帧后由 Compose AppTheme 接管实际配色） -->
+<resources>
+    <style name="Theme.Weight" parent="android:Theme.Material.NoActionBar" />
+</resources>

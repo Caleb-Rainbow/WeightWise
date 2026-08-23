@@ -17,13 +17,11 @@ import com.example.weight.util.WeightPredictor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.emitAll
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -58,25 +56,25 @@ class MainViewModel(
     private val _selectedScope = MutableStateFlow(StatisticsScope.LAST_7DAYS)
     val selectedScope: StateFlow<StatisticsScope> = _selectedScope.asStateFlow()
 
-    // 根据选中的范围，动态获取对应的数据 Flow
-    // flatMapLatest 会取消前一个 Flow 的收集，并开始收集新的 Flow
-    // 先发 null 表示"加载中"，UI 用它区分首次加载（转圈）与真的没有数据（空状态）；
-    // 范围切换时的短暂 null 由 UI 用上一次数据兜底，不会闪烁
+    // 根据选中的范围，动态获取对应的数据 StateFlow
+    // flatMapLatest 会取消前一个 Flow 的收集，并开始收集新的 Flow。
+    // 缓存收进 ViewModel：stateIn 让导航返回（短时重订阅）直接回放旧值，不闪加载态、不重查；
+    // 切范围时 StateFlow 保留旧值直到新范围首份数据到达（原先由 UI 层 cachedData 兜底，语义相同）；
+    // null 仅出现在真正的首次加载，UI 用它区分加载中（转圈）与没有数据（空状态）
     @OptIn(ExperimentalCoroutinesApi::class)
-    val currentScopeData: Flow<List<DailyMinWeight>?> =
-        selectedScope.flatMapLatest { scope ->
-            flow {
-                emit(null)
-                emitAll(recordDao.getDailyMinWeightSince(scope.startTimeMillis()))
-            }
-        }
+    val currentScopeData: StateFlow<List<DailyMinWeight>?> = selectedScope
+        .flatMapLatest { scope -> recordDao.getDailyMinWeightSince(scope.startTimeMillis()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     init {
         observeFirstRecordAndMilestones()
     }
 
-    /** 连续打卡信息：打卡日来自数据库 Flow，记录增删后自动重算 */
+    /** 连续打卡信息：打卡日来自数据库 Flow，记录增删后自动重算。
+     *  distinctUntilChanged 过滤同日改体重等「天数列表内容未变」的表级失效重发，
+     *  省掉全表 DISTINCT 扫描与 O(n log n) 重算 */
     val streakInfo: StateFlow<StreakInfo> = recordDao.getRecordDaysFlow()
+        .distinctUntilChanged()
         .map { RecordStreakCalculator.calculate(it, LocalDate.now()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), StreakInfo(0, 0, false))
 
@@ -117,9 +115,10 @@ class MainViewModel(
         }
     }
 
-    /** 预测目标达成天数用的固定窗口数据：最近 90 天每日最低体重，不随图表统计范围切换，保证预测稳定 */
-    val predictionData: Flow<List<DailyMinWeight>> =
-        recordDao.getDailyMinWeightSince(getStartTimeForLastDays(WeightPredictor.ANALYSIS_WINDOW_DAYS.toInt()))
+    /** 预测目标达成天数用的固定窗口数据：最近 90 天每日最低体重，不随图表统计范围切换，保证预测稳定；同样 stateIn 缓存，导航返回不重查 */
+    val predictionData: StateFlow<List<DailyMinWeight>> = recordDao
+        .getDailyMinWeightSince(getStartTimeForLastDays(WeightPredictor.ANALYSIS_WINDOW_DAYS.toInt()))
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // StateFlow 更新线程安全且为微秒级操作，直接在调用线程执行即可，无需切 IO 调度
     fun selectScope(scope: StatisticsScope) {
