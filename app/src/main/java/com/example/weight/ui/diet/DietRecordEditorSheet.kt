@@ -222,10 +222,10 @@ fun DietRecordEditorSheet(
                                     editingFoodIndex = index
                                     editingFoodItem = food
                                     showFoodEditor = true
-                                }, modifier = Modifier.size(32.dp)) {
+                                }, modifier = Modifier.size(48.dp)) {
                                     Icon(Icons.Default.Edit, contentDescription = "编辑食物", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
                                 }
-                                IconButton(onClick = { onRemoveFood(index) }, modifier = Modifier.size(32.dp)) {
+                                IconButton(onClick = { onRemoveFood(index) }, modifier = Modifier.size(48.dp)) {
                                     Icon(Icons.Default.Close, contentDescription = "移除食物", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
                                 }
                             }

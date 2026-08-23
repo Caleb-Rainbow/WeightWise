@@ -778,14 +778,19 @@ private fun PreviewPlaceholder(text: String) {
 private fun ClearImageButton(onClearImage: () -> Unit, modifier: Modifier = Modifier) {
     IconButton(
         onClick = onClearImage,
-        modifier = modifier
-            .size(32.dp)
-            .background(
-                MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
-                CircleShape
-            ),
+        modifier = modifier.size(48.dp),
     ) {
-        Icon(Icons.Default.Close, contentDescription = "移除图片", modifier = Modifier.size(18.dp))
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .background(
+                    MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
+                    CircleShape,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.Default.Close, contentDescription = "移除图片", modifier = Modifier.size(18.dp))
+        }
     }
 }
 
@@ -939,7 +944,7 @@ private fun AiResultSection(
                             )
                         }
                     }
-                    IconButton(onClick = { onRemoveFood(index) }, modifier = Modifier.size(40.dp)) {
+                    IconButton(onClick = { onRemoveFood(index) }, modifier = Modifier.size(48.dp)) {
                         Icon(
                             Icons.Default.Close,
                             contentDescription = "删除${food.name}",
