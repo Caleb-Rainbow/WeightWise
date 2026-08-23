@@ -1,7 +1,6 @@
 package com.example.weight.ui.diet
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,6 +19,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,13 +43,15 @@ fun SelectedFoodsSection(
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
         val total = foods.sumOf { it.estimatedCalories }
-        // 汇总条复用绿 chip 色板(容器/文字昼夜自适应),不再硬编码
-        val chip = lightChipColors("GREEN")
+        // “已选中”不代表食物质量，使用中性容器，避免与健康红绿灯混淆。
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(chip.container, RoundedCornerShape(10.dp))
-                .padding(horizontal = 12.dp, vertical = 10.dp)
+                .background(
+                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                    RoundedCornerShape(10.dp),
+                )
+                .padding(start = 12.dp, end = 4.dp)
                 .minimumInteractiveComponentSize(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -57,26 +59,21 @@ fun SelectedFoodsSection(
                 "已选 ${foods.size} 项 · 共 $total kcal",
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = chip.text,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             if (onClear != null) {
                 Spacer(modifier = Modifier.weight(1f))
-                Text(
-                    "清空",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = chip.text,
-                    modifier = Modifier
-                        .minimumInteractiveComponentSize()
-                        .clickable(onClick = onClear),
-                )
+                TextButton(onClick = onClear) {
+                    Text("清空", color = MaterialTheme.colorScheme.error)
+                }
             }
         }
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         foods.forEachIndexed { index, food ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 2.dp),
+                    .padding(start = 4.dp, top = 2.dp, bottom = 2.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -96,19 +93,19 @@ fun SelectedFoodsSection(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                IconButton(onClick = { onEdit(index) }, modifier = Modifier.size(40.dp)) {
+                IconButton(onClick = { onEdit(index) }, modifier = Modifier.size(48.dp)) {
                     Icon(
                         Icons.Default.Edit,
                         contentDescription = "编辑${food.name}",
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(20.dp),
                         tint = MaterialTheme.colorScheme.primary,
                     )
                 }
-                IconButton(onClick = { onRemove(index) }, modifier = Modifier.size(40.dp)) {
+                IconButton(onClick = { onRemove(index) }, modifier = Modifier.size(48.dp)) {
                     Icon(
                         Icons.Default.Close,
                         contentDescription = "移除${food.name}",
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(20.dp),
                         tint = MaterialTheme.colorScheme.error,
                     )
                 }
