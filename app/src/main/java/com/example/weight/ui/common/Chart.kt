@@ -511,3 +511,95 @@ fun WeightChart(
 
 /** 稳定的默认空回调：避免默认参数每次组合生成新 lambda 导致图表重建 */
 private val NoOpMarkerClick: (Int) -> Unit = {}
+
+/**
+ * 身体成分指标趋势折线图：主线（渐变面积填充）+ 可选 7 日均线，无目标线。
+ * 与 [WeightChart] 同构，但 Y 轴标题/单位/小数位按指标参数化（体脂率 %、阻抗 Ω、等级整数等量级各异），
+ * 步长交给 Vico 自适应而非体重的固定 0.5。
+ */
+@Composable
+fun MetricTrendChart(
+    modelProducer: CartesianChartModelProducer,
+    modifier: Modifier = Modifier,
+    xLabels: List<String> = emptyList(),
+    maxValue: Double,
+    minValue: Double,
+    lineColor: Color,
+    axisTitle: String,
+    unit: String,
+    decimalCount: Int,
+    showMovingAverage: Boolean = false,
+) {
+    val movingAverageColor = MaterialTheme.colorScheme.secondary
+    // 实例全部 memo 化：传入新实例会让整张图表（含轴/marker）在无关重组时被重建；
+    // 标题/单位/精度随指标切换变化，捕获它们的闭包必须键控重建
+    val bottomFormatter = remember(xLabels) { BottomXDateFormatter(xLabels) }
+    val rangeProvider = remember(maxValue, minValue) {
+        CartesianLayerRangeProvider.fixed(maxY = maxValue, minY = minValue)
+    }
+    val startAxisTitle: (ExtraStore) -> CharSequence? = remember(axisTitle) { { axisTitle } }
+    val valueFormatter = remember(decimalCount, unit) {
+        DefaultCartesianMarker.ValueFormatter { _, targets ->
+            val points =
+                (targets.firstOrNull() as? LineCartesianLayerMarkerTarget)?.points.orEmpty()
+            val valuePoint = points.firstOrNull { it.entry.seriesIndex == 0 }
+            val averagePoint = points.firstOrNull { it.entry.seriesIndex == 1 }
+            when {
+                valuePoint == null -> ""
+                averagePoint == null ->
+                    String.format(Locale.CHINA, "%.${decimalCount}f$unit", valuePoint.entry.y)
+                else -> buildAnnotatedString {
+                    withStyle(SpanStyle(color = valuePoint.color, fontWeight = FontWeight.Bold)) {
+                        append(String.format(Locale.CHINA, "%.${decimalCount}f", valuePoint.entry.y))
+                    }
+                    append("${unit}均 ")
+                    withStyle(SpanStyle(color = averagePoint.color, fontWeight = FontWeight.Bold)) {
+                        append(String.format(Locale.CHINA, "%.${decimalCount}f", averagePoint.entry.y))
+                    }
+                }
+            }
+        }
+    }
+    val mainLine = LineCartesianLayer.rememberLine(
+        fill = LineCartesianLayer.LineFill.single(Fill(lineColor)),
+        areaFill =
+        LineCartesianLayer.AreaFill.single(
+            Fill(
+                verticalGradient(
+                    listOf(lineColor.copy(alpha = 0.4f), Color.Transparent)
+                )
+            )
+        ),
+    )
+    CartesianChartHost(
+        rememberCartesianChart(
+            rememberLineCartesianLayer(
+                lineProvider = if (showMovingAverage) {
+                    LineCartesianLayer.LineProvider.series(
+                        mainLine,
+                        // 7 日均线：细实线、无面积填充，与主线拉开视觉层级
+                        LineCartesianLayer.rememberLine(
+                            fill = LineCartesianLayer.LineFill.single(Fill(movingAverageColor)),
+                            stroke = LineCartesianLayer.LineStroke.Continuous(thickness = 1.5.dp),
+                        ),
+                    )
+                } else {
+                    // 单系列：不画均线时只注册主线，避免空的第二条序列
+                    LineCartesianLayer.LineProvider.series(mainLine)
+                },
+                rangeProvider = rangeProvider,
+            ),
+            startAxis = VerticalAxis.rememberStart(
+                title = startAxisTitle,
+                valueFormatter = CartesianValueFormatter.decimal(
+                    decimalCount = decimalCount, suffix = unit,
+                ),
+            ),
+            bottomAxis = HorizontalAxis.rememberBottom(valueFormatter = bottomFormatter),
+            marker = rememberMarker(valueFormatter = valueFormatter),
+        ),
+        modelProducer = modelProducer,
+        modifier = modifier.height(220.dp),
+        scrollState = rememberVicoScrollState(scrollEnabled = true, initialScroll = Scroll.Absolute.End),
+    )
+}

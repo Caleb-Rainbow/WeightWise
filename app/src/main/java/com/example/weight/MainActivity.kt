@@ -52,6 +52,7 @@ import com.example.weight.ui.setting.SettingScreen
 import com.example.weight.ui.theme.AppTheme
 import com.example.weight.ui.theme.AppearanceMode
 import com.example.weight.ui.theme.ThemePreset
+import com.example.weight.ui.trend.BodyTrendScreen
 import com.patrykandpatrick.vico.compose.common.ProvideVicoTheme
 import com.patrykandpatrick.vico.compose.m3.common.rememberM3VicoTheme
 import kotlinx.coroutines.launch
@@ -132,6 +133,9 @@ object DietRecord : NavKey
 @Serializable
 object Report : NavKey
 
+@Serializable
+object BodyTrend : NavKey
+
 @Composable
 private fun MainNav3(
     openAddDialogRequest: Boolean,
@@ -171,9 +175,13 @@ private fun MainNav3(
                 }
             }
             entry<Record> {
-                RecordScreen {
-                    backStack.removeAt(backStack.lastIndex)
-                }
+                RecordScreen(
+                    goBack = { backStack.removeAt(backStack.lastIndex) },
+                    goBodyTrend = {
+                        // 已在趋势页时不再叠加一层（与报告页深链同防抖）
+                        if (backStack.lastOrNull() != BodyTrend) backStack.add(BodyTrend)
+                    },
+                )
             }
             entry<DietRecord> {
                 DietRecordScreen(goBack = {
@@ -184,6 +192,11 @@ private fun MainNav3(
             }
             entry<Report> {
                 ReportScreen(goBack = {
+                    backStack.removeAt(backStack.lastIndex)
+                })
+            }
+            entry<BodyTrend> {
+                BodyTrendScreen(goBack = {
                     backStack.removeAt(backStack.lastIndex)
                 })
             }

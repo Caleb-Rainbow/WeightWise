@@ -88,7 +88,8 @@ private val oneDecimalFormat = DecimalFormat("#.#")
 fun RecordScreen(
     modifier: Modifier = Modifier,
     viewModel: RecordViewModel = koinViewModel(),
-    goBack: () -> Unit = {}
+    goBack: () -> Unit = {},
+    goBodyTrend: () -> Unit = {},
 ) {
     val recordList = viewModel.recordPager.collectAsLazyPagingItems()
     val latestRecord by viewModel.latestRecord.collectAsStateWithLifecycle(initialValue = null)
@@ -149,6 +150,13 @@ fun RecordScreen(
                 },
                 confirmButton = {
                     TextButton(onClick = { compositionTarget = null }) { Text("关闭") }
+                },
+                // 从单次测量跳到长期趋势：趋势页由用户进入时自选指标，不携带本条指标上下文
+                dismissButton = {
+                    TextButton(onClick = {
+                        compositionTarget = null
+                        goBodyTrend()
+                    }) { Text("查看趋势") }
                 },
             )
         }

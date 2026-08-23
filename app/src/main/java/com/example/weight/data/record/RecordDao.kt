@@ -94,6 +94,10 @@ interface RecordDao {
     )
     fun getDailyMinWeightBetween(startMillis: Long, endMillis: Long): Flow<List<DailyMinWeight>>
 
+    /** 成分趋势页取数：时间窗内含成分的记录（升序），空串手动记录排除；JSON 逐条解码与每日聚合在 [MetricTrend] 纯函数层完成 */
+    @Query("SELECT timestamp, bodyComposition FROM Record WHERE timestamp >= :startTimeMillis AND bodyComposition != '' ORDER BY timestamp ASC")
+    fun getCompositionsSince(startTimeMillis: Long): Flow<List<RecordCompositionRaw>>
+
     @Query("SELECT * FROM Record WHERE timestamp >= :startTimeMillis")
     suspend fun getRecordWeightSince(startTimeMillis: Long): List<Record>
 

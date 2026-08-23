@@ -25,3 +25,9 @@ data class DailyMinWeight(
     val timestamp: Long
 )
 
+/** 成分趋势取数轻量投影：只取 (timestamp, bodyComposition)，不物化日志等无关字段 */
+data class RecordCompositionRaw(
+    val timestamp: Long,
+    val bodyComposition: String,
+)
+

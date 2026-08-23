@@ -131,9 +131,9 @@ private fun MetricCell(item: MetricDisplay, modifier: Modifier = Modifier, onCli
     }
 }
 
-/** 指标解读弹窗：名称+当前值、状态、是什么、正常范围、带当前位置的范围条 */
+/** 指标解读弹窗：名称+当前值、状态、是什么、正常范围、带当前位置的范围条（成分趋势页复用） */
 @Composable
-private fun MetricInfoDialog(display: MetricDisplay, info: MetricGuide.Info, onDismiss: () -> Unit) {
+internal fun MetricInfoDialog(display: MetricDisplay, info: MetricGuide.Info, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -195,8 +195,8 @@ private fun MetricInfoDialog(display: MetricDisplay, info: MetricGuide.Info, onD
     )
 }
 
-/** 健康指标状态语义色（DayNightColor 昼夜成对，色值与饮食红绿灯/宏量色板同族保持全局一致） */
-private object MetricStatusColors {
+/** 健康指标状态语义色（DayNightColor 昼夜成对，色值与饮食红绿灯/宏量色板同族保持全局一致；成分趋势页复用） */
+internal object MetricStatusColors {
     val Low = DayNightColor(Color(0xFF2B638B), Color(0xFF7DB0DC))       // 蓝：偏低（同 Protein 蓝）
     val Normal = DayNightColor(Color(0xFF378646), Color(0xFF87D98F))     // 绿：标准（同红绿灯绿）
     val High = DayNightColor(Color(0xFF9B7000), Color(0xFFF8BD42))       // 琥珀：偏高
