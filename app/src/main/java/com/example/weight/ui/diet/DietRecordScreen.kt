@@ -1018,23 +1018,39 @@ private fun TodayTabPage(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 24.dp),
+                        .padding(top = 28.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Text("🍽️", fontSize = 34.sp)
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .background(
+                                MaterialTheme.colorScheme.surfaceVariant,
+                                CircleShape,
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            MealType.LUNCH.icon,
+                            contentDescription = null,
+                            modifier = Modifier.size(28.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
                     Text(
                         "今天还没记录",
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.SemiBold,
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        "拍一张照片,或从常用食物快速记一笔",
-                        style = MaterialTheme.typography.bodySmall,
+                        "拍照识别，或从常用食物快速添加",
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
                     )
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
                     Button(onClick = onGoAdd, shape = RoundedCornerShape(12.dp)) {
                         Text("去记一笔")
                     }
@@ -1125,7 +1141,7 @@ private fun TodayTabPage(
 }
 
 /**
- * Hero 预算卡(T1/D3):大数字=剩余;环填充=已用比例、环色=额度状态(IntakeRingColors);
+ * Hero 预算卡(T1/D3):大数字=已记录;环填充=已用比例、环色=额度状态(IntakeRingColors);
  * 满配/接近/超支/档案缺失四态;零记录日隐藏堆叠条
  */
 @Composable
@@ -1159,25 +1175,32 @@ private fun IntakeHero(
                         over = over,
                     )
                     Spacer(modifier = Modifier.width(16.dp))
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            if (over) "今日摄入已超" else "今日还可摄入",
+                            "今日已记录",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Text(
-                            if (over) "已超出 ${-remaining} kcal" else "$remaining kcal",
+                            "$totalCalories kcal",
                             style = MaterialTheme.typography.displaySmall,
                             fontWeight = FontWeight.ExtraBold,
-                            color = if (over) IntakeRingColors.Over.resolve() else MaterialTheme.colorScheme.onSurface,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                        )
+                        Text(
+                            if (over) "目标 $recommendedCalories kcal · 已超出 ${-remaining} kcal"
+                            else "目标 $recommendedCalories kcal · 剩余 $remaining kcal",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (over) IntakeRingColors.Over.resolve()
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                         )
                     }
                 }
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    "已摄入 $totalCalories / 建议 $recommendedCalories kcal" +
-                        " · 今天${today.monthValue}月${today.dayOfMonth}日",
+                    "今天${today.monthValue}月${today.dayOfMonth}日",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
