@@ -1510,11 +1510,19 @@ private fun DietRecordRow(
                 }
             }
         }
-        Text(
-            "${record.estimatedCalories} kcal",
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                "${record.estimatedCalories} kcal",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                trafficLightLabel(record.trafficLight),
+                style = MaterialTheme.typography.bodySmall,
+                color = lightColor,
+                maxLines = 1,
+            )
+        }
     }
 }
 
@@ -1600,6 +1608,7 @@ private fun HistoryTabPage(
                 )
             }
             items(recordedDays, key = { "day_${it.date}" }) { day ->
+                val dayLight = day.trafficLight.orEmpty()
                 // 日期头:人性化日期+当日红绿灯点+日合计
                 Row(
                     modifier = Modifier
@@ -1612,17 +1621,20 @@ private fun HistoryTabPage(
                         Box(
                             modifier = Modifier
                                 .size(8.dp)
-                                .background(
-                                    day.trafficLight?.let { trafficLightColor(it) }
-                                        ?: TrafficLightColors.Unknown.resolve(),
-                                    CircleShape
-                                )
+                                .background(trafficLightColor(dayLight), CircleShape)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             TimeUtils.humanizeDate(today, day.date),
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            trafficLightLabel(dayLight),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = trafficLightColor(dayLight),
+                            maxLines = 1,
                         )
                     }
                     Text(
