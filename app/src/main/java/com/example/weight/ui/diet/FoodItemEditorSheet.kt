@@ -3,27 +3,31 @@ package com.example.weight.ui.diet
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.weight.data.diet.RecognizedFoodItem
@@ -55,166 +59,202 @@ fun FoodItemEditorSheet(
     var protein by remember(initialItem) { mutableStateOf(initialItem?.protein?.takeIf { it > 0 }?.toString() ?: "") }
     var carbs by remember(initialItem) { mutableStateOf(initialItem?.carbs?.takeIf { it > 0 }?.toString() ?: "") }
     var fat by remember(initialItem) { mutableStateOf(initialItem?.fat?.takeIf { it > 0 }?.toString() ?: "") }
+    var showAdvanced by remember(initialItem) {
+        mutableStateOf(
+            initialItem?.let {
+                it.category.isNotBlank() || it.protein > 0 || it.carbs > 0 || it.fat > 0
+            } ?: false
+        )
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
     ) {
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .imePadding(),
+            contentPadding = PaddingValues(start = 15.dp, top = 8.dp, end = 15.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(
-                text = if (initialItem == null) "添加食物" else "编辑食物",
-                style = MaterialTheme.typography.titleMedium,
-            )
+            item(key = "header") {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = if (initialItem == null) "添加食物" else "编辑食物",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        "先填写名称和热量，其他信息可选",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
 
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("食物名称") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                shape = RoundedCornerShape(12.dp),
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
+            item(key = "food_name") {
                 OutlinedTextField(
-                    value = calories,
-                    onValueChange = { calories = it.filter { c -> c.isDigit() } },
-                    label = { Text("热量 (kcal)") },
-                    modifier = Modifier.weight(1f),
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("食物名称") },
+                    modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    shape = RoundedCornerShape(12.dp),
-                )
-                OutlinedTextField(
-                    value = grams,
-                    onValueChange = { grams = it.filter { c -> c.isDigit() } },
-                    label = { Text("克数 (g)") },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     shape = RoundedCornerShape(12.dp),
                 )
             }
 
-            // 宏量营养素（可选填，留空按 0 计）
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                OutlinedTextField(
-                    value = protein,
-                    onValueChange = { protein = it.filter { c -> c.isDigit() } },
-                    label = { Text("蛋白质 (g)") },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    shape = RoundedCornerShape(12.dp),
-                )
-                OutlinedTextField(
-                    value = carbs,
-                    onValueChange = { carbs = it.filter { c -> c.isDigit() } },
-                    label = { Text("碳水 (g)") },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    shape = RoundedCornerShape(12.dp),
-                )
-                OutlinedTextField(
-                    value = fat,
-                    onValueChange = { fat = it.filter { c -> c.isDigit() } },
-                    label = { Text("脂肪 (g)") },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    shape = RoundedCornerShape(12.dp),
-                )
+            item(key = "amount") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    OutlinedTextField(
+                        value = calories,
+                        onValueChange = { calories = it.filter { c -> c.isDigit() } },
+                        label = { Text("热量") },
+                        suffix = { Text("kcal") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        shape = RoundedCornerShape(12.dp),
+                    )
+                    OutlinedTextField(
+                        value = grams,
+                        onValueChange = { grams = it.filter { c -> c.isDigit() } },
+                        label = { Text("份量") },
+                        suffix = { Text("g") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        shape = RoundedCornerShape(12.dp),
+                    )
+                }
             }
 
-            // 分类选择
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                FOOD_CATEGORIES.forEach { cat ->
-                    val selected = category == cat
-                    OutlinedButton(
-                        onClick = { category = cat },
-                        shape = RoundedCornerShape(8.dp),
-                        colors = if (selected) {
-                            ButtonDefaults.outlinedButtonColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer
-                            )
-                        } else {
-                            ButtonDefaults.outlinedButtonColors()
-                        },
+            item(key = "frequency") {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        "饮食频率",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        Text(cat, style = MaterialTheme.typography.labelSmall)
+                        FilterChip(
+                            selected = isHealthy,
+                            onClick = { isHealthy = true },
+                            label = { Text("适合经常吃") },
+                            shape = RoundedCornerShape(10.dp),
+                        )
+                        FilterChip(
+                            selected = !isHealthy,
+                            onClick = { isHealthy = false },
+                            label = { Text("偶尔吃") },
+                            shape = RoundedCornerShape(10.dp),
+                        )
+                    }
+                    Text(
+                        "用于计算整餐的饮食质量",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            item(key = "advanced_toggle") {
+                TextButton(
+                    onClick = { showAdvanced = !showAdvanced },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(if (showAdvanced) "收起更多信息" else "更多信息：分类和营养素")
+                }
+            }
+
+            if (showAdvanced) {
+                item(key = "category") {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            "食物分类（可选）",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            FOOD_CATEGORIES.forEach { cat ->
+                                FilterChip(
+                                    selected = category == cat,
+                                    onClick = { category = cat },
+                                    label = { Text(cat) },
+                                    shape = RoundedCornerShape(10.dp),
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // 宏量营养素（可选填，留空按 0 计）
+                item(key = "macros") {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            "营养素（可选）",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            listOf(
+                                Triple("蛋白质", protein, { value: String -> protein = value }),
+                                Triple("碳水", carbs, { value: String -> carbs = value }),
+                                Triple("脂肪", fat, { value: String -> fat = value }),
+                            ).forEach { (label, value, update) ->
+                                OutlinedTextField(
+                                    value = value,
+                                    onValueChange = { update(it.filter(Char::isDigit)) },
+                                    label = { Text(label) },
+                                    suffix = { Text("g") },
+                                    modifier = Modifier.weight(1f),
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    shape = RoundedCornerShape(12.dp),
+                                )
+                            }
+                        }
                     }
                 }
             }
 
-            // 健康标签切换
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text("健康程度:", style = MaterialTheme.typography.bodyMedium)
-                OutlinedButton(
-                    onClick = { isHealthy = true },
-                    shape = RoundedCornerShape(8.dp),
-                    colors = if (isHealthy) {
-                        ButtonDefaults.outlinedButtonColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer
-                        )
-                    } else {
-                        ButtonDefaults.outlinedButtonColors()
-                    },
-                ) { Text("健康") }
-                OutlinedButton(
-                    onClick = { isHealthy = false },
-                    shape = RoundedCornerShape(8.dp),
-                    colors = if (!isHealthy) {
-                        ButtonDefaults.outlinedButtonColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer
-                        )
-                    } else {
-                        ButtonDefaults.outlinedButtonColors()
-                    },
-                ) { Text("不健康") }
-            }
-
             // 确认按钮
-            Button(
-                onClick = {
-                    val item = RecognizedFoodItem(
-                        name = name.ifBlank { "未知食物" },
-                        estimatedCalories = calories.toIntOrNull() ?: 0,
-                        estimatedGrams = grams.toIntOrNull() ?: 0,
-                        category = category,
-                        isHealthy = isHealthy,
-                        protein = protein.toIntOrNull() ?: 0,
-                        carbs = carbs.toIntOrNull() ?: 0,
-                        fat = fat.toIntOrNull() ?: 0,
-                    )
-                    onConfirm(item)
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                enabled = name.isNotBlank() && calories.isNotBlank(),
-                shape = RoundedCornerShape(12.dp),
-            ) {
-                Text(if (initialItem == null) "添加" else "确认修改")
+            item(key = "confirm") {
+                Spacer(modifier = Modifier.height(2.dp))
+                Button(
+                    onClick = {
+                        val item = RecognizedFoodItem(
+                            name = name.ifBlank { "未知食物" },
+                            estimatedCalories = calories.toIntOrNull() ?: 0,
+                            estimatedGrams = grams.toIntOrNull() ?: 0,
+                            category = category,
+                            isHealthy = isHealthy,
+                            protein = protein.toIntOrNull() ?: 0,
+                            carbs = carbs.toIntOrNull() ?: 0,
+                            fat = fat.toIntOrNull() ?: 0,
+                            isManuallyAdded = initialItem?.isManuallyAdded ?: true,
+                        )
+                        onConfirm(item)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = name.isNotBlank() && calories.isNotBlank(),
+                    shape = RoundedCornerShape(12.dp),
+                ) {
+                    Text(if (initialItem == null) "添加食物" else "保存修改")
+                }
             }
         }
     }
