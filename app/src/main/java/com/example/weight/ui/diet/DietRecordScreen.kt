@@ -125,8 +125,8 @@ import kotlin.math.roundToInt
 /**
  *@description: 饮食记录主界面(v1.6 预算制重构)。
  *               今日=剩余额度大数字+状态圆环+宏量堆叠条+餐次分组 B 行;
- *               添加=情境化主按钮(保存这餐/开始识别/禁用原因);
- *               历史=日期分组(含空档日)。HorizontalPager 保活三页
+ *               新增=独立任务页 + 情境化主按钮(保存这餐/开始识别/禁用原因);
+ *               历史=日期分组。HorizontalPager 保活今日与历史两页
  *@author: 杨帅林
  *@create: 2026/4/11
  **/
@@ -390,121 +390,92 @@ private fun AddTabPage(
     LazyColumn(
         state = listState,
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 15.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        contentPadding = PaddingValues(start = 15.dp, top = 12.dp, end = 15.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        // 输入卡:餐次 + 常用食物(首屏可达,快速添加优先级最高)+ 图片 + 备注
-        item(key = "input_card") {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                ),
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        MealType.entries.forEach { mealType ->
-                            FilterChip(
-                                selected = state.selectedMealType == mealType,
-                                onClick = { onMealTypeSelected(mealType) },
-                                label = {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            mealType.icon,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(14.dp),
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(mealType.displayName, fontSize = 13.sp, maxLines = 1)
-                                    }
-                                },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .minimumInteractiveComponentSize(),
-                                shape = RoundedCornerShape(12.dp),
-                            )
-                        }
-                    }
+        // 第一步只回答“吃了什么”:常用食物与图片入口保持稳定,不因已选食物而跳变。
+        item(key = "food_sources") {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                AddSectionHeader(
+                    title = "添加食物",
+                    description = "从常用食物快速添加，或用照片识别",
+                )
 
-                    // 常用食物区:点击以历史中位数克数/热量直接加入下方列表(离线零 AI)
-                    if (state.frequentFoods.isNotEmpty()) {
-                        Column {
-                            Text(
-                                "常用食物 · 点击直接加入",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp),
-                            ) {
-                                state.frequentFoods.forEach { food ->
-                                    OutlinedButton(
-                                        onClick = { onQuickAddFood(food) },
-                                        shape = RoundedCornerShape(10.dp),
-                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                                        modifier = Modifier.minimumInteractiveComponentSize(),
-                                    ) {
-                                        Text(
-                                            "${food.name} · ${food.estimatedCalories} kcal",
-                                            fontSize = 12.sp,
-                                            maxLines = 1,
-                                        )
-                                    }
+                if (state.frequentFoods.isNotEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            "常用食物",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            state.frequentFoods.forEach { food ->
+                                OutlinedButton(
+                                    onClick = { onQuickAddFood(food) },
+                                    shape = RoundedCornerShape(10.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                    modifier = Modifier.minimumInteractiveComponentSize(),
+                                ) {
+                                    Text(
+                                        "${food.name} · ${food.estimatedCalories} kcal",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        maxLines = 1,
+                                    )
                                 }
                             }
                         }
                     }
+                }
 
-                    // 图片区:无图且已有食物(纯快速添加)时折叠为一行入口
-                    when {
-                        state.selectedImageUri != null -> {
-                            GalleryPreview(imageUri = state.selectedImageUri, onClearImage = onClearImage)
-                        }
-                        state.captureFile != null -> {
-                            CapturePreview(file = state.captureFile, onClearImage = onClearImage)
-                        }
-                        state.recognizedFoods.isEmpty() -> {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.Center,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Button(onClick = onTakePhoto, shape = RoundedCornerShape(12.dp)) {
-                                    Icon(Icons.Default.AddAPhoto, contentDescription = null, modifier = Modifier.size(20.dp))
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("拍照")
-                                }
-                                Spacer(modifier = Modifier.width(16.dp))
-                                OutlinedButton(onClick = onPickFromGallery, shape = RoundedCornerShape(12.dp)) {
-                                    Icon(Icons.Default.PhotoLibrary, contentDescription = null, modifier = Modifier.size(20.dp))
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("相册")
-                                }
-                            }
-                        }
-                        else -> {
+                when {
+                    state.selectedImageUri != null -> {
+                        GalleryPreview(imageUri = state.selectedImageUri, onClearImage = onClearImage)
+                    }
+                    state.captureFile != null -> {
+                        CapturePreview(file = state.captureFile, onClearImage = onClearImage)
+                    }
+                    else -> {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
                             OutlinedButton(
                                 onClick = onTakePhoto,
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .heightIn(min = 56.dp),
                                 shape = RoundedCornerShape(12.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp),
                             ) {
-                                Icon(Icons.Default.AddAPhoto, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("拍照识别(可选)", fontSize = 13.sp)
+                                Icon(
+                                    Icons.Default.AddAPhoto,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("拍照识别", maxLines = 1)
+                            }
+                            OutlinedButton(
+                                onClick = onPickFromGallery,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .heightIn(min = 56.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp),
+                            ) {
+                                Icon(
+                                    Icons.Default.PhotoLibrary,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("从相册选", maxLines = 1)
                             }
                         }
                     }
-
-                    NoteField(noteState)
                 }
             }
         }
@@ -518,6 +489,35 @@ private fun AddTabPage(
                     onRemove = onRemoveFood,
                     onClear = onClearFoods,
                 )
+            }
+        }
+
+        // 第二步补充上下文。餐次有默认值,备注可跳过,不阻断最快保存路径。
+        item(key = "meal_details") {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                AddSectionHeader(
+                    title = "用餐信息",
+                    description = "确认餐次，备注可选",
+                )
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    MealType.entries.forEach { mealType ->
+                        FilterChip(
+                            selected = state.selectedMealType == mealType,
+                            onClick = { onMealTypeSelected(mealType) },
+                            label = { Text(mealType.displayName, maxLines = 1) },
+                            modifier = Modifier.minimumInteractiveComponentSize(),
+                            shape = RoundedCornerShape(12.dp),
+                        )
+                    }
+                }
+                NoteField(noteState)
             }
         }
 
@@ -657,6 +657,25 @@ private fun AddTabPage(
     }
 }
 
+@Composable
+private fun AddSectionHeader(
+    title: String,
+    description: String,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            title,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            description,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
 /**
  * 备注输入框:独立叶子组件持有对 [noteState] 的读写,逐键击只重组本组件,
  * 输入卡其余部分(餐次 chips/图片区/常用食物)与下方列表 item 均不受影响。
@@ -666,9 +685,12 @@ private fun NoteField(noteState: MutableState<String>) {
     OutlinedTextField(
         value = noteState.value,
         onValueChange = { noteState.value = it },
-        label = { Text("添加备注(如:只吃了一半)") },
+        label = { Text("备注（可选）") },
+        placeholder = { Text("例如：只吃了一半") },
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
+        minLines = 1,
+        maxLines = 3,
     )
 }
 
