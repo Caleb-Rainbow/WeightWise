@@ -1,6 +1,7 @@
 package com.example.weight.ui.diet
 
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -130,9 +131,8 @@ import kotlin.math.roundToInt
  *@create: 2026/4/11
  **/
 
-private const val TAB_ADD = 0
-private const val TAB_TODAY = 1
-private const val TAB_HISTORY = 2
+private const val TAB_TODAY = 0
+private const val TAB_HISTORY = 1
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -150,8 +150,13 @@ fun DietRecordScreen(
     val scope = rememberCoroutineScope()
     val snackBarShow = LocalSnackBarShow.current
     val snackbarHostState = LocalSnackbarHostState.current
-    val pagerState = rememberPagerState(initialPage = TAB_ADD) { 3 }
+    val pagerState = rememberPagerState(initialPage = TAB_TODAY) { 2 }
     val addListState = rememberLazyListState()
+    var showAddPage by rememberSaveable { mutableStateOf(false) }
+
+    BackHandler(enabled = showAddPage) {
+        showAddPage = false
+    }
 
     // 跨午夜后回到页面时刷新「今天」口径,并顺带清理拍照临时目录
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
@@ -227,6 +232,7 @@ fun DietRecordScreen(
                     snackBarShow(
                         event.remainingCalories?.let { "已记录,今日还可摄入 $it kcal" } ?: "已记录"
                     )
+                    showAddPage = false
                     pagerState.animateScrollToPage(TAB_TODAY)
                 }
                 DietEvent.SaveFailed -> snackBarShow("保存失败,请重试")
@@ -277,72 +283,74 @@ fun DietRecordScreen(
 
     Scaffold(
         topBar = {
-            MyTopBar(title = "饮食记录", goBack = goBack)
+            MyTopBar(
+                title = if (showAddPage) "记录${addState.selectedMealType.displayName}" else "饮食",
+                goBack = if (showAddPage) ({ showAddPage = false }) else goBack,
+            )
         }
     ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            TabRow(selectedTabIndex = pagerState.currentPage) {
-                Tab(
-                    selected = pagerState.currentPage == TAB_ADD,
-                    onClick = { scope.launch { pagerState.animateScrollToPage(TAB_ADD) } },
-                    text = { Text("添加") },
-                )
-                Tab(
-                    selected = pagerState.currentPage == TAB_TODAY,
-                    onClick = { scope.launch { pagerState.animateScrollToPage(TAB_TODAY) } },
-                    text = { Text("今日") },
-                )
-                Tab(
-                    selected = pagerState.currentPage == TAB_HISTORY,
-                    onClick = { scope.launch { pagerState.animateScrollToPage(TAB_HISTORY) } },
-                    text = { Text("历史") },
-                )
-            }
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier.fillMaxSize(),
-            ) { page ->
-                when (page) {
-                    TAB_ADD -> AddTabPage(
-                        state = addState,
-                        todayTotalCalories = todayState.totalCalories,
-                        recommendedCalories = todayState.recommendedCalories,
-                        noteState = noteState,
-                        hasNote = hasNote,
-                        onMealTypeSelected = viewModel::onMealTypeSelected,
-                        onTakePhoto = { launchCamera() },
-                        onPickFromGallery = {
-                            pickMedia.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                            )
-                        },
-                        onClearImage = viewModel::clearImage,
-                        onStartAnalysis = { viewModel.startAnalysis(noteState.value) },
-                        onCancelAnalysis = viewModel::cancelAnalysis,
-                        onDiscardAnalysis = viewModel::discardAnalysis,
-                        onQuickAddFood = viewModel::addFoodItem,
-                        onEditFood = ::openFoodEditor,
-                        onRemoveFood = viewModel::removeFoodItem,
-                        onClearFoods = viewModel::clearFoods,
-                        onSave = { viewModel.saveRecord(noteState.value) },
-                        listState = addListState,
+        if (showAddPage) {
+            AddTabPage(
+                state = addState,
+                todayTotalCalories = todayState.totalCalories,
+                recommendedCalories = todayState.recommendedCalories,
+                noteState = noteState,
+                hasNote = hasNote,
+                onMealTypeSelected = viewModel::onMealTypeSelected,
+                onTakePhoto = { launchCamera() },
+                onPickFromGallery = {
+                    pickMedia.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                     )
-                    TAB_TODAY -> TodayTabPage(
-                        state = todayState,
-                        onEditRecord = viewModel::openEditor,
-                        onGoAdd = { scope.launch { pagerState.animateScrollToPage(TAB_ADD) } },
-                        goSetting = goSetting,
+                },
+                onClearImage = viewModel::clearImage,
+                onStartAnalysis = { viewModel.startAnalysis(noteState.value) },
+                onCancelAnalysis = viewModel::cancelAnalysis,
+                onDiscardAnalysis = viewModel::discardAnalysis,
+                onQuickAddFood = viewModel::addFoodItem,
+                onEditFood = ::openFoodEditor,
+                onRemoveFood = viewModel::removeFoodItem,
+                onClearFoods = viewModel::clearFoods,
+                onSave = { viewModel.saveRecord(noteState.value) },
+                listState = addListState,
+                modifier = Modifier.padding(paddingValues),
+            )
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+            ) {
+                TabRow(selectedTabIndex = pagerState.currentPage) {
+                    Tab(
+                        selected = pagerState.currentPage == TAB_TODAY,
+                        onClick = { scope.launch { pagerState.animateScrollToPage(TAB_TODAY) } },
+                        text = { Text("今日") },
                     )
-                    TAB_HISTORY -> HistoryTabPage(
-                        state = historyState,
-                        onRangeSelected = viewModel::setHistoryRange,
-                        onEditRecord = viewModel::openEditor,
-                        onGoAdd = { scope.launch { pagerState.animateScrollToPage(TAB_ADD) } },
+                    Tab(
+                        selected = pagerState.currentPage == TAB_HISTORY,
+                        onClick = { scope.launch { pagerState.animateScrollToPage(TAB_HISTORY) } },
+                        text = { Text("历史") },
                     )
+                }
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxSize(),
+                ) { page ->
+                    when (page) {
+                        TAB_TODAY -> TodayTabPage(
+                            state = todayState,
+                            onEditRecord = viewModel::openEditor,
+                            onGoAdd = { showAddPage = true },
+                            goSetting = goSetting,
+                        )
+                        TAB_HISTORY -> HistoryTabPage(
+                            state = historyState,
+                            onRangeSelected = viewModel::setHistoryRange,
+                            onEditRecord = viewModel::openEditor,
+                            onGoAdd = { showAddPage = true },
+                        )
+                    }
                 }
             }
         }
@@ -370,6 +378,7 @@ private fun AddTabPage(
     onClearFoods: () -> Unit,
     onSave: () -> Unit,
     listState: LazyListState,
+    modifier: Modifier = Modifier,
 ) {
     // D11/OV2A:四输入穷举;isAnalyzing 时按钮由「取消识别」分支覆盖
     val action = dietPrimaryAction(
@@ -380,7 +389,7 @@ private fun AddTabPage(
     )
     LazyColumn(
         state = listState,
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 15.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
