@@ -4,10 +4,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -124,148 +124,166 @@ fun DietRecordEditorSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
     ) {
-        Column(
+        LazyColumn(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 8.dp),
+                .fillMaxWidth(),
+            contentPadding = PaddingValues(start = 15.dp, top = 8.dp, end = 15.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             // 标题 + 实时红绿灯/热量预览
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("编辑记录", style = MaterialTheme.typography.titleMedium)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(10.dp)
-                            .background(lightColor, CircleShape)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        "$lightLabel · $totalCalories kcal",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = lightColor,
-                        fontWeight = FontWeight.Bold,
-                    )
+            item(key = "editor_header") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("编辑记录", style = MaterialTheme.typography.titleMedium)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .background(lightColor, CircleShape)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            "$lightLabel · $totalCalories kcal",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = lightColor,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
                 }
             }
 
             // 餐次可改
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                MealType.entries.forEach { meal ->
-                    FilterChipSmall(
-                        selected = mealType == meal,
-                        label = meal.displayName,
-                        icon = meal.icon,
-                        onClick = { onMealTypeSelected(meal) },
-                    )
+            item(key = "meal_type") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    MealType.entries.forEach { meal ->
+                        FilterChipSmall(
+                            selected = mealType == meal,
+                            label = meal.displayName,
+                            icon = meal.icon,
+                            onClick = { onMealTypeSelected(meal) },
+                        )
+                    }
                 }
             }
 
             // 日期可改
-            val datePickerState = rememberDatePickerState(
-                initialSelectedDateMillis = TimeUtils.convertDateToUtcMillis(date)
-            )
-            DatePickerDocked(
-                modifier = Modifier.fillMaxWidth(),
-                selectedDate = date,
-                datePickerState = datePickerState,
-                label = "用餐日期",
-                onDetermine = {
-                    datePickerState.selectedDateMillis?.let { millis ->
-                        onDateSelected(TimeUtils.convertUtcMillisToDate(millis))
-                    }
-                },
-            )
+            item(key = "meal_date") {
+                val datePickerState = rememberDatePickerState(
+                    initialSelectedDateMillis = TimeUtils.convertDateToUtcMillis(date)
+                )
+                DatePickerDocked(
+                    modifier = Modifier.fillMaxWidth(),
+                    selectedDate = date,
+                    datePickerState = datePickerState,
+                    label = "用餐日期",
+                    onDetermine = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            onDateSelected(TimeUtils.convertUtcMillisToDate(millis))
+                        }
+                    },
+                )
+            }
 
-            HorizontalDivider()
+            item(key = "food_divider") {
+                HorizontalDivider()
+            }
 
             // 食物列表
             if (foods.isEmpty()) {
-                Text(
-                    "食物列表为空，保存将删除整条记录",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
+                item(key = "empty_foods") {
+                    Text(
+                        "食物列表为空，保存将删除整条记录",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
             } else {
-                LazyColumn(modifier = Modifier.height(220.dp)) {
-                    itemsIndexed(foods) { index, food ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 6.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(food.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-                                val macroText = buildString {
-                                    append("${food.estimatedGrams}g · ${food.estimatedCalories}kcal")
-                                    if (food.protein > 0 || food.carbs > 0 || food.fat > 0) {
-                                        append(" · 蛋白${food.protein} 碳水${food.carbs} 脂肪${food.fat}")
-                                    }
+                item(key = "food_count") {
+                    Text(
+                        "食物 · ${foods.size} 项",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                itemsIndexed(foods, key = { index, food -> "food_${index}_${food.name}" }) { index, food ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(food.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                            val macroText = buildString {
+                                append("${food.estimatedGrams}g · ${food.estimatedCalories}kcal")
+                                if (food.protein > 0 || food.carbs > 0 || food.fat > 0) {
+                                    append(" · 蛋白${food.protein} 碳水${food.carbs} 脂肪${food.fat}")
                                 }
-                                Text(
-                                    macroText,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
                             }
-                            Row {
-                                IconButton(onClick = {
-                                    editingFoodIndex = index
-                                    editingFoodItem = food
-                                    showFoodEditor = true
-                                }, modifier = Modifier.size(48.dp)) {
-                                    Icon(Icons.Default.Edit, contentDescription = "编辑食物", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
-                                }
-                                IconButton(onClick = { onRemoveFood(index) }, modifier = Modifier.size(48.dp)) {
-                                    Icon(Icons.Default.Close, contentDescription = "移除食物", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
-                                }
+                            Text(
+                                macroText,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Row {
+                            IconButton(onClick = {
+                                editingFoodIndex = index
+                                editingFoodItem = food
+                                showFoodEditor = true
+                            }, modifier = Modifier.size(48.dp)) {
+                                Icon(Icons.Default.Edit, contentDescription = "编辑食物", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                            }
+                            IconButton(onClick = { onRemoveFood(index) }, modifier = Modifier.size(48.dp)) {
+                                Icon(Icons.Default.Close, contentDescription = "移除食物", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
                             }
                         }
                     }
                 }
             }
 
-            OutlinedButton(
-                onClick = {
-                    editingFoodIndex = -1
-                    editingFoodItem = null
-                    showFoodEditor = true
-                },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("添加食物")
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
+            item(key = "add_food") {
                 OutlinedButton(
-                    onClick = { showEmptyDeleteConfirm = true },
-                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        editingFoodIndex = -1
+                        editingFoodItem = null
+                        showFoodEditor = true
+                    },
+                    modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                ) { Text("删除记录", color = MaterialTheme.colorScheme.error) }
-
-                Button(
-                    onClick = onSave,
-                    modifier = Modifier.weight(2f),
-                    enabled = foods.isNotEmpty(),
-                    shape = RoundedCornerShape(12.dp),
-                ) { Text("保存修改", fontWeight = FontWeight.Bold) }
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("添加食物")
+                }
             }
-            Spacer(modifier = Modifier.height(12.dp))
+
+            item(key = "record_actions") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    OutlinedButton(
+                        onClick = { showEmptyDeleteConfirm = true },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                    ) { Text("删除记录", color = MaterialTheme.colorScheme.error) }
+
+                    Button(
+                        onClick = onSave,
+                        modifier = Modifier.weight(2f),
+                        enabled = foods.isNotEmpty(),
+                        shape = RoundedCornerShape(12.dp),
+                    ) { Text("保存修改", fontWeight = FontWeight.Bold) }
+                }
+            }
         }
     }
 }
