@@ -21,8 +21,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -31,6 +31,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -295,18 +296,14 @@ private fun FilterChipSmall(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     onClick: () -> Unit,
 ) {
-    OutlinedButton(
+    FilterChip(
+        selected = selected,
         onClick = onClick,
-        shape = RoundedCornerShape(10.dp),
-        colors = if (selected) {
-            ButtonDefaults.outlinedButtonColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-        } else {
-            ButtonDefaults.outlinedButtonColors()
+        label = { Text(label, fontSize = 12.sp, maxLines = 1) },
+        leadingIcon = {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp))
         },
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-    ) {
-        Icon(icon, contentDescription = null, modifier = Modifier.size(13.dp))
-        Spacer(modifier = Modifier.width(4.dp))
-        Text(label, fontSize = 12.sp, maxLines = 1)
-    }
+        modifier = Modifier.minimumInteractiveComponentSize(),
+        shape = RoundedCornerShape(10.dp),
+    )
 }
