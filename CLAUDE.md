@@ -62,7 +62,11 @@ Uses **Navigation3** (`androidx.navigation3`), not traditional Navigation Compos
 ## Key Conventions
 
 - **Compose UI only** — no XML layouts, no View system.
-- **Material3 with Material Expressive** theme. Custom color scheme in `ui/theme/Color.kt`.
+- **Material3 with Material Expressive** theme. WeightWise 3.0「东方数据刊物」规则以 `DESIGN.md` 为准；color schemes live in `ui/theme/WeightWiseSchemes.kt`, typography and shapes are wired in `ui/theme/Theme.kt`.
+
+## Design System
+
+Always read `DESIGN.md` before making visual or UI decisions. Font choices, colors, spacing, page composition, and the deliberate non-Material shapes are defined there. Do not deviate without explicit user approval; UI review must flag code that falls back to uniform default cards or conflicts with `DESIGN.md`.
 - **Vico 3.x** for weight trend charts (CartesianChart with line + area fill).
 - **Paging 3** for weight record list (page size 20).
 - **kotlinx.serialization** for JSON — all serialized models use `@Serializable`.

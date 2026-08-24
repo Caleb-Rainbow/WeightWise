@@ -28,8 +28,8 @@ class SemanticColorContrastTest {
         return (maxOf(la, lb) + 0.05) / (minOf(la, lb) + 0.05)
     }
 
-    /** 应用昼夜背景(取自 ui/theme/Color.kt 的 backgroundLight/Dark),与变体一一配对 */
-    private val dayNightBackgrounds = listOf(false to Color(0xFFF7F9FF), true to Color(0xFF101418))
+    /** 应用昼夜背景取自 WeightWiseSchemes 的统一米白/墨黑骨架，与变体一一配对。 */
+    private val dayNightBackgrounds = listOf(false to Color(0xFFF7F4ED), true to Color(0xFF111714))
 
     @Test
     fun `lightchip 文字对容器对比度昼夜均不低于4_5`() {

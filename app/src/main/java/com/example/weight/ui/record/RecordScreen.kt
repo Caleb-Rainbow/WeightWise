@@ -38,8 +38,10 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
@@ -71,6 +73,9 @@ import com.example.weight.data.record.Record
 import com.example.weight.ui.common.BodyCompositionGrid
 import com.example.weight.ui.common.DeleteDialog
 import com.example.weight.ui.common.MyTopBar
+import com.example.weight.ui.common.SectionHeader
+import com.example.weight.ui.common.WeightWiseDimens
+import com.example.weight.ui.common.WeightWiseEmptyState
 import com.example.weight.ui.main.AddRecordDialog
 import com.example.weight.ui.theme.resolve
 import com.example.weight.util.TimeUtils
@@ -202,8 +207,11 @@ fun RecordScreen(
                     else -> {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                            contentPadding = PaddingValues(
+                                horizontal = WeightWiseDimens.PageHorizontal,
+                                vertical = 12.dp,
+                            ),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             item(key = "summary") {
                                 RecordSummaryContent(
@@ -212,11 +220,10 @@ fun RecordScreen(
                                 )
                             }
                             item(key = "swipe_hint") {
-                                Text(
-                                    text = "提示：左滑记录可编辑或删除",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                    modifier = Modifier.padding(start = 4.dp)
+                                SectionHeader(
+                                    title = "全部记录",
+                                    subtitle = "左滑可编辑或删除，点按体脂记录看详情",
+                                    modifier = Modifier.padding(top = 6.dp),
                                 )
                             }
                             items(recordList.itemCount, key = recordList.itemKey { it.id }) { index ->
@@ -262,123 +269,91 @@ private fun RecordSearchField(
     value: String,
     onValueChange: (String) -> Unit
 ) {
-    OutlinedTextField(
+    TextField(
         value = value,
         onValueChange = onValueChange,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        placeholder = { Text("搜索日志或日期，如 08-20") },
+            .padding(horizontal = WeightWiseDimens.PageHorizontal, vertical = 8.dp),
+        placeholder = { Text("搜索日期或日志") },
         leadingIcon = { Icon(imageVector = Icons.Default.Search, contentDescription = null) },
         singleLine = true,
-        shape = RoundedCornerShape(28.dp)
+        shape = MaterialTheme.shapes.large,
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            focusedIndicatorColor = Color.Transparent,
+            unfocusedIndicatorColor = Color.Transparent,
+        ),
     )
 }
 
 @Composable
 private fun EmptyRecordsContent(hasQuery: Boolean) {
-    Column(
+    WeightWiseEmptyState(
+        icon = Icons.AutoMirrored.Filled.ReceiptLong,
+        title = if (hasQuery) "没有匹配的记录" else "还没有体重记录",
+        message = if (hasQuery) "换个关键词试试，支持日期和日志内容"
+        else "从今天开始记录，趋势会慢慢长出来",
         modifier = Modifier
             .fillMaxSize()
             .padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Icon(
-            imageVector = Icons.AutoMirrored.Filled.ReceiptLong,
-            contentDescription = null,
-            modifier = Modifier.size(72.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = if (hasQuery) "没有匹配的记录" else "暂无体重记录",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            text = if (hasQuery) "换个关键词试试，支持日志内容和日期（如 08-20）"
-            else "点击右上角 + 添加第一条记录吧",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-            textAlign = TextAlign.Center
-        )
-    }
+    )
 }
 
 @Composable
 private fun RecordSummaryContent(latestRecord: Record?, recordCount: Int) {
-    Card(
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer
-        )
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 8.dp, bottomStart = 8.dp, bottomEnd = 28.dp),
+        color = MaterialTheme.colorScheme.inverseSurface,
+        contentColor = MaterialTheme.colorScheme.inverseOnSurface,
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            SummaryItem(
-                modifier = Modifier.weight(1f),
-                value = latestRecord?.let { oneDecimalFormat.format(it.weight) } ?: "--",
-                unit = "kg",
-                label = "最新体重"
-            )
-            VerticalDivider(modifier = Modifier.height(26.dp))
-            SummaryItem(
-                modifier = Modifier.weight(1f),
-                value = "$recordCount",
-                unit = "次",
-                label = "累计记录"
-            )
-            VerticalDivider(modifier = Modifier.height(26.dp))
-            SummaryItem(
-                modifier = Modifier.weight(1f),
-                value = latestRecord?.let { TimeUtils.convertMillisToDate(it.timestamp) } ?: "--",
-                unit = "",
-                label = "最近记录"
-            )
-        }
-    }
-}
-
-@Composable
-private fun SummaryItem(
-    modifier: Modifier,
-    value: String,
-    unit: String,
-    label: String
-) {
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(
-                text = value,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-            if (unit.isNotEmpty()) {
+            Column(modifier = Modifier.weight(1.2f)) {
                 Text(
-                    text = " $unit",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
-                    modifier = Modifier.padding(bottom = 1.dp)
+                    "LATEST / 最近一次",
+                    style = MaterialTheme.typography.labelMedium,
+                    letterSpacing = 0.8.sp,
+                    color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.56f),
+                )
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        latestRecord?.let { oneDecimalFormat.format(it.weight) } ?: "--",
+                        style = MaterialTheme.typography.displaySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.inversePrimary,
+                    )
+                    Text(
+                        "kg",
+                        modifier = Modifier.padding(start = 4.dp, bottom = 5.dp),
+                        color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.6f),
+                    )
+                }
+            }
+            VerticalDivider(
+                modifier = Modifier
+                    .height(72.dp)
+                    .padding(horizontal = 16.dp),
+                color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.14f),
+            )
+            Column(modifier = Modifier.weight(0.9f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "$recordCount 次记录",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    latestRecord?.let { TimeUtils.convertMillisToDate(it.timestamp) } ?: "暂无日期",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.62f),
                 )
             }
         }
-        Spacer(modifier = Modifier.height(2.dp))
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-        )
     }
 }
 
@@ -389,15 +364,12 @@ private fun RecordItemContent(
     isOldestRecord: Boolean,
     onClick: () -> Unit = {},
 ) {
-    Card(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
-        ),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -475,24 +447,24 @@ private fun RecordItemContent(
 private fun DateBlock(timestamp: Long) {
     Column(
         modifier = Modifier
-            .width(48.dp)
+            .width(50.dp)
             .background(
-                color = MaterialTheme.colorScheme.primaryContainer,
-                shape = RoundedCornerShape(12.dp)
+                color = MaterialTheme.colorScheme.tertiaryContainer,
+                shape = RoundedCornerShape(topStart = 16.dp, topEnd = 4.dp, bottomStart = 4.dp, bottomEnd = 16.dp),
             )
-            .padding(vertical = 6.dp),
+            .padding(vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
             text = TimeUtils.convertMillisToMonth(timestamp),
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+            color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
         )
         Text(
             text = TimeUtils.convertMillisToDay(timestamp),
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onPrimaryContainer
+            color = MaterialTheme.colorScheme.onTertiaryContainer
         )
     }
 }

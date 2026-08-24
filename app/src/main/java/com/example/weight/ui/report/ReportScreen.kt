@@ -1,6 +1,7 @@
 package com.example.weight.ui.report
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +22,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.MonitorWeight
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
@@ -30,9 +32,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
@@ -55,7 +54,10 @@ import com.example.weight.data.LocalStorageData
 import com.example.weight.data.record.DailyMinWeight
 import com.example.weight.ui.common.AnalysisBottomSheet
 import com.example.weight.ui.common.MyTopBar
+import com.example.weight.ui.common.SectionHeader
 import com.example.weight.ui.common.WeightChart
+import com.example.weight.ui.common.WeightWiseDimens
+import com.example.weight.ui.common.WeightWiseEmptyState
 import com.example.weight.ui.common.movingAverage
 import com.example.weight.ui.diet.TrafficLightColors
 import com.example.weight.ui.theme.resolve
@@ -94,7 +96,7 @@ fun ReportScreen(
     // AI 弹窗独立成组：流式期间每帧只重组这个小组件，而不是整个报告页
     ReportAiSheet(viewModel)
 
-    Scaffold(modifier = modifier, topBar = { MyTopBar(title = "报告", goBack = goBack) }) { padding ->
+    Scaffold(modifier = modifier, topBar = { MyTopBar(title = "健康报告", goBack = goBack) }) { padding ->
         Column(
             modifier = Modifier
                 .padding(padding)
@@ -111,11 +113,11 @@ fun ReportScreen(
             )
             when {
                 report == null -> ReportLoadingContent()
-                report.dailyWeights.isEmpty() -> ReportEmptyContent()
-                else -> Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                report.dailyWeights.isEmpty() || report.weightStats == null -> ReportEmptyContent()
+                else -> Column(modifier = Modifier.padding(horizontal = WeightWiseDimens.PageHorizontal)) {
                     SummaryCard(
                         modifier = Modifier.fillMaxWidth(),
-                        weightStats = report.weightStats!!,
+                        weightStats = report.weightStats,
                         changeVsPrevPeriod = report.changeVsPrevPeriod,
                         endBmi = report.endBmi,
                     )
@@ -123,18 +125,30 @@ fun ReportScreen(
                         modifier = Modifier
                             .padding(top = 12.dp)
                             .fillMaxWidth(),
-                        recordedDays = report.weightStats!!.recordedDays,
+                        recordedDays = report.weightStats.recordedDays,
                         totalDays = report.totalDays,
                     )
-                    ReportChart(
-                        dailyWeights = report.dailyWeights,
-                        targetWeight = targetWeight,
+                    SectionHeader(
+                        title = "趋势回顾",
+                        subtitle = "目标线与周期内每日最低体重",
+                        modifier = Modifier.padding(top = 22.dp, bottom = 8.dp),
+                    )
+                    Surface(
+                        shape = MaterialTheme.shapes.large,
+                        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                    ) {
+                        ReportChart(
+                            dailyWeights = report.dailyWeights,
+                            targetWeight = targetWeight,
+                        )
+                    }
+                    SectionHeader(
+                        title = "区间数据",
+                        modifier = Modifier.padding(top = 22.dp, bottom = 8.dp),
                     )
                     WeightStatsCard(
-                        modifier = Modifier
-                            .padding(top = 12.dp)
-                            .fillMaxWidth(),
-                        weightStats = report.weightStats!!,
+                        modifier = Modifier.fillMaxWidth(),
+                        weightStats = report.weightStats,
                     )
                     report.caloriesStats?.let {
                         CaloriesCard(
@@ -187,18 +201,34 @@ private fun PeriodTypeTabs(
     selected: ReportType,
     onSelected: (ReportType) -> Unit,
 ) {
-    SingleChoiceSegmentedButtonRow(
+    Surface(
         modifier = Modifier
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-            .fillMaxWidth()
+            .padding(horizontal = WeightWiseDimens.PageHorizontal, vertical = 8.dp)
+            .fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
     ) {
-        ReportType.entries.forEachIndexed { index, type ->
-            SegmentedButton(
-                selected = type == selected,
-                onClick = { onSelected(type) },
-                shape = SegmentedButtonDefaults.itemShape(index = index, count = ReportType.entries.size),
-                label = { Text(type.label) }
-            )
+        Row(modifier = Modifier.padding(4.dp)) {
+            ReportType.entries.forEach { type ->
+                val isSelected = type == selected
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable(onClickLabel = type.label) { onSelected(type) },
+                    shape = RoundedCornerShape(14.dp),
+                    color = if (isSelected) MaterialTheme.colorScheme.inverseSurface else Color.Transparent,
+                    contentColor = if (isSelected) MaterialTheme.colorScheme.inverseOnSurface
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                ) {
+                    Text(
+                        text = type.label,
+                        modifier = Modifier.padding(vertical = 10.dp),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
         }
     }
 }
@@ -248,27 +278,15 @@ private fun ReportLoadingContent() {
 /** 该周期内没有任何体重记录 */
 @Composable
 private fun ReportEmptyContent() {
-    Column(
+    WeightWiseEmptyState(
+        icon = Icons.Default.MonitorWeight,
+        title = "这个周期还没有记录",
+        message = "换个周期看看，或从今天开始记录体重",
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 72.dp, start = 16.dp, end = 16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Icon(
-            imageVector = Icons.Default.MonitorWeight,
-            contentDescription = null,
-            modifier = Modifier.size(56.dp),
-            tint = MaterialTheme.colorScheme.primary
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(text = "这个周期还没有体重记录", style = MaterialTheme.typography.titleMedium)
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = "换个周期看看，或从今天开始记录",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
+            .height(420.dp)
+            .padding(horizontal = 32.dp),
+    )
 }
 
 /** 核心摘要卡：净变化（大数字）+ 期初→期末 + 较上一期 + 期末 BMI */
@@ -279,7 +297,12 @@ private fun SummaryCard(
     changeVsPrevPeriod: Double?,
     endBmi: Double?,
 ) {
-    Card(modifier = modifier) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(topStart = 32.dp, topEnd = 8.dp, bottomStart = 8.dp, bottomEnd = 32.dp),
+        color = MaterialTheme.colorScheme.inverseSurface,
+        contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+    ) {
         Column(
             modifier = Modifier
                 .padding(16.dp)
@@ -288,18 +311,19 @@ private fun SummaryCard(
             Text(
                 text = "体重净变化",
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.58f)
             )
             Text(
                 text = String.format(Locale.CHINA, "%+.1fkg", weightStats.netChange),
                 style = MaterialTheme.typography.displaySmall,
                 fontWeight = FontWeight.Bold,
-                color = if (weightStats.netChange <= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                color = if (weightStats.netChange <= 0) MaterialTheme.colorScheme.inversePrimary
+                else MaterialTheme.colorScheme.tertiary
             )
             Text(
                 text = String.format(Locale.CHINA, "%.1fkg → %.1fkg（期初 → 期末）", weightStats.startWeight, weightStats.endWeight),
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.68f)
             )
             if (changeVsPrevPeriod != null || endBmi != null) {
                 HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp))
@@ -311,14 +335,15 @@ private fun SummaryCard(
                         Text(
                             text = String.format(Locale.CHINA, "较上一期 %+.1fkg", changeVsPrevPeriod),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = if (changeVsPrevPeriod <= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                            color = if (changeVsPrevPeriod <= 0) MaterialTheme.colorScheme.inversePrimary
+                            else MaterialTheme.colorScheme.tertiary
                         )
                     }
                     if (endBmi != null) {
                         Text(
                             text = "期末 BMI ${String.format(Locale.CHINA, "%.1f", endBmi)}",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.68f)
                         )
                     }
                 }

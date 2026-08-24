@@ -17,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -50,6 +51,9 @@ import com.example.weight.ui.common.MetricInfoDialog
 import com.example.weight.ui.common.MetricStatusColors
 import com.example.weight.ui.common.MetricTrendChart
 import com.example.weight.ui.common.MyTopBar
+import com.example.weight.ui.common.PageLead
+import com.example.weight.ui.common.SectionHeader
+import com.example.weight.ui.common.WeightWiseDimens
 import com.example.weight.ui.common.movingAverage
 import com.example.weight.ui.main.StatisticsScope
 import com.example.weight.util.TimeUtils
@@ -90,10 +94,27 @@ fun BodyTrendScreen(
                 .padding(padding)
                 .verticalScroll(rememberScrollState()),
         ) {
+            PageLead(
+                eyebrow = "身体成分",
+                title = "看懂长期变化",
+                modifier = Modifier.padding(
+                    horizontal = WeightWiseDimens.PageHorizontal,
+                    vertical = 8.dp,
+                ),
+            )
             TrendScopeSelector(selected = selectedScope, onSelected = viewModel::selectScope)
-            Spacer(modifier = Modifier.height(4.dp))
+            SectionHeader(
+                title = "选择指标",
+                subtitle = "点按指标切换趋势与区间统计",
+                modifier = Modifier.padding(
+                    start = WeightWiseDimens.PageHorizontal,
+                    end = WeightWiseDimens.PageHorizontal,
+                    top = 16.dp,
+                    bottom = 8.dp,
+                ),
+            )
             MetricGrid(selected = selectedMetric, onSelected = viewModel::selectMetric)
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(WeightWiseDimens.SectionGap))
             when {
                 rawRecords == null -> Box(
                     modifier = Modifier
@@ -139,7 +160,12 @@ private fun TrendChartCard(metric: TrendMetric, series: List<MetricPoint>, value
     }
     var showInfo by remember { mutableStateOf(false) }
 
-    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = WeightWiseDimens.PageHorizontal),
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 8.dp, bottomStart = 8.dp, bottomEnd = 28.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+    ) {
         Column {
             Row(
                 modifier = Modifier
@@ -242,7 +268,11 @@ private fun TrendChartBody(metric: TrendMetric, series: List<MetricPoint>, value
 @Composable
 private fun TrendStatsCard(metric: TrendMetric, series: List<MetricPoint>, values: List<Double>) {
     if (values.isEmpty()) return
-    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = WeightWiseDimens.PageHorizontal),
+        shape = RoundedCornerShape(topStart = 8.dp, topEnd = 24.dp, bottomStart = 24.dp, bottomEnd = 8.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
         Row(
             modifier = Modifier
                 .padding(16.dp)
@@ -311,18 +341,37 @@ private fun MetricGrid(selected: TrendMetric, onSelected: (TrendMetric) -> Unit)
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = WeightWiseDimens.PageHorizontal),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         TrendMetric.entries.chunked(3).forEach { rowItems ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 rowItems.forEach { metric ->
-                    FilterChip(
-                        selected = metric == selected,
-                        onClick = { onSelected(metric) },
-                        label = { Text(metric.label, maxLines = 1) },
-                        modifier = Modifier.weight(1f),
-                    )
+                    val isSelected = metric == selected
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable(onClickLabel = metric.label) { onSelected(metric) },
+                        shape = RoundedCornerShape(
+                            topStart = if (isSelected) 14.dp else 6.dp,
+                            topEnd = 6.dp,
+                            bottomStart = 6.dp,
+                            bottomEnd = if (isSelected) 14.dp else 6.dp,
+                        ),
+                        color = if (isSelected) MaterialTheme.colorScheme.inverseSurface
+                        else MaterialTheme.colorScheme.surfaceContainerLow,
+                        contentColor = if (isSelected) MaterialTheme.colorScheme.inverseOnSurface
+                        else MaterialTheme.colorScheme.onSurface,
+                    ) {
+                        Text(
+                            metric.label,
+                            modifier = Modifier.padding(vertical = 10.dp),
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            maxLines = 1,
+                        )
+                    }
                 }
                 // 当前 12 项被 3 整除；未来增删指标不整除时补空位保持同格等宽
                 repeat(3 - rowItems.size) { Spacer(modifier = Modifier.weight(1f)) }
@@ -335,7 +384,7 @@ private fun MetricGrid(selected: TrendMetric, onSelected: (TrendMetric) -> Unit)
 @Composable
 private fun TrendScopeSelector(selected: StatisticsScope, onSelected: (StatisticsScope) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
-    Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+    Box(modifier = Modifier.padding(horizontal = WeightWiseDimens.PageHorizontal)) {
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(20.dp))

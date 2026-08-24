@@ -4,14 +4,16 @@ import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBackIos
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.DateRange
@@ -31,6 +33,7 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldColors
@@ -50,8 +53,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
@@ -61,6 +66,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import java.util.Calendar
 import java.util.Locale
+
+internal const val IMMERSIVE_TOP_BAR_TAG = "immersiveTopBarSurface"
 
 @Composable
 fun RequiredText(modifier: Modifier = Modifier, text: String, fontSize: TextUnit = 14.sp) {
@@ -381,22 +388,44 @@ fun MyTopBar(
     title: String,
     actions: @Composable (RowScope.() -> Unit) = {},
     goBack: () -> Unit,
-    isShowBackArrow: Boolean = true
+    isShowBackArrow: Boolean = true,
+    statusBarInsets: WindowInsets = WindowInsets.statusBars,
 ) {
-    TopAppBar(title = {
-        Text(text = title, fontSize = 14.sp)
-    },
-        modifier = modifier,
-        actions = actions,
-        navigationIcon = {
-            if (isShowBackArrow) {
-                IconButton(onClick = goBack) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBackIos,
-                        contentDescription = null
-                    )
+    // Surface 必须包住 TopAppBar 自带的 statusBars inset：背景绘制到窗口顶端，
+    // TopAppBar 只把标题/按钮下移到安全区，避免“状态栏留白 + 工具栏”假沉浸。
+    Surface(
+        modifier = modifier.testTag(IMMERSIVE_TOP_BAR_TAG),
+        color = MaterialTheme.colorScheme.primary,
+        contentColor = MaterialTheme.colorScheme.onPrimary,
+        shape = RoundedCornerShape(bottomEnd = 30.dp),
+    ) {
+        TopAppBar(
+            title = {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = Color.Transparent,
+                scrolledContainerColor = Color.Transparent,
+                titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
+                actionIconContentColor = MaterialTheme.colorScheme.onPrimary,
+            ),
+            windowInsets = statusBarInsets,
+            actions = actions,
+            navigationIcon = {
+                if (isShowBackArrow) {
+                    IconButton(onClick = goBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "返回"
+                        )
+                    }
                 }
-            }
-        }
-    )
+            },
+        )
+    }
 }

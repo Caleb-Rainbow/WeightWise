@@ -57,10 +57,9 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.ProgressIndicatorDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarResult
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.animation.core.animateFloatAsState
@@ -106,6 +105,8 @@ import com.example.weight.data.diet.Macros
 import com.example.weight.data.diet.MealType
 import com.example.weight.data.diet.RecognizedFoodItem
 import com.example.weight.ui.common.MyTopBar
+import com.example.weight.ui.common.WeightWiseDimens
+import com.example.weight.ui.common.WeightWiseEmptyState
 import com.example.weight.ui.theme.resolve
 import com.example.weight.util.CalorieCalculator
 import com.example.weight.util.IntakeStatus
@@ -284,7 +285,7 @@ fun DietRecordScreen(
     Scaffold(
         topBar = {
             MyTopBar(
-                title = if (showAddPage) "记录${addState.selectedMealType.displayName}" else "饮食",
+                title = if (showAddPage) "记录${addState.selectedMealType.displayName}" else "饮食记录",
                 goBack = if (showAddPage) ({ showAddPage = false }) else goBack,
             )
         }
@@ -321,18 +322,10 @@ fun DietRecordScreen(
                     .fillMaxSize()
                     .padding(paddingValues)
             ) {
-                TabRow(selectedTabIndex = pagerState.currentPage) {
-                    Tab(
-                        selected = pagerState.currentPage == TAB_TODAY,
-                        onClick = { scope.launch { pagerState.animateScrollToPage(TAB_TODAY) } },
-                        text = { Text("今日") },
-                    )
-                    Tab(
-                        selected = pagerState.currentPage == TAB_HISTORY,
-                        onClick = { scope.launch { pagerState.animateScrollToPage(TAB_HISTORY) } },
-                        text = { Text("历史") },
-                    )
-                }
+                DietModeSwitcher(
+                    selected = pagerState.currentPage,
+                    onSelected = { page -> scope.launch { pagerState.animateScrollToPage(page) } },
+                )
                 HorizontalPager(
                     state = pagerState,
                     modifier = Modifier.fillMaxSize(),
@@ -351,6 +344,40 @@ fun DietRecordScreen(
                             onGoAdd = { showAddPage = true },
                         )
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DietModeSwitcher(selected: Int, onSelected: (Int) -> Unit) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = WeightWiseDimens.PageHorizontal, vertical = 10.dp),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Row(modifier = Modifier.padding(4.dp)) {
+            listOf(TAB_TODAY to "今天怎么吃", TAB_HISTORY to "回看记录").forEach { (page, label) ->
+                val isSelected = selected == page
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable(onClickLabel = label) { onSelected(page) },
+                    shape = RoundedCornerShape(14.dp),
+                    color = if (isSelected) MaterialTheme.colorScheme.inverseSurface else Color.Transparent,
+                    contentColor = if (isSelected) MaterialTheme.colorScheme.inverseOnSurface
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                ) {
+                    Text(
+                        text = label,
+                        modifier = Modifier.padding(vertical = 11.dp),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                        textAlign = TextAlign.Center,
+                    )
                 }
             }
         }
@@ -1005,8 +1032,11 @@ private fun TodayTabPage(
     val groupedByMeal = remember(state.records) { state.records.groupBy { it.mealType } }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 15.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        contentPadding = PaddingValues(
+            horizontal = WeightWiseDimens.PageHorizontal,
+            vertical = 12.dp,
+        ),
+        verticalArrangement = Arrangement.spacedBy(WeightWiseDimens.SectionGap),
     ) {
         item(key = "today_summary") {
             IntakeHero(
@@ -1020,46 +1050,17 @@ private fun TodayTabPage(
 
         if (state.records.isEmpty()) {
             item(key = "empty_today") {
-                Column(
+                WeightWiseEmptyState(
+                    icon = MealType.LUNCH.icon,
+                    title = "今天还没记录",
+                    message = "拍照识别，或从常用食物快速添加",
+                    actionLabel = "去记一笔",
+                    onAction = onGoAdd,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 28.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(56.dp)
-                            .background(
-                                MaterialTheme.colorScheme.surfaceVariant,
-                                CircleShape,
-                            ),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            MealType.LUNCH.icon,
-                            contentDescription = null,
-                            modifier = Modifier.size(28.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        "今天还没记录",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        "拍照识别，或从常用食物快速添加",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(onClick = onGoAdd, shape = RoundedCornerShape(12.dp)) {
-                        Text("去记一笔")
-                    }
-                }
+                        .heightIn(min = 310.dp)
+                        .padding(horizontal = 24.dp),
+                )
             }
         } else {
             // 按餐次分组:组头=图标+餐次+首条时间+小计（分组结果见 LazyColumn 上方的 remember）
@@ -1118,7 +1119,7 @@ private fun TodayTabPage(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(MaterialTheme.shapes.large)
                         .background(MaterialTheme.colorScheme.primaryContainer)
                         .clickable(onClickLabel = "补记一笔") { onGoAdd() }
                         .padding(vertical = 12.dp)
@@ -1157,12 +1158,13 @@ private fun IntakeHero(
     isEmpty: Boolean,
     goSetting: () -> Unit,
 ) {
-    Card(
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(topStart = 8.dp, topEnd = 30.dp, bottomStart = 30.dp, bottomEnd = 8.dp),
+        color = MaterialTheme.colorScheme.inverseSurface,
+        contentColor = MaterialTheme.colorScheme.inverseOnSurface,
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(WeightWiseDimens.CardPadding)) {
             if (recommendedCalories != null && recommendedCalories > 0) {
                 val status = CalorieCalculator.intakeStatus(totalCalories, recommendedCalories)
                 val remaining = recommendedCalories - totalCalories
@@ -1178,37 +1180,31 @@ private fun IntakeHero(
                         usedPercent = usedPercent,
                         color = status.ringColor(),
                         over = over,
+                        contentColor = MaterialTheme.colorScheme.inverseOnSurface,
                     )
                     Spacer(modifier = Modifier.width(16.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "今日已记录",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            "今日饮食 / ${today.monthValue}月${today.dayOfMonth}日",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.58f),
                         )
                         Text(
-                            "$totalCalories kcal",
+                            if (over) "超出 ${-remaining}" else "剩余 $remaining",
                             style = MaterialTheme.typography.displaySmall,
                             fontWeight = FontWeight.ExtraBold,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = if (over) IntakeRingColors.Over.resolve()
+                            else MaterialTheme.colorScheme.inversePrimary,
                             maxLines = 1,
                         )
                         Text(
-                            if (over) "目标 $recommendedCalories kcal · 已超出 ${-remaining} kcal"
-                            else "目标 $recommendedCalories kcal · 剩余 $remaining kcal",
+                            "已摄入 $totalCalories kcal  ·  目标 $recommendedCalories kcal",
                             style = MaterialTheme.typography.bodySmall,
-                            color = if (over) IntakeRingColors.Over.resolve()
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.68f),
                             maxLines = 1,
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    "今天${today.monthValue}月${today.dayOfMonth}日",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
 
                 if (!isEmpty) {
                     val weights = macros
@@ -1222,16 +1218,16 @@ private fun IntakeHero(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
                         ) {
-                            MacroLegend("蛋白质", "${macros.protein}g", DietMacroColors.Protein.resolve())
-                            MacroLegend("碳水", "${macros.carbs}g", DietMacroColors.Carbs.resolve())
-                            MacroLegend("脂肪", "${macros.fat}g", DietMacroColors.Fat.resolve())
+                            MacroLegend("蛋白质", "${macros.protein}g", DietMacroColors.Protein.resolve(), MaterialTheme.colorScheme.inverseOnSurface)
+                            MacroLegend("碳水", "${macros.carbs}g", DietMacroColors.Carbs.resolve(), MaterialTheme.colorScheme.inverseOnSurface)
+                            MacroLegend("脂肪", "${macros.fat}g", DietMacroColors.Fat.resolve(), MaterialTheme.colorScheme.inverseOnSurface)
                         }
                         if (macros.skippedRecords > 0) {
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 "${macros.skippedRecords} 条记录数据异常未计入宏量",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.62f),
                             )
                         }
                     } else if (macros != null && !macros.hasMacroData) {
@@ -1239,7 +1235,7 @@ private fun IntakeHero(
                         Text(
                             "宏量数据 —(本日记录早于宏量统计功能,未记录该数据)",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.62f),
                         )
                     }
                 }
@@ -1248,7 +1244,7 @@ private fun IntakeHero(
                 Text(
                     "今日已摄入",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.62f),
                 )
                 Text(
                     "$totalCalories kcal",
@@ -1259,7 +1255,7 @@ private fun IntakeHero(
                 Text(
                     "今天 · 补全身体档案后开启每日额度",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.62f),
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 Row(
@@ -1293,7 +1289,12 @@ private fun IntakeHero(
 
 /** 状态圆环:填充=已用比例,环色=额度状态;超支画满;环心中性「已用 N%」 */
 @Composable
-private fun RingBox(usedPercent: Int, color: Color, over: Boolean) {
+private fun RingBox(
+    usedPercent: Int,
+    color: Color,
+    over: Boolean,
+    contentColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+) {
     val animatedFraction by animateFloatAsState(
         targetValue = (usedPercent.coerceIn(0, 100)) / 100f,
         animationSpec = ProgressIndicatorDefaults.ProgressAnimationSpec,
@@ -1332,7 +1333,7 @@ private fun RingBox(usedPercent: Int, color: Color, over: Boolean) {
             if (over) "已用\n$usedPercent%" else "已用 $usedPercent%",
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = contentColor,
             textAlign = TextAlign.Center,
         )
     }
@@ -1376,7 +1377,12 @@ private fun MacroStackedBar(weights: Triple<Float, Float, Float>) {
 }
 
 @Composable
-private fun MacroLegend(label: String, value: String, color: Color) {
+private fun MacroLegend(
+    label: String,
+    value: String,
+    color: Color,
+    contentColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(
             modifier = Modifier
@@ -1387,7 +1393,7 @@ private fun MacroLegend(label: String, value: String, color: Color) {
         Text(
             "$label $value",
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = contentColor.copy(alpha = 0.72f),
         )
     }
 }

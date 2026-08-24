@@ -61,6 +61,8 @@ import com.example.weight.data.chat.ChatModel
 import com.example.weight.data.record.RecordDao
 import com.example.weight.data.widget.WidgetUpdater
 import com.example.weight.ui.common.MyTopBar
+import com.example.weight.ui.common.PageLead
+import com.example.weight.ui.common.WeightWiseDimens
 import com.example.weight.ui.common.NumberSelector
 import com.example.weight.ui.theme.AppearanceMode
 import com.example.weight.ui.theme.ThemePreset
@@ -89,15 +91,52 @@ fun SettingScreen(modifier: Modifier = Modifier, goBack: () -> Unit) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues),
-            contentPadding = PaddingValues(horizontal = 15.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            contentPadding = PaddingValues(
+                horizontal = WeightWiseDimens.PageHorizontal,
+                vertical = 10.dp,
+            ),
+            verticalArrangement = Arrangement.spacedBy(WeightWiseDimens.SectionGap),
         ) {
+            item {
+                SettingsIntro()
+            }
             item { GoalCard() }
             item { ProfileCard() }
             item { AppearanceCard() }
             item { ReminderPushCard() }
             item { AiModelCard() }
             item { DataManagementCard() }
+        }
+    }
+}
+
+@Composable
+private fun SettingsIntro() {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(
+            topStart = 28.dp,
+            topEnd = 8.dp,
+            bottomStart = 8.dp,
+            bottomEnd = 28.dp,
+        ),
+        color = MaterialTheme.colorScheme.inverseSurface,
+        contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp)) {
+            Text(
+                "PERSONAL CONTROL",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.55f),
+            )
+            Spacer(Modifier.size(6.dp))
+            Text("把计划调成你的节奏", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.size(4.dp))
+            Text(
+                "目标、身体档案、提醒和数据都从这里统一管理",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.66f),
+            )
         }
     }
 }

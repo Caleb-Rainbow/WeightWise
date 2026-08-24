@@ -1,8 +1,11 @@
 package com.example.weight
 
+import android.graphics.Color as AndroidColor
 import android.content.Intent
 import android.os.Bundle
+import android.view.Window
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
@@ -26,6 +29,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -35,7 +39,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
@@ -67,8 +73,8 @@ class MainActivity : ComponentActivity() {
     private var openReportRequest by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableWeightWiseEdgeToEdge()
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
         openAddDialogRequest = intent.consumeBooleanExtra(EXTRA_OPEN_ADD_DIALOG)
         openReportRequest = intent.consumeBooleanExtra(EXTRA_OPEN_REPORT)
         setContent {
@@ -78,6 +84,7 @@ class MainActivity : ComponentActivity() {
                 themePreset = ThemePreset.fromId(themePreset),
                 appearanceMode = AppearanceMode.fromId(appearanceMode),
             ) {
+                WeightWiseStatusBarEffect(window)
                 ProvideVicoTheme(rememberM3VicoTheme()) {
                     ProvideSnackBarHost {
                         MainNav3(
@@ -116,6 +123,30 @@ class MainActivity : ComponentActivity() {
         /** 周报推送通知点击时携带的 extra：打开后直达报告页 */
         const val EXTRA_OPEN_REPORT = "open_report"
     }
+}
+
+/**
+ * 全应用统一绘制到系统栏后方。状态栏先以透明 + 浅色图标启动，首帧后再根据当前主题页头
+ * 的 onPrimary 亮度同步图标；导航栏继续交给 Activity 默认策略。
+ */
+internal fun ComponentActivity.enableWeightWiseEdgeToEdge() {
+    enableEdgeToEdge(
+        statusBarStyle = SystemBarStyle.dark(AndroidColor.TRANSPARENT),
+    )
+}
+
+@Composable
+private fun WeightWiseStatusBarEffect(window: Window) {
+    val onPrimaryLuminance = MaterialTheme.colorScheme.onPrimary.luminance()
+    SideEffect {
+        window.syncStatusBarIconContrast(onPrimaryLuminance)
+    }
+}
+
+/** onPrimary 偏暗说明页头本身偏亮，需要系统切换为深色状态栏图标。 */
+internal fun Window.syncStatusBarIconContrast(onPrimaryLuminance: Float) {
+    WindowCompat.getInsetsController(this, decorView).isAppearanceLightStatusBars =
+        onPrimaryLuminance < 0.5f
 }
 
 @Serializable

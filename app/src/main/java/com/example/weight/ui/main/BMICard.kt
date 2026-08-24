@@ -6,8 +6,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
@@ -31,23 +32,34 @@ fun BMIContent(modifier: Modifier, record: DailyMinWeight?, bmi: Double) {
         mutableStateOf(BMI.fromBMIValue(bmi))
     }
     val bmiFormat = remember { DecimalFormat("0.0") }
-    Card(modifier = modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 8.dp, bottomStart = 8.dp, bottomEnd = 28.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                BMIDataItem(
-                    modifier = Modifier.weight(1f),
-                    title = "BMI",
-                    content = bmiFormat.format(bmi)
-                )
-                VerticalDivider(Modifier.height(40.dp))
-                BMIDataItem(
-                    modifier = Modifier.weight(1f),
-                    title = "评级",
-                    content = bmiLeave?.label ?: "无"
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("BMI INDEX", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.58f))
+                    Text(bmiFormat.format(bmi), style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
+                }
+                Surface(
+                    shape = RoundedCornerShape(topStart = 16.dp, topEnd = 4.dp, bottomStart = 4.dp, bottomEnd = 16.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.55f),
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
+                        horizontalAlignment = Alignment.End,
+                    ) {
+                        Text("当前评级", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(bmiLeave?.label ?: "无", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    }
+                }
             }
             BMIIndexChart(
                 modifier = Modifier.padding(top = 12.dp), currentBMI = bmi
@@ -62,22 +74,5 @@ fun BMIContent(modifier: Modifier, record: DailyMinWeight?, bmi: Double) {
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun BMIDataItem(modifier: Modifier, title: String, content: String) {
-    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = content,
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(modifier = Modifier.height(2.dp))
-        Text(
-            text = title,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
     }
 }

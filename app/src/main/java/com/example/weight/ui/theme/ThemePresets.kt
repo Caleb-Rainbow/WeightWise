@@ -5,8 +5,8 @@ import androidx.compose.ui.graphics.Color
 
 /**
  *@description: 主题中心预设。品牌配色层只管「界面气质」;语义色(红绿灯/额度环/宏量)
- *               不随主题变,见 ui/diet/DietTrafficLight.kt。新增主题先改
- *               tools/generate_themes.py 重跑,再在此登记。
+ *               不随主题变,见 ui/diet/DietTrafficLight.kt。新增主题先在
+ *               WeightWiseSchemes.kt 定义昼夜配色,再在此登记。
  *@author: 杨帅林
  *@create: 2026/8/21
  **/
@@ -15,12 +15,12 @@ enum class ThemePreset(
     val light: ColorScheme,
     val dark: ColorScheme,
 ) {
-    /** 默认钢蓝,视觉基准走 Color.kt 的 lightScheme/darkScheme */
-    STEEL_BLUE("钢蓝", lightScheme, darkScheme),
-    INDIGO("靛青", indigoLightScheme, indigoDarkScheme),
-    WISTERIA("紫藤", wisteriaLightScheme, wisteriaDarkScheme),
-    ROSE("蔷薇", roseLightScheme, roseDarkScheme),
-    TERRACOTTA("陶土", terracottaLightScheme, terracottaDarkScheme);
+    /** 枚举名称保留，兼容已存储的主题偏好；标签与色板升级为东方自然色。 */
+    STEEL_BLUE("松石", jadeLightScheme, jadeDarkScheme),
+    INDIGO("黛青", inkLightScheme, inkDarkScheme),
+    WISTERIA("藕荷", lotusLightScheme, lotusDarkScheme),
+    ROSE("胭脂", rougeLightScheme, rougeDarkScheme),
+    TERRACOTTA("丹砂", cinnabarLightScheme, cinnabarDarkScheme);
 
     /** 选择器圆点主色(浅色 primary) */
     val swatch: Color get() = light.primary

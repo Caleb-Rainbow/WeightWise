@@ -10,6 +10,8 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.rememberScrollState
@@ -17,26 +19,35 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.MonitorWeight
+import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -47,10 +58,10 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearWavyProgressIndicator
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ProgressIndicatorDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -65,7 +76,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -79,6 +92,9 @@ import com.example.weight.data.LocalStorageData
 import com.example.weight.data.record.DailyMinWeight
 import com.example.weight.data.record.Record
 import com.example.weight.ui.common.WeightChart
+import com.example.weight.ui.common.SectionHeader
+import com.example.weight.ui.common.StatusPill
+import com.example.weight.ui.common.WeightWiseDimens
 import com.example.weight.ui.common.movingAverage
 import com.example.weight.ui.diet.QuickAddSheet
 import com.example.weight.util.GoalProgressCalculator
@@ -140,9 +156,10 @@ fun MainScreen(
     MainDialog()
     Scaffold(
         modifier = modifier,
+        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0),
         bottomBar = {
             MainBottomToolbar(
-                onSetting = goSetting,
                 onAddRecord = viewModel::showAddDialog,
                 onDietRecord = goDietRecord,
                 onDietQuickAdd = { showQuickAdd = true },
@@ -158,13 +175,14 @@ fun MainScreen(
             currentScopeData?.let { viewModel.setSelectedRecord(it.lastOrNull()) }
         }
 
-        Column(
-            modifier = Modifier
-                .padding(paddingValues)
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-        ) {
-            when {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .padding(paddingValues)
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                when {
                 scopeData == null -> LoadingContent()
                 scopeData.isEmpty() -> EmptyContent(onAddRecord = viewModel::showAddDialog)
                 else -> {
@@ -182,51 +200,141 @@ fun MainScreen(
                         (if (targetWeight > 0) minOf(raw, targetWeight) else raw).minus(1)
                     }
 
-                    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                    BoxWithConstraints {
                         // 提升到此处一次性收集，避免在下层参数表达式里内联 collect
                         val selectedScope by viewModel.selectedScope.collectAsStateWithLifecycle()
-                        SelectedRecordContent(
-                            record = uiState.selectedRecord,
-                            selectedScope = selectedScope,
-                            onScopeSelected = viewModel::selectScope,
-                            streakInfo = streakInfo
-                        )
-                        GoalProgressContent(
-                            modifier = Modifier
-                                .padding(top = 12.dp)
-                                .fillMaxWidth(),
-                            currentRecord = uiState.selectedRecord,
-                            firstRecord = uiState.firstRecord,
-                            recentDailyWeights = predictionDataList
-                        )
                         // 稳定引用：内联 lambda 每次重组都是新实例，会让图表的 marker listener 链失效重建
                         val onRecordSelected = remember(viewModel) {
                             { record: DailyMinWeight -> viewModel.setSelectedRecord(record) }
                         }
-                        StatisticChart(
-                            currentScopeDataList = scopeData,
-                            maxWeight = chartMaxWeight,
-                            minWeight = chartMinWeight,
-                            onMarkerClick = onRecordSelected,
-                        )
-                        StatsSummaryCard(
-                            modifier = Modifier
-                                .padding(top = 12.dp)
-                                .fillMaxWidth(),
-                            maxWeightRecord = maxWeightRecord,
-                            minWeightRecord = minWeightRecord,
-                            firstWeightRecord = scopeData.firstOrNull(),
-                            lastWeightRecord = scopeData.lastOrNull()
-                        )
-                        BMIContent(
-                            modifier = Modifier.padding(top = 12.dp),
-                            record = uiState.selectedRecord,
-                            bmi = bmi
-                        )
+
+                        val heroContent: @Composable (Modifier) -> Unit = { heroModifier ->
+                            Surface(
+                                modifier = heroModifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(bottomStart = 42.dp, bottomEnd = 14.dp),
+                                color = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary,
+                            ) {
+                                Column {
+                                    SelectedRecordContent(
+                                        record = uiState.selectedRecord,
+                                        selectedScope = selectedScope,
+                                        onScopeSelected = viewModel::selectScope,
+                                        streakInfo = streakInfo,
+                                        onSetting = goSetting,
+                                    )
+                                    GoalProgressContent(
+                                        modifier = Modifier
+                                            .padding(start = 20.dp, end = 20.dp, bottom = 22.dp)
+                                            .fillMaxWidth(),
+                                        currentRecord = uiState.selectedRecord,
+                                        firstRecord = uiState.firstRecord,
+                                        recentDailyWeights = predictionDataList,
+                                    )
+                                }
+                            }
+                        }
+
+                        val trendContent: @Composable () -> Unit = {
+                            DashboardSectionTitle(
+                                index = "01",
+                                title = "趋势轨迹",
+                                subtitle = "点按曲线查看当天记录",
+                                modifier = Modifier.padding(top = 28.dp, bottom = 12.dp),
+                            )
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(
+                                    topStart = 8.dp,
+                                    topEnd = 30.dp,
+                                    bottomStart = 30.dp,
+                                    bottomEnd = 8.dp,
+                                ),
+                                color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                                shadowElevation = 1.dp,
+                            ) {
+                                StatisticChart(
+                                    currentScopeDataList = scopeData,
+                                    maxWeight = chartMaxWeight,
+                                    minWeight = chartMinWeight,
+                                    onMarkerClick = onRecordSelected,
+                                )
+                            }
+                        }
+
+                        val statsContent: @Composable () -> Unit = {
+                            PeriodDigest(
+                                modifier = Modifier
+                                    .padding(top = 14.dp)
+                                    .fillMaxWidth(),
+                                maxWeightRecord = maxWeightRecord,
+                                minWeightRecord = minWeightRecord,
+                                firstWeightRecord = scopeData.firstOrNull(),
+                                lastWeightRecord = scopeData.lastOrNull(),
+                            )
+                        }
+
+                        val bmiContent: @Composable () -> Unit = {
+                            DashboardSectionTitle(
+                                index = "02",
+                                title = "身体状态",
+                                subtitle = "BMI 仅作为成年人健康范围参考",
+                                modifier = Modifier.padding(top = 28.dp, bottom = 12.dp),
+                            )
+                            BMIContent(
+                                modifier = Modifier,
+                                record = uiState.selectedRecord,
+                                bmi = bmi,
+                            )
+                        }
+
+                        if (maxWidth >= 700.dp) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = WeightWiseDimens.PageHorizontal),
+                                horizontalArrangement = Arrangement.spacedBy(WeightWiseDimens.SectionGap),
+                                verticalAlignment = Alignment.Top,
+                            ) {
+                                Column(modifier = Modifier.weight(0.42f)) {
+                                    heroContent(Modifier.clip(MaterialTheme.shapes.extraLarge))
+                                    DashboardQuickActions(
+                                        modifier = Modifier.padding(top = 16.dp),
+                                        onAddRecord = viewModel::showAddDialog,
+                                        onDietQuickAdd = { showQuickAdd = true },
+                                    )
+                                    statsContent()
+                                }
+                                Column(modifier = Modifier.weight(0.58f)) {
+                                    trendContent()
+                                    bmiContent()
+                                }
+                            }
+                        } else {
+                            Column {
+                                heroContent(Modifier)
+                                Column(modifier = Modifier.padding(horizontal = WeightWiseDimens.PageHorizontal)) {
+                                    DashboardQuickActions(
+                                        modifier = Modifier.padding(top = 18.dp),
+                                        onAddRecord = viewModel::showAddDialog,
+                                        onDietQuickAdd = { showQuickAdd = true },
+                                    )
+                                    trendContent()
+                                    statsContent()
+                                    bmiContent()
+                                }
+                            }
+                        }
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+            // 最后绘制为固定承托层：列表滚动后也不会让浅色卡片跑到状态栏图标下方。
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .windowInsetsTopHeight(WindowInsets.statusBars)
+                    .background(MaterialTheme.colorScheme.primary),
+            )
         }
     }
 }
@@ -275,13 +383,93 @@ private fun EmptyContent(onAddRecord: () -> Unit) {
     }
 }
 
-/**
- * 首页底部操作栏:胶囊形悬浮样式,五个入口等宽分布,中心的"记体重"按钮放大突出。
- * 通过 [androidx.compose.material3.Scaffold] 的 bottomBar 槽位使用,自动为内容预留底部内边距。
- */
+/** 首页的两条高频任务。用不对称比例强调称重，避免所有入口等权的图标宫格。 */
+@Composable
+private fun DashboardQuickActions(
+    modifier: Modifier = Modifier,
+    onAddRecord: () -> Unit,
+    onDietQuickAdd: () -> Unit,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 112.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Surface(
+            modifier = Modifier
+                .weight(1.25f)
+                .fillMaxSize()
+                .clickable(role = Role.Button, onClickLabel = "记录体重", onClick = onAddRecord),
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 8.dp, bottomStart = 8.dp, bottomEnd = 28.dp),
+            color = MaterialTheme.colorScheme.tertiaryContainer,
+            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Icon(Icons.Default.EditNote, contentDescription = null, modifier = Modifier.size(28.dp))
+                Column {
+                    Text("记录体重", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("今天还没称？现在记一笔", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+        Surface(
+            modifier = Modifier
+                .weight(0.75f)
+                .fillMaxSize()
+                .clickable(role = Role.Button, onClickLabel = "记一餐", onClick = onDietQuickAdd),
+            shape = RoundedCornerShape(topStart = 8.dp, topEnd = 28.dp, bottomStart = 28.dp, bottomEnd = 8.dp),
+            color = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Icon(Icons.Default.Restaurant, contentDescription = null, modifier = Modifier.size(26.dp))
+                Column {
+                    Text("记一餐", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("拍照或文字", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+    }
+}
+
+/** 杂志式章节头：编号负责节奏，大标题负责扫描。 */
+@Composable
+private fun DashboardSectionTitle(
+    index: String,
+    title: String,
+    subtitle: String,
+    modifier: Modifier = Modifier,
+) {
+    Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+        Text(
+            text = index,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.tertiary,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 4.dp),
+        )
+        Spacer(Modifier.width(12.dp))
+        Column {
+            Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/** 深墨悬浮导航坞。导航与页面表面彻底分层，中心朱砂动作只负责记体重。 */
 @Composable
 private fun MainBottomToolbar(
-    onSetting: () -> Unit,
     onAddRecord: () -> Unit,
     onDietRecord: () -> Unit,
     onDietQuickAdd: () -> Unit,
@@ -289,61 +477,63 @@ private fun MainBottomToolbar(
     onReport: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Surface(
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .windowInsetsPadding(WindowInsets.navigationBars)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        shape = RoundedCornerShape(32.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        shadowElevation = 6.dp
+            .background(Color.Transparent)
+            .windowInsetsPadding(WindowInsets.navigationBars),
     ) {
-        Row(
+        Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 12.dp, vertical = 7.dp),
+            shape = RoundedCornerShape(26.dp),
+            color = MaterialTheme.colorScheme.inverseSurface,
+            contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+            shadowElevation = 18.dp,
         ) {
-            MainToolbarItem(label = "设置", icon = Icons.Default.Settings, onClick = onSetting)
-            // 点击直达饮食页；长按弹快速记一笔 sheet（用户反馈：一级入口不能挡住主路径）
-            MainToolbarItem(
-                label = "饮食",
-                icon = Icons.Default.CameraAlt,
-                onClick = onDietRecord,
-                onLongClick = onDietQuickAdd,
-            )
-            Column(
-                modifier = Modifier.weight(1f),
-                horizontalAlignment = Alignment.CenterHorizontally
+            Row(
+                modifier = Modifier.padding(horizontal = 5.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                FilledIconButton(
-                    onClick = onAddRecord,
-                    modifier = Modifier.size(52.dp)
+                MainToolbarItem(label = "首页", icon = Icons.Default.Home, onClick = {}, selected = true)
+                MainToolbarItem(
+                    label = "饮食",
+                    icon = Icons.Default.Restaurant,
+                    onClick = onDietRecord,
+                    onLongClick = onDietQuickAdd,
+                )
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = null,
-                        modifier = Modifier.size(26.dp)
-                    )
+                    FilledIconButton(
+                        onClick = onAddRecord,
+                        modifier = Modifier.size(52.dp),
+                        shape = RoundedCornerShape(18.dp),
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.tertiary,
+                            contentColor = MaterialTheme.colorScheme.onTertiary,
+                        ),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "记体重",
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
                 }
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "记体重",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    maxLines = 1
+                MainToolbarItem(
+                    label = "记录",
+                    icon = Icons.AutoMirrored.Filled.ReceiptLong,
+                    onClick = onRecord
+                )
+                MainToolbarItem(
+                    label = "报告",
+                    icon = Icons.Default.Insights,
+                    onClick = onReport
                 )
             }
-            MainToolbarItem(
-                label = "记录",
-                icon = Icons.AutoMirrored.Filled.ReceiptLong,
-                onClick = onRecord
-            )
-            MainToolbarItem(
-                label = "报告",
-                icon = Icons.Default.Insights,
-                onClick = onReport
-            )
         }
     }
 }
@@ -354,12 +544,13 @@ private fun RowScope.MainToolbarItem(
     label: String,
     icon: ImageVector,
     onClick: () -> Unit,
-    onLongClick: (() -> Unit)? = null
+    onLongClick: (() -> Unit)? = null,
+    selected: Boolean = false,
 ) {
     Column(
         modifier = Modifier
             .weight(1f)
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(16.dp))
             .then(
                 if (onLongClick != null) {
                     Modifier.combinedClickable(
@@ -372,19 +563,23 @@ private fun RowScope.MainToolbarItem(
                     Modifier.clickable(role = Role.Button, onClickLabel = label, onClick = onClick)
                 }
             )
-            .padding(horizontal = 4.dp, vertical = 8.dp),
+            .padding(horizontal = 3.dp, vertical = 7.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
+            tint = if (selected) MaterialTheme.colorScheme.inversePrimary
+            else MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.64f),
+            modifier = Modifier.size(22.dp),
         )
-        Spacer(modifier = Modifier.height(2.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = if (selected) MaterialTheme.colorScheme.inversePrimary
+            else MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.68f),
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
             maxLines = 1
         )
     }
@@ -416,7 +611,7 @@ private fun GoalProgressContent(
             // 使用 animateFloatAsState 为进度条增加平滑的动画效果
             val animatedProgress by animateFloatAsState(
                 targetValue = progress,
-                animationSpec = ProgressIndicatorDefaults.ProgressAnimationSpec
+                label = "目标进度",
             )
             // 基于近 90 天每日最低体重的加权回归趋势估算剩余天数，
             // 趋势停滞、反向或数据不足时返回 null，不显示天数
@@ -424,97 +619,48 @@ private fun GoalProgressContent(
                 WeightPredictor.estimateDaysToTarget(recentDailyWeights, currentWeight, targetWeight)
             }
 
-            Card(
+            Surface(
                 modifier = modifier,
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+                shape = RoundedCornerShape(topStart = 10.dp, topEnd = 30.dp, bottomStart = 30.dp, bottomEnd = 10.dp),
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.09f),
+                contentColor = MaterialTheme.colorScheme.onPrimary,
             ) {
-                Column(
-                    modifier = Modifier
-                        .padding(horizontal = 16.dp, vertical = 14.dp)
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    if (goalReached) {
-                        // 达成目标的庆祝态
+                    GoalRing(
+                        progress = animatedProgress,
+                        modifier = Modifier.size(78.dp),
+                    )
+                    Spacer(Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "已达成目标体重",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.align(Alignment.CenterHorizontally)
+                            text = if (goalReached) "目标已达成" else "目标进度",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.68f),
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        val lostWeight = startWeight - currentWeight
-                        Text(
-                            text = if (lostWeight > 0) {
-                                "相比起始体重已减轻 ${String.format(Locale.CHINA, "%.1f", lostWeight)} kg，继续保持"
-                            } else {
-                                "继续保持，稳住成果"
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
-                            modifier = Modifier.align(Alignment.CenterHorizontally)
-                        )
-                    } else {
-                        // "距离目标还有 X kg，预计剩余 N 天" 的核心激励文本
+                        Spacer(Modifier.height(3.dp))
                         val remainingWeight = (currentWeight - targetWeight).absoluteValue
                         Text(
-                            text = buildAnnotatedString {
-                                append("距离目标还有 ")
-                                withStyle(
-                                    style = SpanStyle(
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 18.sp
-                                    )
-                                ) {
-                                    append(String.format(Locale.CHINA, "%.1f", remainingWeight))
-                                }
-                                append(" kg")
-                                // 仅在能估算出天数时显示
-                                if (remainingDays != null && remainingWeight > 0) {
-                                    append("，预计 ")
-                                    withStyle(
-                                        style = SpanStyle(
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 18.sp
-                                        )
-                                    ) {
-                                        append(" $remainingDays")
-                                    }
-                                    append(" 天")
-                                }
+                            text = if (goalReached) {
+                                val lostWeight = startWeight - currentWeight
+                                if (lostWeight > 0) "已减轻 ${String.format(Locale.CHINA, "%.1f", lostWeight)} kg"
+                                else "稳住现在的节奏"
+                            } else {
+                                "还差 ${String.format(Locale.CHINA, "%.1f", remainingWeight)} kg"
                             },
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.align(Alignment.CenterHorizontally)
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
                         )
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // 进度条本体
-                    LinearWavyProgressIndicator(
-                        progress = { animatedProgress },
-                        modifier = Modifier
-                            .fillMaxWidth(),
-                        trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f)
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    // 进度条下方的 "起始" 和 "目标" 重量标签
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
+                        Spacer(Modifier.height(4.dp))
                         Text(
-                            text = "起始 ${String.format(Locale.CHINA, "%.1f", startWeight)} kg",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                        )
-                        Text(
-                            text = "目标 ${String.format(Locale.CHINA, "%.1f", targetWeight)} kg",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                            text = buildString {
+                                append("起点 ${String.format(Locale.CHINA, "%.1f", startWeight)}  ·  目标 ${String.format(Locale.CHINA, "%.1f", targetWeight)}")
+                                if (!goalReached && remainingDays != null) append("  ·  预计 $remainingDays 天")
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.68f),
                         )
                     }
                 }
@@ -524,17 +670,96 @@ private fun GoalProgressContent(
 }
 
 @Composable
+private fun GoalRing(progress: Float, modifier: Modifier = Modifier) {
+    val track = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.18f)
+    val indicator = MaterialTheme.colorScheme.inversePrimary
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val stroke = Stroke(width = 7.dp.toPx(), cap = StrokeCap.Round)
+            drawArc(
+                color = track,
+                startAngle = 135f,
+                sweepAngle = 270f,
+                useCenter = false,
+                style = stroke,
+            )
+            drawArc(
+                color = indicator,
+                startAngle = 135f,
+                sweepAngle = 270f * progress.coerceIn(0f, 1f),
+                useCenter = false,
+                style = stroke,
+            )
+        }
+        Text(
+            text = "${(progress.coerceIn(0f, 1f) * 100).toInt()}%",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+        )
+    }
+}
+
+@Composable
 fun SelectedRecordContent(
     record: DailyMinWeight?,
     selectedScope: StatisticsScope,
     onScopeSelected: (StatisticsScope) -> Unit,
-    streakInfo: StreakInfo = StreakInfo(0, 0, false)
+    modifier: Modifier = Modifier,
+    streakInfo: StreakInfo = StreakInfo(0, 0, false),
+    onSetting: () -> Unit = {},
+    statusBarInsets: WindowInsets = WindowInsets.statusBars,
 ) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.primary),
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Row {
+        val ringColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.08f)
+        Canvas(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .size(190.dp),
+        ) {
+            drawCircle(color = ringColor, radius = size.minDimension * 0.42f)
+            drawCircle(
+                color = ringColor,
+                radius = size.minDimension * 0.29f,
+                style = Stroke(width = 1.5.dp.toPx()),
+            )
+        }
+        Column(
+            modifier = Modifier
+                .windowInsetsPadding(statusBarInsets)
+                .padding(start = 24.dp, top = 20.dp, end = 20.dp, bottom = 14.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "WEIGHTWISE / 今日",
+                        style = MaterialTheme.typography.labelLarge,
+                        letterSpacing = 1.1.sp,
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.64f),
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "今日体重",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                    )
+                }
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.10f),
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                ) {
+                    IconButton(onClick = onSetting) {
+                        Icon(Icons.Default.Settings, contentDescription = "设置")
+                    }
+                }
+            }
+            Spacer(Modifier.height(22.dp))
+            Row(verticalAlignment = Alignment.Bottom) {
                 AnimatedContent(targetState = record?.minWeight ?: 0.0, transitionSpec = {
                     if (targetState > initialState) {
                         slideInVertically { height -> height } + fadeIn() togetherWith
@@ -548,47 +773,68 @@ fun SelectedRecordContent(
                 }) {
                     Text(
                         text = String.format(Locale.CHINA, "%.1f", it),
-                        fontSize = 32.sp,
-                        fontWeight = FontWeight.Bold
+                        style = MaterialTheme.typography.displayLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        letterSpacing = (-2).sp,
                     )
                 }
                 Text(
                     modifier = Modifier
                         .align(Alignment.Bottom)
-                        .padding(bottom = 3.dp),
+                        .padding(bottom = 10.dp, start = 4.dp),
                     text = "kg",
-                    fontSize = 16.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.64f),
                 )
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Spacer(Modifier.height(10.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 AnimatedVisibility(visible = record != null) {
                     record?.timestamp?.let {
                         Text(
-                            text = TimeUtils.convertMillisToTime(it),
+                            text = "最近记录  ${TimeUtils.convertMillisToTime(it)}",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.66f),
                         )
                     }
                 }
+                Spacer(Modifier.weight(1f))
                 // 至少连续 2 天才展示徽章，单天打卡没有激励意义
                 if (streakInfo.currentStreak >= 2) {
-                    if (record != null) Spacer(modifier = Modifier.width(8.dp))
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.secondaryContainer,
-                    ) {
-                        Text(
-                            text = "🔥 连续 ${streakInfo.currentStreak} 天",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                        )
-                    }
+                    HeroPill(text = "连续 ${streakInfo.currentStreak} 天")
                 }
             }
+            Spacer(Modifier.height(14.dp))
+            ScopeSelector(
+                selected = selectedScope,
+                onSelected = onScopeSelected,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            )
         }
-        ScopeSelector(selected = selectedScope, onSelected = onScopeSelected)
+    }
+}
+
+@Composable
+private fun HeroPill(text: String) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.10f))
+            .padding(horizontal = 9.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Default.LocalFireDepartment,
+            contentDescription = null,
+            modifier = Modifier.size(14.dp),
+            tint = MaterialTheme.colorScheme.inversePrimary,
+        )
+        Spacer(Modifier.width(4.dp))
+        Text(text, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary)
     }
 }
 
@@ -596,26 +842,35 @@ fun SelectedRecordContent(
 @Composable
 private fun ScopeSelector(
     selected: StatisticsScope,
-    onSelected: (StatisticsScope) -> Unit
+    onSelected: (StatisticsScope) -> Unit,
+    contentColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box {
         Row(
             modifier = Modifier
-                .clip(RoundedCornerShape(20.dp))
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(contentColor.copy(alpha = 0.08f))
                 .clickable(role = Role.Button, onClickLabel = "选择统计范围") { expanded = true }
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
+                text = "观察周期",
+                style = MaterialTheme.typography.labelMedium,
+                color = contentColor.copy(alpha = 0.62f),
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
                 text = selected.label,
                 style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = contentColor,
             )
             Icon(
                 imageVector = Icons.Default.ArrowDropDown,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                tint = contentColor,
             )
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
@@ -688,84 +943,92 @@ private fun StatisticChart(
     }
 }
 
-/**
- * 范围内统计汇总卡：最高 / 最低 / 变化 三列合一。
- * 原来的"最高最低体重"卡与"指标变化"卡职责相同（范围内汇总），合并后每卡一个职责。
- */
+/** 周期摘要采用深色横向刊头，不再是三个等权小指标卡。 */
 @Composable
-private fun StatsSummaryCard(
+private fun PeriodDigest(
     modifier: Modifier,
     maxWeightRecord: DailyMinWeight?,
     minWeightRecord: DailyMinWeight?,
     firstWeightRecord: DailyMinWeight?,
     lastWeightRecord: DailyMinWeight?
 ) {
-    Card(modifier = modifier) {
+    val delta = lastWeightRecord?.minWeight?.minus(firstWeightRecord?.minWeight ?: 0.0) ?: 0.0
+    val deltaFormat = remember { DecimalFormat("+#.#;-#.#") }
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 8.dp, bottomStart = 8.dp, bottomEnd = 28.dp),
+        color = MaterialTheme.colorScheme.inverseSurface,
+        contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+    ) {
         Row(
             modifier = Modifier
-                .padding(16.dp)
+                .padding(horizontal = 20.dp, vertical = 18.dp)
                 .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            StatItem(
-                modifier = Modifier.weight(1f),
-                value = String.format(Locale.CHINA, "%.1f", maxWeightRecord?.minWeight ?: 0.0),
-                label = "最高",
-                sub = maxWeightRecord?.timestamp?.let { TimeUtils.convertMillisToDate(it) }
+            Column(modifier = Modifier.weight(1.25f)) {
+                Text(
+                    "周期变化",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.58f),
+                )
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        deltaFormat.format(delta),
+                        style = MaterialTheme.typography.displaySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = if (delta <= 0) MaterialTheme.colorScheme.inversePrimary
+                        else MaterialTheme.colorScheme.tertiary,
+                    )
+                    Text(
+                        "kg",
+                        modifier = Modifier.padding(start = 4.dp, bottom = 5.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.6f),
+                    )
+                }
+                Text(
+                    buildString {
+                        firstWeightRecord?.timestamp?.let { append(TimeUtils.convertMillisToDate(it).takeLast(5)) }
+                        append(" → ")
+                        lastWeightRecord?.timestamp?.let { append(TimeUtils.convertMillisToDate(it).takeLast(5)) }
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.52f),
+                )
+            }
+            VerticalDivider(
+                Modifier
+                    .height(76.dp)
+                    .padding(horizontal = 14.dp),
+                color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.14f),
             )
-            VerticalDivider(Modifier.height(40.dp))
-            StatItem(
-                modifier = Modifier.weight(1f),
-                value = String.format(Locale.CHINA, "%.1f", minWeightRecord?.minWeight ?: 0.0),
-                label = "最低",
-                sub = minWeightRecord?.timestamp?.let { TimeUtils.convertMillisToDate(it) }
-            )
-            VerticalDivider(Modifier.height(40.dp))
-            val delta = lastWeightRecord?.minWeight?.minus(firstWeightRecord?.minWeight ?: 0.0) ?: 0.0
-            val deltaFormat = remember { DecimalFormat("+#.#;-#.#") }
-            StatItem(
-                modifier = Modifier.weight(1f),
-                value = deltaFormat.format(delta),
-                label = "变化",
-                sub = buildString {
-                    firstWeightRecord?.timestamp?.let { append(TimeUtils.convertMillisToDate(it).takeLast(5)) }
-                    append(" 至 ")
-                    lastWeightRecord?.timestamp?.let { append(TimeUtils.convertMillisToDate(it).takeLast(5)) }
-                },
-                valueColor = if (delta <= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-            )
+            Column(modifier = Modifier.weight(0.8f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                DigestExtrema("最高", maxWeightRecord)
+                DigestExtrema("最低", minWeightRecord)
+            }
         }
     }
 }
 
 @Composable
-private fun StatItem(
-    modifier: Modifier,
-    value: String,
+private fun DigestExtrema(
     label: String,
-    sub: String?,
-    valueColor: Color = Color.Unspecified
+    record: DailyMinWeight?,
 ) {
-    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            color = valueColor
-        )
+    Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
             text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.55f),
         )
-        if (sub != null) {
-            Text(
-                text = sub,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1
-            )
-        }
+        Spacer(Modifier.weight(1f))
+        Text(
+            text = String.format(Locale.CHINA, "%.1f", record?.minWeight ?: 0.0),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.inverseOnSurface,
+        )
     }
 }
 

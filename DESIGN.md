@@ -1,74 +1,125 @@
-# DESIGN.md — WeightWise 设计系统
+# DESIGN.md — WeightWise 3.0「东方数据刊物」
 
-> 2026-08-21 由饮食记录 v1.6 重设计的 /plan-eng-review T9 建立(OV6A:先文档后对齐)。
-> 改 UI 前先读本文;新组件先在这里登记再实现。视觉基准稿:~/.gstack/projects/WeightWise/designs/diet-ui-20260821/design-board-v2.html
+> 2026-08-24 推倒式 UI 重构。第一记忆点：打开应用像看到一块东方健康仪表盘，而不是换了颜色的 Material Demo。
+> 所有视觉改动先满足本文；业务语义色和可访问性不能为造型让路。
 
-## 基准 token
+## 产品语境
 
-| Token | 值 | 说明 |
+- **产品：** 面向中国个人用户的体重、身体成分和饮食追踪 Android 应用。
+- **核心任务：** 每日称重、记录饮食、看懂趋势、调整目标。
+- **设计姿态：** 像一本会更新的健康数据刊物。可信但不医疗化，亲近但不幼稚。
+- **明确拒绝：** 大红大金、书法字、传统纹样拼贴；也拒绝通用 Material 卡片墙、图标宫格和所有元素同一大圆角。
+
+## 视觉主张
+
+### Aesthetic
+
+**方向：东方数据刊物（Oriental Data Editorial）。** 用深墨数据头、米纸背景、非对称折角和编辑式编号构成现代东方感。中文大标题与健康数字共同承担装饰，不额外堆贴纸和插画。
+
+### Safe choices
+
+- 核心健康数字始终最大，单位降一级，保证用户一眼读懂。
+- 底部仍保留五个高频入口，符合移动健康应用的肌肉记忆。
+- 红、黄、绿只承载明确的饮食或健康语义，并始终配文字。
+
+### Deliberate risks
+
+- **全宽深色仪表头：** 首页不使用居中的浅色 Hero 卡，而是一块带环形刻度的沉浸式数据面。代价是首屏更有重量，收益是第一眼就有产品身份。
+- **非对称折角：** 重要面板使用 28/8dp 对角形态，普通内容只用小圆角。代价是不能随意复用默认 Card，收益是页面不再像模板生成。
+- **编辑式章节编号：** 首页用 01/02 组织趋势和身体状态，记录和设置使用英文眉题加中文主标题。代价是信息更像刊物，收益是长页面扫描节奏更强。
+
+## 色彩
+
+品牌层位于 `ui/theme/WeightWiseSchemes.kt`。
+
+- **纸张背景：** `#F7F4ED`，提供暖米纸感。
+- **墨色正文：** `#1F2523`。
+- **默认松石：** `#176B61`；黛青、藕荷、胭脂、丹砂作为可选人格主题。
+- **深色数据面：** 使用 `inverseSurface`，不为每个页面硬编码黑色。
+- **朱砂行动：** `tertiary #9E4738`，用于主记录动作、章节短线和需注意的变化。
+- **夜间背景：** `#111714`，表面逐级提亮，不直接反转浅色卡片。
+
+品牌主题只更换强调色。固定语义层仍由 `DietTrafficLight.kt`、`WeightTrendColors` 和 `bmiColor()` 管理：食物红绿灯、体重涨跌、BMI 区间不可混用。
+
+## 排版
+
+- 中文字体跟随国产 ROM 的系统中文无衬线，避免在 APK 打包超大全量中文字库。
+- 英文眉题只用于短标签，如 `WEIGHTWISE / 今日`、`LATEST / 最近一次`、`PERSONAL CONTROL`。
+- 关键体重数字 56sp 左右，报告变化数字 36sp，页面标题 26–30sp，正文 16sp/24sp。
+- 数字使用紧凑字距；`kg`、`kcal`、日期和解释文本降低字号与不透明度。
+- 不使用全英文页面标题，不为了“国际化感”牺牲中文扫描效率。
+
+## 空间与形状
+
+- 基础单位 4dp；页面水平边距 18dp；内容卡内边距 18–20dp。
+- 分区间距 16dp；大章节前 28dp。
+- 普通输入与列表：6–12dp 圆角。
+- 重点面板：对角 28/8dp 或 30/8dp。
+- 首页沉浸头：左下 42dp、右下 14dp，形成向下进入内容的方向感。
+- 导航坞：26dp 大胶囊是全应用唯一允许的“大圆角容器”；中心动作使用 18dp 方圆角。
+- 可点击目标最小 48dp。
+
+## 页面构图
+
+### 首页
+
+1. 全宽深色“今日体重”仪表头：当前值、记录时间、观察周期。
+2. 同一仪表头内嵌 270° 目标进度环，不再单独放目标卡。
+3. 不对称快捷任务：较大的“记录体重”和较小的“记一餐”。
+4. `01 趋势轨迹`：异形浅表面承载图表。
+5. 深色周期摘要刊头。
+6. `02 身体状态`：独立的 BMI 指数面板。
+7. 深墨悬浮导航坞，朱砂中心动作只负责记体重。
+
+宽度 ≥700dp 时，首页切换成左右双栏；窄屏保持纵向阅读。
+
+### 饮食
+
+- 深色折角页头下使用自定义双模式开关“今天怎么吃 / 回看记录”。
+- 今日摘要是深墨额度仪表，主数字表达“剩余/超出”，环表达已用比例。
+- 餐次列表保持紧凑，不把每种食物包装成大卡片。
+
+### 记录
+
+- 搜索后首先显示深色 `LATEST` 刊头，最新体重是主角。
+- 记录以时间轴阅读：朱砂日期签、时间与体脂标签、右侧体重和涨跌。
+- 左滑编辑/删除保留，前景与操作层必须共用裁切形状，不能露出红色边角。
+
+### 报告
+
+- 周/月/年使用自定义深色选中模式条。
+- 周期净变化使用深色大数字刊头；打卡率、趋势、区间数据依次向下。
+- AI 总结是报告结尾的唯一主行动。
+
+### 设置与身体成分
+
+- 设置首页先给出 `PERSONAL CONTROL` 深色导语。
+- 每组设置由“朱砂章节签 + 浅色内容面板”构成，不连续堆默认 Card。
+- 身体成分指标使用自定义矩阵，当前指标为深色选中块。
+
+## 顶部栏与系统栏
+
+- 二级页面使用深色折角标题带；系统状态栏保持纸张背景，确保深色状态栏图标可读。
+- 返回箭头、标题和动作必须使用 `onPrimary`。
+- 首页没有传统顶部栏，品牌与设置入口直接进入仪表头。
+
+## 动效
+
+- 数字变化垂直滑动；目标环与额度环平滑插值。
+- 导航沿用 Navigation3 空间转场。
+- 时长：微交互 80–120ms，短转场 180–240ms，中转场 300–420ms。
+- 不使用循环呼吸、装饰性粒子或无意义渐变动画。
+
+## 可访问性与验证
+
+- 主题核心文字组合需保持 WCAG AA 4.5:1，由 `ThemeColorContrastTest` 锁定。
+- 颜色语义必须配文字；环形进度中心必须输出百分比。
+- 设置、返回、记录等图标必须有中文 `contentDescription`。
+- 真机验收至少覆盖：首页、饮食空/有数据、记录列表、报告空/有数据、设置、浅色/深色、竖屏/宽屏。
+
+## 决策日志
+
+| 日期 | 决策 | 理由 |
 |---|---|---|
-| 卡片圆角 | 12dp | `Card()` 默认或 `RoundedCornerShape(12.dp)`,全 app 统一 |
-| 页水平边距 | 15dp | LazyColumn/Scaffold contentPadding |
-| 卡间距 | 14dp | `Arrangement.spacedBy(14.dp)` |
-| 行最小高度 | 48dp | `heightIn(min = 48.dp)`;可点元素触控目标 ≥48dp(`minimumInteractiveComponentSize`) |
-| 行内边距 | 12-16dp | 行 padding(horizontal 12-16, vertical 10-12) |
-| 主按钮 | 全宽 12dp 圆角 | `Button(shape = RoundedCornerShape(12.dp))` |
-| chips | 视觉 32dp + 触控 48dp | FilterChip + `minimumInteractiveComponentSize()` |
-
-## 颜色:两层体系——品牌主题层 + 固定语义层
-
-### 品牌主题层(主题中心,2026-08-21 起)
-
-`ui/theme/ThemePresets.kt` 五套预设:钢蓝(默认,视觉基准走 Color.kt)/靛青/紫藤/蔷薇/陶土。
-色板由 `tools/generate_themes.py`(material-color-utilities,TONALSPOT + contrast 0)离线生成到
-`ThemePalettes.kt`;加主题先改脚本重跑再登记枚举。偏好存 MMKV(`themeId`/`appearanceMode`),
-`AppTheme(themePreset, appearanceMode)` 深浅三态(跟随系统/浅色/深色)覆写;设置页 AppearanceCard
-即点即换,小组件 ColorProviders 同步跟随。当前生效深浅模式统一读 `LocalIsDarkTheme`,
-勿直接用 isSystemInDarkTheme。
-
-### 固定语义层(`ui/diet/DietTrafficLight.kt`,不随主题变)
-
-| 常量对象 | 语义 | 使用位置 |
-|---|---|---|
-| `TrafficLightColors` | **食物质量**(绿=健康饮食/琥珀=尚可/红=放纵一下) | B 行色条、结果卡 chip、历史日头圆点 |
-| `IntakeRingColors` | **额度状态**(今日热量预算) | 今日页 hero 圆环(唯一使用处) |
-| `DietMacroColors` | **宏量营养类别**(蛋白钢蓝/碳水 teal/脂肪棕) | 堆叠条、图例、结果卡宏量行 |
-
-规则:红绿灯三色永远配文字标签(lightchip),不做纯颜色语义;数值相同也要用各自常量对象,
-靠 import 边界隔离语义。**跨域同样隔离**:体重涨跌用 `ui/record/WeightTrendColors`
-(降绿/升红),BMI 分段用 `Chart.kt bmiColor()`(偏低=主题 primary,其余并入语义绿/琥珀/红),
-报表堆叠条直接引 TrafficLightColors(本就是食物质量语义)。
-
-**昼夜成对**:全部语义色是 `DayNightColor(light, dark)`——浅色取 tonal t50 系、深色 t80 系,
-chip 容器 t90/t30、文字 t20/t90(对容器 ≥4.5:1)。组合内 `.resolve()`,非组合环境传 isDark;
-对比度由 `SemanticColorContrastTest` 锁定。
-
-## 共享组件(ui/diet/)
-
-- **B 行** `DietRecordRow`:4dp 红绿灯色条 + 40dp 缩略图(有图才出现)+ 食物名标题 + 克数·备注副标 + 右对齐 kcal;点击整行进编辑器,行上无图标按钮
-- **lightchip** `lightChipColors(light)`:三态容器底/圆点/深色文字,昼夜自适应
-- **SelectedFoodsSection**:「已选 n 项 · 共 X kcal」汇总条(复用绿 chip 色板)+ 可改可删条目行(添加页与 QuickAddSheet 共用)
-- **状态圆环** `RingBox`:额度唯一编码,环心中性「已用 N%」,超支画满红
-- **DietPrimaryAction** `dietPrimaryAction()`:添加页主按钮四输入状态机(纯函数,有单测)
-
-## 设置页卡片(ui/setting/)
-
-目标 → 身体档案 → **外观(AppearanceCard:5 色板圆点+深浅三段)** → 提醒推送 → AI 模型 → 数据管理。
-
-## 列表行模式
-
-label(bodyLarge/600) 左,value(bodyMedium/600) 右,副标 bodySmall + onSurfaceVariant;日期说人话(`TimeUtils.humanizeDate`:今天/昨天/M月d日 周X);数字一律带单位(kcal/g)。
-
-## 弹窗模式
-
-滚轮选择(NumberSelector)/单选弹窗/确认弹窗(AlertDialog)/编辑弹层(ModalBottomSheet,skipPartiallyExpanded,水平边距 15dp)。破坏性操作:即时删除 + 10 秒撤销 SnackBar(应用级 scope)。
-
-## 空态原则
-
-空态 = 插画级图形 + 一句话 + 主行动按钮;禁止只有一行灰字。
-
-## 已知例外
-
-- 旧记录无宏量字段:堆叠条区域显示「宏量数据 —」降级
-- 小部件 XML 静态预览(`widget_colors.xml`)保持默认钢蓝口径——RemoteViews 无法动态换主题,Glance 动态内容才跟随 ThemePreset
-- `TrafficLightColors.Unknown` 占位灰刻意弱化,不参与 ≥3:1 可见度断言
+| 2026-08-24 | 2.0 换色整理方案废弃 | 用户明确反馈变化不大，原骨架仍是 Material 卡片流 |
+| 2026-08-24 | 改为东方数据刊物 | 同时改构图、导航、数据表达和组件形态，建立可被记住的产品身份 |
