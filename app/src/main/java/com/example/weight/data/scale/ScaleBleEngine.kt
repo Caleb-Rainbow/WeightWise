@@ -9,11 +9,13 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
+import android.bluetooth.BluetoothStatusCodes
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
+import android.os.Build
 import com.example.weight.data.LocalStorageData
 import com.example.weight.data.record.BodyComposition
 import com.example.weight.data.record.BodyCompositionJson
@@ -218,8 +220,11 @@ class ScaleBleEngine(
         scanTimeoutJob?.cancel()
         scanTimeoutJob = null
         val device = result.device
-        // 缺 BLUETOOTH_CONNECT 运行时权限时 connectGatt 抛 SecurityException，兜底成可读错误而不是崩溃
+        // 缺 BLUETOOTH_CONNECT 运行时权限时 connectGatt 抛 SecurityException，兜底成可读错误而不是崩溃。
+        // Context 版 connectGatt 自 API 37 起全部弃用，替代品 BluetoothGattConnectionSettings 仅 API 37+，
+        // minSdk 29 下只能继续用此重载
         gatt = runCatching {
+            @Suppress("DEPRECATION")
             device.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
         }.getOrElse {
             fail("缺少蓝牙连接权限，请在系统设置中授权「附近的设备」")
@@ -263,8 +268,7 @@ class ScaleBleEngine(
             g.setCharacteristicNotification(notifyChar, true)
             val ccc = notifyChar.getDescriptor(cccDescriptorUuid)
             if (ccc != null) {
-                ccc.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-                if (!g.writeDescriptor(ccc)) fail("订阅通知失败")
+                if (!writeCccDescriptor(g, ccc)) fail("订阅通知失败")
             } else {
                 // 个别固件无 CCCD，直接视作可收通知
                 onNotifyEnabled(g)
@@ -284,6 +288,43 @@ class ScaleBleEngine(
 
         override fun onCharacteristicChanged(g: BluetoothGatt, characteristic: BluetoothGattCharacteristic, value: ByteArray) {
             handleFrame(value)
+        }
+    }
+
+    /**
+     * 订阅 CCCD。API 33+ 走带 value 的新重载；旧系统回落到已弃用的 setter 写法（minSdk < 33），
+     * 两分支行为一致，整函数抑制 DEPRECATION。
+     */
+    @Suppress("DEPRECATION")
+    private fun writeCccDescriptor(gatt: BluetoothGatt, ccc: BluetoothGattDescriptor): Boolean =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            gatt.writeDescriptor(ccc, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE) ==
+                BluetoothStatusCodes.SUCCESS
+        } else {
+            ccc.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+            gatt.writeDescriptor(ccc)
+        }
+
+    /**
+     * 下发档案帧。API 33+ 走带 value/writeType 的新重载；旧系统回落到已弃用的 setter 写法，
+     * 整函数抑制 DEPRECATION。
+     */
+    @Suppress("DEPRECATION")
+    private fun writeProfileCommand(
+        gatt: BluetoothGatt,
+        char: BluetoothGattCharacteristic,
+        payload: ByteArray,
+    ) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            runCatching {
+                gatt.writeCharacteristic(char, payload, BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE)
+            }.onFailure { log("档案写入异常：${it.message}") }
+        } else {
+            runCatching {
+                char.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+                char.value = payload
+                gatt.writeCharacteristic(char)
+            }.onFailure { log("档案写入异常：${it.message}") }
         }
     }
 
@@ -309,10 +350,7 @@ class ScaleBleEngine(
                 refWeightKg = refWeight,
             )
             log("写档案 ${hex(profile)}")
-            writeChar.value = profile
-            writeChar.writeType = android.bluetooth.BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
-            runCatching { g.writeCharacteristic(writeChar) }
-                .onFailure { log("档案写入异常：${it.message}") }
+            writeProfileCommand(g, writeChar, profile)
         }
     }
 
@@ -436,7 +474,7 @@ class ScaleBleEngine(
                         )
                     )
                 } else {
-                    log("与最近记录重复（${last?.weight}kg），跳过入库")
+                    log("与最近记录重复（${last.weight}kg），跳过入库")
                 }
             } else {
                 log("读秤完成，等待用户在弹窗中保存")

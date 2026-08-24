@@ -14,6 +14,7 @@ import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromStream
 import kotlinx.serialization.json.encodeToStream
@@ -57,6 +58,7 @@ class BackupRepository(
     private val json: Json,
 ) {
 
+    @OptIn(ExperimentalSerializationApi::class)
     suspend fun export(context: Context, uri: Uri): ExportResult = withContext(Dispatchers.IO) {
         val records = recordDao.getAllOnce()
         val dietRecords = dietRecordDao.getAllOnce()
@@ -93,6 +95,7 @@ class BackupRepository(
     }
 
     /** 读取并解析备份文件，格式或版本不合法时抛 [BackupException] */
+    @OptIn(ExperimentalSerializationApi::class)
     suspend fun parseBackup(context: Context, uri: Uri): BackupFile = withContext(Dispatchers.IO) {
         val backup = try {
             context.contentResolver.openInputStream(uri)?.use { input ->
@@ -141,22 +144,20 @@ class BackupRepository(
         }
 
         val settings = backup.settings
-        val settingsApplied = settings != null &&
-                (settings.height > 0.0 || settings.targetWeight > 0.0 || settings.startWeight > 0.0 ||
-                        settings.age > 0 || settings.gender.isNotEmpty() || settings.activityLevel.isNotEmpty())
-        if (settings != null) {
-            if (settings.height > 0.0) LocalStorageData.height.update { settings.height }
-            if (settings.targetWeight > 0.0) LocalStorageData.targetWeight.update { settings.targetWeight }
-            // 起始体重未设置（<=0）不覆盖本机已手动设置的值，与身高/目标体重口径一致
-            if (settings.startWeight > 0.0) LocalStorageData.startWeight.update { settings.startWeight }
-            // 档案字段同理：未设置不覆盖；枚举存 name，导入时校验合法性
-            if (settings.age > 0) LocalStorageData.age.update { settings.age }
-            if (Gender.entries.any { it.name == settings.gender }) {
-                LocalStorageData.gender.update { settings.gender }
-            }
-            if (ActivityLevel.entries.any { it.name == settings.activityLevel }) {
-                LocalStorageData.activityLevel.update { settings.activityLevel }
-            }
+        val settingsApplied = settings.height > 0.0 || settings.targetWeight > 0.0 ||
+                settings.startWeight > 0.0 || settings.age > 0 ||
+                settings.gender.isNotEmpty() || settings.activityLevel.isNotEmpty()
+        if (settings.height > 0.0) LocalStorageData.height.update { settings.height }
+        if (settings.targetWeight > 0.0) LocalStorageData.targetWeight.update { settings.targetWeight }
+        // 起始体重未设置（<=0）不覆盖本机已手动设置的值，与身高/目标体重口径一致
+        if (settings.startWeight > 0.0) LocalStorageData.startWeight.update { settings.startWeight }
+        // 档案字段同理：未设置不覆盖；枚举存 name，导入时校验合法性
+        if (settings.age > 0) LocalStorageData.age.update { settings.age }
+        if (Gender.entries.any { it.name == settings.gender }) {
+            LocalStorageData.gender.update { settings.gender }
+        }
+        if (ActivityLevel.entries.any { it.name == settings.activityLevel }) {
+            LocalStorageData.activityLevel.update { settings.activityLevel }
         }
         // 体重数据变了，桌面小组件同步刷新
         if (recordDedup.toInsert.isNotEmpty()) {

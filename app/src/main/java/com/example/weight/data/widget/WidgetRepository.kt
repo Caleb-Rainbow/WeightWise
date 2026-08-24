@@ -45,7 +45,7 @@ class WidgetRepository(private val recordDao: RecordDao) {
         // 三次独立查询并行执行；Room suspend 自带 IO 调度，不再额外 withContext
         val currentDeferred = async { recordDao.getLastData() }
         val dailyDeferred = async {
-            recordDao.getDailyMinWeightSince(getStartTimeForLastDays(PREDICT_WINDOW_DAYS.toInt())).first()
+            recordDao.getDailyMinWeightSince(getStartTimeForLastDays(PREDICT_WINDOW_DAYS)).first()
         }
         val firstDeferred = async { recordDao.getFirstData() }
         val recordDaysDeferred = async { recordDao.getRecordDaysFlow().first() }
