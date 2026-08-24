@@ -79,6 +79,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -108,6 +109,9 @@ import org.koin.androidx.compose.koinViewModel
 import java.text.DecimalFormat
 import java.util.Locale
 import kotlin.math.absoluteValue
+
+internal const val SCOPE_MENU_ANCHOR_TEST_TAG = "scope_menu_anchor"
+internal const val HERO_RING_TEST_TAG = "hero_ring"
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -715,17 +719,23 @@ fun SelectedRecordContent(
             .background(MaterialTheme.colorScheme.primary),
     ) {
         val ringColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.08f)
-        Canvas(
+        Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .size(190.dp),
+                .windowInsetsPadding(statusBarInsets),
         ) {
-            drawCircle(color = ringColor, radius = size.minDimension * 0.42f)
-            drawCircle(
-                color = ringColor,
-                radius = size.minDimension * 0.29f,
-                style = Stroke(width = 1.5.dp.toPx()),
-            )
+            Canvas(
+                modifier = Modifier
+                    .size(190.dp)
+                    .testTag(HERO_RING_TEST_TAG),
+            ) {
+                drawCircle(color = ringColor, radius = size.minDimension * 0.42f)
+                drawCircle(
+                    color = ringColor,
+                    radius = size.minDimension * 0.29f,
+                    style = Stroke(width = 1.5.dp.toPx()),
+                )
+            }
         }
         Column(
             modifier = Modifier
@@ -846,48 +856,52 @@ private fun ScopeSelector(
     contentColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    Box {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(10.dp))
-                .background(contentColor.copy(alpha = 0.08f))
-                .clickable(role = Role.Button, onClickLabel = "选择统计范围") { expanded = true }
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "观察周期",
-                style = MaterialTheme.typography.labelMedium,
-                color = contentColor.copy(alpha = 0.62f),
-            )
-            Spacer(Modifier.weight(1f))
-            Text(
-                text = selected.label,
-                style = MaterialTheme.typography.labelLarge,
-                color = contentColor,
-            )
-            Icon(
-                imageVector = Icons.Default.ArrowDropDown,
-                contentDescription = null,
-                tint = contentColor,
-            )
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            StatisticsScope.entries.forEach { scope ->
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = scope.label,
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = if (scope == selected) FontWeight.Bold else FontWeight.Normal
-                        )
-                    },
-                    onClick = {
-                        onSelected(scope)
-                        expanded = false
-                    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(contentColor.copy(alpha = 0.08f))
+            .clickable(role = Role.Button, onClickLabel = "选择统计范围") { expanded = true }
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "观察周期",
+            style = MaterialTheme.typography.labelMedium,
+            color = contentColor.copy(alpha = 0.62f),
+        )
+        Spacer(Modifier.weight(1f))
+        // 菜单只以右侧当前值为锚点；外层整行仍保持 48dp 以上的点击区域。
+        Box(modifier = Modifier.testTag(SCOPE_MENU_ANCHOR_TEST_TAG)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = selected.label,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = contentColor,
                 )
+                Icon(
+                    imageVector = Icons.Default.ArrowDropDown,
+                    contentDescription = null,
+                    tint = contentColor,
+                )
+            }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                StatisticsScope.entries.forEach { scope ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = scope.label,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = if (scope == selected) FontWeight.Bold else FontWeight.Normal
+                            )
+                        },
+                        onClick = {
+                            onSelected(scope)
+                            expanded = false
+                        }
+                    )
+                }
             }
         }
     }
