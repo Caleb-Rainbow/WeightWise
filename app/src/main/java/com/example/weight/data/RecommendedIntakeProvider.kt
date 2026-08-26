@@ -23,21 +23,28 @@ class RecommendedIntakeProvider(recordDao: RecordDao) {
         val gender: Gender?,
         val activityLevel: ActivityLevel?,
         val targetWeightKg: Double,
+        val weeklyTargetChangeKg: Double,
     )
+
+    private val goalFlow = combine(
+        LocalStorageData.targetWeight,
+        LocalStorageData.weeklyTargetChangeKg,
+    ) { targetWeight, weeklyTargetChangeKg -> targetWeight to weeklyTargetChangeKg }
 
     val flow: Flow<Int?> = combine(
         LocalStorageData.height,
         LocalStorageData.age,
         LocalStorageData.gender,
         LocalStorageData.activityLevel,
-        LocalStorageData.targetWeight,
-    ) { height, age, gender, activityLevel, targetWeight ->
+        goalFlow,
+    ) { height, age, gender, activityLevel, goal ->
         ProfileSnapshot(
             heightCm = height,
             age = age,
             gender = Gender.entries.find { it.name == gender },
             activityLevel = ActivityLevel.entries.find { it.name == activityLevel },
-            targetWeightKg = targetWeight,
+            targetWeightKg = goal.first,
+            weeklyTargetChangeKg = goal.second,
         )
     }.let { profileFlow ->
         combine(profileFlow, recordDao.getLastDataFlow()) { profile, lastRecord ->
@@ -50,6 +57,7 @@ class RecommendedIntakeProvider(recordDao: RecordDao) {
                 age = profile.age,
                 activityLevel = profile.activityLevel,
                 targetWeightKg = profile.targetWeightKg,
+                weeklyTargetChangeKg = profile.weeklyTargetChangeKg,
             )
         }
     }

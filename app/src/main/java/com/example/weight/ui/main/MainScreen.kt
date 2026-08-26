@@ -233,7 +233,7 @@ fun MainScreen(
                                         modifier = Modifier
                                             .padding(start = 20.dp, end = 20.dp, bottom = 22.dp)
                                             .fillMaxWidth(),
-                                        currentRecord = uiState.selectedRecord,
+                                        currentRecord = uiState.latestRecord,
                                         firstRecord = uiState.firstRecord,
                                         recentDailyWeights = predictionDataList,
                                     )
@@ -261,6 +261,7 @@ fun MainScreen(
                             ) {
                                 StatisticChart(
                                     currentScopeDataList = scopeData,
+                                    selectedScope = selectedScope,
                                     maxWeight = chartMaxWeight,
                                     minWeight = chartMinWeight,
                                     onMarkerClick = onRecordSelected,

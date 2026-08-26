@@ -100,6 +100,7 @@ import com.example.weight.ui.common.WeightWiseDimens
 import com.example.weight.ui.common.movingAverage
 import com.example.weight.ui.diet.QuickAddSheet
 import com.example.weight.util.GoalProgressCalculator
+import com.example.weight.util.GoalPlanCalculator
 import com.example.weight.util.StreakInfo
 import com.example.weight.util.TimeUtils
 import com.example.weight.util.WeightPredictor
@@ -246,20 +247,26 @@ internal fun DashboardSectionTitle(
 @Composable
 internal fun GoalProgressContent(
     modifier: Modifier,
-    currentRecord: DailyWeight?,
+    currentRecord: Record?,
     firstRecord: Record?,
     recentDailyWeights: List<DailyWeight>
 ) {
     currentRecord?.let {
         val targetWeight by LocalStorageData.targetWeight.collectAsStateWithLifecycle()
         val configuredStartWeight by LocalStorageData.startWeight.collectAsStateWithLifecycle()
+        val weeklyTargetChangeKg by LocalStorageData.weeklyTargetChangeKg.collectAsStateWithLifecycle()
+        val stageGoalStepKg by LocalStorageData.stageGoalStepKg.collectAsStateWithLifecycle()
+        val currentWaistCm by LocalStorageData.currentWaistCm.collectAsStateWithLifecycle()
+        val targetWaistCm by LocalStorageData.targetWaistCm.collectAsStateWithLifecycle()
+        val targetBodyFatPercent by LocalStorageData.targetBodyFatPercent.collectAsStateWithLifecycle()
         // 手动设置的起始体重优先，未设置时跟随第一条记录；设置页修改后此处实时重组
         val startWeight =
             GoalProgressCalculator.effectiveStartWeight(configuredStartWeight, firstRecord?.weight)
                 ?: 0.0
-        val currentWeight = it.value
+        val currentWeight = it.weight
         if (targetWeight > 0) {
-            val goalReached = currentWeight <= targetWeight
+            val losing = targetWeight < startWeight
+            val goalReached = if (losing) currentWeight <= targetWeight else currentWeight >= targetWeight
 
             // 核心逻辑：计算从起始到目标的进度百分比（算法与桌面小组件共用）
             val progress = remember(startWeight, currentWeight, targetWeight) {
@@ -274,6 +281,12 @@ internal fun GoalProgressContent(
             // 趋势停滞、反向或数据不足时返回 null，不显示天数
             val remainingDays = remember(recentDailyWeights, currentWeight, targetWeight) {
                 WeightPredictor.estimateDaysToTarget(recentDailyWeights, currentWeight, targetWeight)
+            }
+            val plannedDays = remember(currentWeight, targetWeight, weeklyTargetChangeKg) {
+                GoalPlanCalculator.plannedDays(currentWeight, targetWeight, weeklyTargetChangeKg)
+            }
+            val nextStage = remember(startWeight, currentWeight, targetWeight, stageGoalStepKg) {
+                GoalPlanCalculator.nextStage(startWeight, currentWeight, targetWeight, stageGoalStepKg)
             }
 
             Surface(
@@ -301,11 +314,16 @@ internal fun GoalProgressContent(
                         val remainingWeight = (currentWeight - targetWeight).absoluteValue
                         Text(
                             text = if (goalReached) {
-                                val lostWeight = startWeight - currentWeight
-                                if (lostWeight > 0) "已减轻 ${String.format(Locale.CHINA, "%.1f", lostWeight)} kg"
-                                else "稳住现在的节奏"
+                                val changedWeight = (currentWeight - startWeight).absoluteValue
+                                when {
+                                    changedWeight < 0.05 -> "稳住现在的节奏"
+                                    losing -> "已减轻 ${String.format(Locale.CHINA, "%.1f", changedWeight)} kg"
+                                    else -> "已增加 ${String.format(Locale.CHINA, "%.1f", changedWeight)} kg"
+                                }
                             } else {
-                                "还差 ${String.format(Locale.CHINA, "%.1f", remainingWeight)} kg"
+                                nextStage?.let { stage ->
+                                    "阶段 ${stage.index}/${stage.total} · ${String.format(Locale.CHINA, "%.1f", stage.targetWeight)} kg"
+                                } ?: "还差 ${String.format(Locale.CHINA, "%.1f", remainingWeight)} kg"
                             },
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold,
@@ -314,11 +332,36 @@ internal fun GoalProgressContent(
                         Text(
                             text = buildString {
                                 append("起点 ${String.format(Locale.CHINA, "%.1f", startWeight)}  ·  目标 ${String.format(Locale.CHINA, "%.1f", targetWeight)}")
-                                if (!goalReached && remainingDays != null) append("  ·  预计 $remainingDays 天")
+                                if (!goalReached && plannedDays != null) append("  ·  计划 $plannedDays 天")
+                                if (!goalReached && remainingDays != null) append("  ·  趋势 $remainingDays 天")
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.68f),
                         )
+                        val bodyGoals = buildList {
+                            if (targetWaistCm > 0) {
+                                add(
+                                    if (currentWaistCm > 0) {
+                                        "腰围 ${String.format(Locale.CHINA, "%.1f", currentWaistCm)} → ${String.format(Locale.CHINA, "%.1f", targetWaistCm)} cm"
+                                    } else "腰围目标 ${String.format(Locale.CHINA, "%.1f", targetWaistCm)} cm"
+                                )
+                            }
+                            if (targetBodyFatPercent > 0) {
+                                add(
+                                    if (it.fatRatio > 0) {
+                                        "体脂 ${String.format(Locale.CHINA, "%.1f", it.fatRatio)} → ${String.format(Locale.CHINA, "%.1f", targetBodyFatPercent)}%"
+                                    } else "体脂目标 ${String.format(Locale.CHINA, "%.1f", targetBodyFatPercent)}%"
+                                )
+                            }
+                        }
+                        if (bodyGoals.isNotEmpty()) {
+                            Spacer(Modifier.height(3.dp))
+                            Text(
+                                text = bodyGoals.joinToString("  ·  "),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.68f),
+                            )
+                        }
                     }
                 }
             }

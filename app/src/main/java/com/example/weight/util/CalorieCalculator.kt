@@ -32,7 +32,7 @@ enum class IntakeStatus(val label: String) {
  */
 object CalorieCalculator {
 
-    /** 减重建议每日热量缺口（kcal），约每周减 0.5kg */
+    /** 默认减重建议每日热量缺口（kcal），约每周减 0.5kg */
     const val CUT_CALORIES = 500
 
     /** 增重建议每日热量盈余（kcal） */
@@ -41,6 +41,8 @@ object CalorieCalculator {
     /** 建议摄入的安全下限（kcal），长期低于该值容易营养不良 */
     private const val FEMALE_MIN_INTAKE = 1200
     private const val MALE_MIN_INTAKE = 1500
+
+    private const val KCAL_PER_KG = 7000.0
 
     /**
      * Mifflin-St Jeor 基础代谢。任一档案缺失（性别未知/年龄未设置）或数据非法返回 null。
@@ -67,12 +69,14 @@ object CalorieCalculator {
         age: Int,
         activityLevel: ActivityLevel?,
         targetWeightKg: Double,
+        weeklyTargetChangeKg: Double = 0.5,
     ): Int? {
         val bmr = bmr(gender, weightKg, heightCm, age) ?: return null
         if (activityLevel == null) return null
         val tdee = bmr * activityLevel.factor
+        val dailyDeficit = (weeklyTargetChangeKg.coerceIn(0.1, 1.0) * KCAL_PER_KG / 7.0).roundToInt()
         val adjusted = when {
-            targetWeightKg > 0 && targetWeightKg < weightKg - 0.5 -> tdee - CUT_CALORIES
+            targetWeightKg > 0 && targetWeightKg < weightKg - 0.5 -> tdee - dailyDeficit
             targetWeightKg > 0 && targetWeightKg > weightKg + 0.5 -> tdee + BULK_CALORIES
             else -> tdee
         }

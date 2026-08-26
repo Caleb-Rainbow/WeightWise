@@ -6,6 +6,8 @@ import kotlinx.coroutines.flow.asStateFlow
 const val DEFAULT_HEIGHT = 170.0
 const val DEFAULT_TARGET_WEIGHT = 0.0
 const val DEFAULT_START_WEIGHT = 0.0
+const val DEFAULT_WEEKLY_TARGET_CHANGE_KG = 0.5
+const val DEFAULT_STAGE_GOAL_STEP_KG = 2.0
 const val DEFAULT_AGE = 0
 
 object LocalStorageData : MMKVOwner(mmapID = "settings") {
@@ -28,6 +30,21 @@ object LocalStorageData : MMKVOwner(mmapID = "settings") {
 
     /** 目标起始体重；0.0 表示未手动设置，此时跟随第一条体重记录 */
     val startWeight by mmkvDouble(default = DEFAULT_START_WEIGHT).asStateFlow()
+
+    /** 每周计划变化量（kg），同时用于目标日期规划与减重热量建议 */
+    val weeklyTargetChangeKg by mmkvDouble(default = DEFAULT_WEEKLY_TARGET_CHANGE_KG).asStateFlow()
+
+    /** 阶段目标间隔（kg） */
+    val stageGoalStepKg by mmkvDouble(default = DEFAULT_STAGE_GOAL_STEP_KG).asStateFlow()
+
+    /** 当前腰围（cm）；0.0 表示未设置 */
+    val currentWaistCm by mmkvDouble(default = 0.0).asStateFlow()
+
+    /** 目标腰围（cm）；0.0 表示未设置 */
+    val targetWaistCm by mmkvDouble(default = 0.0).asStateFlow()
+
+    /** 目标体脂率（%）；0.0 表示未设置 */
+    val targetBodyFatPercent by mmkvDouble(default = 0.0).asStateFlow()
     /*--------其他---------*/
     var isFirst by mmkvBool(default = true)
 

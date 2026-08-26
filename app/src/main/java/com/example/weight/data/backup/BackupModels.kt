@@ -56,6 +56,14 @@ data class SettingsBackup(
     val age: Int = 0,
     val gender: String = "",
     val activityLevel: String = "",
+    /** 每周计划变化量（kg）；null 表示旧备份未含 */
+    val weeklyTargetChangeKg: Double? = null,
+    /** 阶段目标间隔（kg）；null 表示旧备份未含 */
+    val stageGoalStepKg: Double? = null,
+    /** 当前/目标腰围与目标体脂率；null 表示旧备份未含，0 表示用户未设置 */
+    val currentWaistCm: Double? = null,
+    val targetWaistCm: Double? = null,
+    val targetBodyFatPercent: Double? = null,
     /*--------以下设置 v1.1 起入包；旧备份缺字段时保持默认，导入侧据此跳过覆盖--------*/
     /** 每日提醒开关；null 表示旧备份未含（Boolean 无"未设置"态，用可空区分 false 与缺失） */
     val reminderEnabled: Boolean? = null,

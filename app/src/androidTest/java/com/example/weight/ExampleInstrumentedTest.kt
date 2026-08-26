@@ -19,6 +19,7 @@ class ExampleInstrumentedTest {
     fun useAppContext() {
         // Context of the app under test.
         val appContext = InstrumentationRegistry.getInstrumentation().targetContext
-        assertEquals("com.example.weight", appContext.packageName)
+        // Debug 构建带 .debug 后缀，使用实际构建出的 applicationId，避免测试只在 release 包名下成立。
+        assertEquals(BuildConfig.APPLICATION_ID, appContext.packageName)
     }
 }

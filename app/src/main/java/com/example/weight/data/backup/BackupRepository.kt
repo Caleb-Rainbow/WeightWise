@@ -100,6 +100,11 @@ class BackupRepository(
                 age = LocalStorageData.age.value,
                 gender = LocalStorageData.gender.value,
                 activityLevel = LocalStorageData.activityLevel.value,
+                weeklyTargetChangeKg = LocalStorageData.weeklyTargetChangeKg.value,
+                stageGoalStepKg = LocalStorageData.stageGoalStepKg.value,
+                currentWaistCm = LocalStorageData.currentWaistCm.value,
+                targetWaistCm = LocalStorageData.targetWaistCm.value,
+                targetBodyFatPercent = LocalStorageData.targetBodyFatPercent.value,
                 reminderEnabled = LocalStorageData.reminderEnabled.value,
                 reminderTime = LocalStorageData.reminderTime.value,
                 weeklyReportPushEnabled = LocalStorageData.weeklyReportPushEnabled.value,
@@ -246,6 +251,9 @@ class BackupRepository(
         val settingsApplied = settings.height > 0.0 || settings.targetWeight > 0.0 ||
                 settings.startWeight > 0.0 || settings.age > 0 ||
                 settings.gender.isNotEmpty() || settings.activityLevel.isNotEmpty() ||
+                settings.weeklyTargetChangeKg != null || settings.stageGoalStepKg != null ||
+                settings.currentWaistCm != null || settings.targetWaistCm != null ||
+                settings.targetBodyFatPercent != null ||
                 settings.reminderEnabled != null || settings.weeklyReportPushEnabled != null ||
                 settings.reminderTime.isNotEmpty() || settings.weeklyReportPushTime.isNotEmpty() ||
                 settings.doubaoModelId.isNotEmpty() ||
@@ -262,6 +270,21 @@ class BackupRepository(
         }
         if (ActivityLevel.entries.any { it.name == settings.activityLevel }) {
             LocalStorageData.activityLevel.update { settings.activityLevel }
+        }
+        settings.weeklyTargetChangeKg?.takeIf { it > 0 }?.let { value ->
+            LocalStorageData.weeklyTargetChangeKg.update { value.coerceIn(0.1, 1.0) }
+        }
+        settings.stageGoalStepKg?.takeIf { it > 0 }?.let { value ->
+            LocalStorageData.stageGoalStepKg.update { value.coerceAtLeast(0.5) }
+        }
+        settings.currentWaistCm?.takeIf { it >= 0 }?.let { value ->
+            LocalStorageData.currentWaistCm.update { value }
+        }
+        settings.targetWaistCm?.takeIf { it >= 0 }?.let { value ->
+            LocalStorageData.targetWaistCm.update { value }
+        }
+        settings.targetBodyFatPercent?.takeIf { it >= 0 }?.let { value ->
+            LocalStorageData.targetBodyFatPercent.update { value }
         }
         if (settings.doubaoModelId.isNotEmpty()) {
             LocalStorageData.doubaoModelId.update { settings.doubaoModelId }

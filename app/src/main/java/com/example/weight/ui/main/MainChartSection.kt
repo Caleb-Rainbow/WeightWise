@@ -97,12 +97,14 @@ import com.example.weight.ui.common.WeightChart
 import com.example.weight.ui.common.SectionHeader
 import com.example.weight.ui.common.StatusPill
 import com.example.weight.ui.common.WeightWiseDimens
-import com.example.weight.ui.common.movingAverage
 import com.example.weight.ui.diet.QuickAddSheet
 import com.example.weight.util.GoalProgressCalculator
 import com.example.weight.util.StreakInfo
 import com.example.weight.util.TimeUtils
 import com.example.weight.util.WeightPredictor
+import com.example.weight.util.FluctuationDirection
+import com.example.weight.util.TrendConfidence
+import com.example.weight.util.WeightTrendAnalyzer
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModelProducer
 import com.patrykandpatrick.vico.compose.cartesian.data.lineModel
 import com.patrykandpatrick.vico.compose.common.vicoTheme
@@ -176,30 +178,40 @@ internal fun ScopeSelector(
 @Composable
 internal fun StatisticChart(
     currentScopeDataList: List<DailyWeight>,
+    selectedScope: StatisticsScope,
     maxWeight: Double,
     minWeight: Double,
     onMarkerClick: (DailyWeight) -> Unit,
 ) {
     // 根据收集到的数据构建 LineChart 所需的参数，当 currentScopeDataList 变化时重组
     val labels = remember(currentScopeDataList) { currentScopeDataList.map { it.recordDay } }
-    // 7 日移动平均：对记录序列做 7 点滑动窗口平均，与图表按记录排布的横轴自洽；
-    // 数据不足 7 条时（如近7天范围内）均线无意义，不画
-    val movingAverage = remember(currentScopeDataList) { movingAverage(currentScopeDataList.map { it.value }) }
     val targetWeight by LocalStorageData.targetWeight.collectAsStateWithLifecycle()
+    val insight = remember(currentScopeDataList, selectedScope, targetWeight) {
+        WeightTrendAnalyzer.analyze(
+            dailyWeights = currentScopeDataList,
+            totalDays = selectedScope.totalDays,
+            targetWeight = targetWeight,
+        )
+    }
 
     // 当 chartData 不为空时才显示图表
     if (currentScopeDataList.isNotEmpty()) {
         // producer 保持稳定，数据变化只增量提交事务；不销毁整棵图表子树（含滚动状态）
         val modelProducer = remember { CartesianChartModelProducer() }
-        LaunchedEffect(currentScopeDataList, movingAverage) {
+        LaunchedEffect(currentScopeDataList, insight) {
             modelProducer.runTransaction {
                 lineModel {
                     series(currentScopeDataList.map { it.value })
-                    if (movingAverage.isNotEmpty()) {
-                        // 均线从第 7 个记录点起才有完整窗口，用显式 x 对齐横轴
+                    if (insight.smoothedTrend.isNotEmpty()) {
                         series(
-                            x = currentScopeDataList.indices.drop(6),
-                            y = movingAverage,
+                            x = insight.smoothedTrend.map { it.index },
+                            y = insight.smoothedTrend.map { it.value },
+                        )
+                    }
+                    if (insight.sevenDayAverage.isNotEmpty()) {
+                        series(
+                            x = insight.sevenDayAverage.map { it.index },
+                            y = insight.sevenDayAverage.map { it.value },
                         )
                     }
                 }
@@ -210,16 +222,57 @@ internal fun StatisticChart(
         val onMarkerIndexClick = remember(onMarkerClick, currentScopeDataList) {
             { index: Int -> onMarkerClick(currentScopeDataList[index]) }
         }
-        WeightChart(
-            lineColor = vicoTheme.lineColor,
-            modelProducer = modelProducer,
-            maxWeight = maxWeight,
-            minWeight = minWeight,
-            xLabels = labels,
-            showMovingAverage = movingAverage.isNotEmpty(),
-            targetWeight = targetWeight,
-            onMarkerClick = onMarkerIndexClick,
-        )
+        Column {
+            WeightChart(
+                lineColor = vicoTheme.lineColor,
+                modelProducer = modelProducer,
+                maxWeight = maxWeight,
+                minWeight = minWeight,
+                xLabels = labels,
+                showMovingAverage = insight.sevenDayAverage.isNotEmpty(),
+                showSmoothedTrend = insight.smoothedTrend.isNotEmpty(),
+                targetWeight = targetWeight,
+                onMarkerClick = onMarkerIndexClick,
+            )
+            TrendInsightSummary(insight = insight)
+        }
+    }
+}
+
+@Composable
+private fun TrendInsightSummary(insight: com.example.weight.util.WeightTrendInsight) {
+    val legend = if (insight.sevenDayAverage.isNotEmpty()) {
+        "实线为平滑趋势，辅助线为7日均值"
+    } else {
+        "实线为平滑趋势；覆盖完整7日后显示均值线"
+    }
+    val headline = when {
+        insight.confidence == TrendConfidence.LOW -> "继续记录后再判断长期趋势"
+        insight.isPlateau -> "近两周趋势接近平稳，可能进入平台期"
+        insight.fluctuation != null -> {
+            val position = if (insight.fluctuation.direction == FluctuationDirection.ABOVE_TREND) "高于" else "低于"
+            "最新值${position}趋势 ${String.format(Locale.CHINA, "%.1f", kotlin.math.abs(insight.fluctuation.deltaKg))} kg，更像短期波动"
+        }
+        insight.weeklyRateKg != null -> {
+            val verb = if (insight.weeklyRateKg < 0) "下降" else if (insight.weeklyRateKg > 0) "上升" else "变化"
+            "平滑趋势每周$verb ${String.format(Locale.CHINA, "%.2f", kotlin.math.abs(insight.weeklyRateKg))} kg"
+        }
+        else -> "趋势暂时平稳"
+    }
+    Surface(
+        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f),
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        shape = RoundedCornerShape(14.dp),
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp).fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+            Text(headline, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+            Text(
+                "${insight.confidence.label} · ${insight.confidenceReason} · $legend",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.72f),
+            )
+        }
     }
 }
 
@@ -319,15 +372,15 @@ internal fun DigestExtrema(
     }
 }
 
-enum class StatisticsScope(val label: String) {
-    LAST_7DAYS("近7天"),
-    LAST_14DAYS("近14天"),
-    LAST_1MONTH("近1月"),
-    LAST_3MONTHS("近3月"),
-    LAST_6MONTHS("近6月"),
-    LAST_1YEARS("近1年"),
-    LAST_2YEARS("近2年"),
-    LAST_3YEARS("近3年");
+enum class StatisticsScope(val label: String, val totalDays: Int) {
+    LAST_7DAYS("近7天", 7),
+    LAST_14DAYS("近14天", 14),
+    LAST_1MONTH("近1月", 31),
+    LAST_3MONTHS("近3月", 92),
+    LAST_6MONTHS("近6月", 183),
+    LAST_1YEARS("近1年", 365),
+    LAST_2YEARS("近2年", 730),
+    LAST_3YEARS("近3年", 1095);
 
     /**
      * 该统计范围的起始时间戳（范围第一天的午夜）。

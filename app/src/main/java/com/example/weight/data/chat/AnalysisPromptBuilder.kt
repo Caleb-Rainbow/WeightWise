@@ -3,6 +3,8 @@ package com.example.weight.data.chat
 import com.example.weight.data.diet.DailyCalories
 import com.example.weight.data.health.HealthActivitySummary
 import com.example.weight.data.record.Record
+import com.example.weight.util.TrendConfidence
+import com.example.weight.util.WeightTrendInsight
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -39,6 +41,7 @@ object AnalysisPromptBuilder {
         genderLabel: String = "",
         activityLabel: String = "",
         healthSummary: HealthActivitySummary? = null,
+        trendInsight: WeightTrendInsight? = null,
     ): String {
         val recordsString = recordsText(records)
 
@@ -70,6 +73,20 @@ object AnalysisPromptBuilder {
         }.orEmpty()
         val healthInsight = if (healthSummary == null) "" else
             "若上方提供了【活动与恢复】数据，请结合步数、总消耗和睡眠与体重趋势进行相关性分析，但不要把相关性描述为确定的因果关系。"
+        val trendSection = trendInsight?.let { insight ->
+            val rate = insight.weeklyRateKg?.let {
+                "${String.format(Locale.CHINA, "%+.2f", it)}kg/周"
+            } ?: "暂不可计算"
+            """【趋势信号】（由应用按自然日间隔计算）
+- 数据可信度：${insight.confidence.label}；${insight.confidenceReason}
+- 平滑趋势方向：${insight.direction.label}；近期速率：$rate
+- 平台期信号：${if (insight.isPlateau) "有" else "无"}
+
+"""
+        }.orEmpty()
+        val lowConfidenceLimit = if (trendInsight?.confidence == TrendConfidence.LOW) {
+            "- 当前趋势可信度较低，只能描述已记录的事实并提醒继续记录；不得断言已进入平台期，也不得把短期变化归因于饮食、运动或疾病。\n"
+        } else ""
 
         return """
 你是一位专业、温暖且富有同理心的体重管理顾问。请根据用户的体重记录和日志，为TA提供一份简单易懂、具有鼓励性的分析反馈。
@@ -82,7 +99,7 @@ object AnalysisPromptBuilder {
 $profileExtras【打卡数据】
 $recordsString
 
-$caloriesSection$healthSection【回复要求】
+$caloriesSection$healthSection$trendSection【回复要求】
 请以亲切的朋友口吻直接与用户对话（称呼“你”），字数控制在300字左右，并严格按以下三个段落结构输出：
 
 1. 阶段总结：用一两句话概括用户在这段时间（$scopeLabel）的体重变化趋势（如：稳步下降、遇到平台期、轻微波动等），并给予情绪上的肯定或安抚。
@@ -93,6 +110,7 @@ $caloriesSection$healthSection【回复要求】
 - 必须使用纯文本，绝对不要输出任何代码块、Markdown复杂表格或特殊图标。
 - 语言必须通俗易懂，绝对不要使用生僻的医学术语。
 - 不要机械地罗列或复述用户的数据，你的重点是“解读数据背后的意义”。
+$lowConfidenceLimit
 """.trimIndent()
     }
 

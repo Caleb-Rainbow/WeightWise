@@ -25,6 +25,8 @@ import com.example.weight.util.ReportCaloriesStats
 import com.example.weight.util.ReportType
 import com.example.weight.util.ReportWeightStats
 import com.example.weight.util.TimeUtils
+import com.example.weight.util.WeightTrendAnalyzer
+import com.example.weight.util.WeightTrendInsight
 import java.time.LocalDate
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -58,6 +60,7 @@ data class ReportData(
     val healthSummary: HealthActivitySummary?,
     val changeVsPrevPeriod: Double?,
     val endBmi: Double?,
+    val trendInsight: WeightTrendInsight,
 )
 
 /** AI 周期总结的展示状态（加载/流式中/完成/失败） */
@@ -118,13 +121,17 @@ class ReportViewModel(
                     }
                     val startDate = TimeUtils.convertMillisToDate(start)
                     val endDate = TimeUtils.convertMillisToDate(end)
+                    val goalProfile = combine(
+                        LocalStorageData.height,
+                        LocalStorageData.targetWeight,
+                    ) { height, targetWeight -> height to targetWeight }
                     combine(
                         recordDao.dailyWeightsBetween(start, end),
                         dietRecordDao.getDailyCaloriesBetween(startDate, endDate),
                         dietRecordDao.getTrafficLightBetween(startDate, endDate),
                         recommendedIntake,
-                        LocalStorageData.height,
-                    ) { weights, calories, lights, intake, height ->
+                        goalProfile,
+                    ) { weights, calories, lights, intake, profile ->
                         ReportData(
                             type = type,
                             anchor = anchor,
@@ -135,7 +142,8 @@ class ReportViewModel(
                             caloriesStats = ReportAggregator.caloriesStats(calories, lights, intake),
                             healthSummary = healthSummary.await(),
                             changeVsPrevPeriod = ReportAggregator.changeVsPrevPeriod(weights, prevWeights.await()),
-                            endBmi = weights.lastOrNull()?.let { ReportAggregator.bmi(it.value, height) },
+                            endBmi = weights.lastOrNull()?.let { ReportAggregator.bmi(it.value, profile.first) },
+                            trendInsight = WeightTrendAnalyzer.analyze(weights, totalDays, profile.second),
                         )
                     }.collect { emit(it) }
                 }
@@ -197,6 +205,11 @@ class ReportViewModel(
             val endBmi = weights.lastOrNull()?.let { ReportAggregator.bmi(it.value, LocalStorageData.height.value) }
             val gender = Gender.entries.find { it.name == LocalStorageData.gender.value }
             val activityLevel = ActivityLevel.entries.find { it.name == LocalStorageData.activityLevel.value }
+            val trendInsight = WeightTrendAnalyzer.analyze(
+                dailyWeights = weights,
+                totalDays = type.daysOf(anchor, LocalDate.now()),
+                targetWeight = LocalStorageData.targetWeight.value,
+            )
             val prompt = AnalysisPromptBuilder.build(
                 records = records,
                 scopeLabel = type.titleOf(anchor),
@@ -208,6 +221,7 @@ class ReportViewModel(
                 genderLabel = gender?.displayName ?: "",
                 activityLabel = activityLevel?.displayName ?: "",
                 healthSummary = healthSummary,
+                trendInsight = trendInsight,
             )
             // 流式回包先累积到 StringBuilder，由合帧协程按固定间隔刷新到状态，
             // 避免每个 chunk 一次 StateFlow 更新 + 一次全文重组/Markdown 重解析

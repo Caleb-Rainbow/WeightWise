@@ -3,6 +3,8 @@ package com.example.weight.data.chat
 import com.example.weight.data.diet.DailyCalories
 import com.example.weight.data.health.HealthActivitySummary
 import com.example.weight.data.record.Record
+import com.example.weight.data.record.DailyWeight
+import com.example.weight.util.WeightTrendAnalyzer
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -126,6 +128,30 @@ class AnalysisPromptBuilderTest {
             targetWeight = 70.0,
         )
         assertFalse("空数据不应出现活动段落", "【活动与恢复】" in prompt)
+    }
+
+    @Test
+    fun `低可信趋势写入 Prompt 并限制过度解读`() {
+        val trend = WeightTrendAnalyzer.analyze(
+            dailyWeights = listOf(
+                DailyWeight(75.0, "2026-08-18", ts),
+                DailyWeight(74.8, "2026-08-19", ts + 86_400_000L),
+            ),
+            totalDays = 7,
+            targetWeight = 70.0,
+        )
+        val prompt = AnalysisPromptBuilder.build(
+            records = listOf(record(75.0), record(74.8)),
+            scopeLabel = "近7天",
+            bmi = 23.5,
+            heightCm = 175.0,
+            targetWeight = 70.0,
+            trendInsight = trend,
+        )
+
+        assertTrue("趋势信号未输出", "【趋势信号】" in prompt)
+        assertTrue("低可信限制未输出", "不得断言已进入平台期" in prompt)
+        assertTrue("应披露可信度", "数据可信度：可信度较低" in prompt)
     }
 
     @Test

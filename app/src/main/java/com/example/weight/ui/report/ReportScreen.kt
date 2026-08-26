@@ -60,12 +60,14 @@ import com.example.weight.ui.common.SectionHeader
 import com.example.weight.ui.common.WeightChart
 import com.example.weight.ui.common.WeightWiseDimens
 import com.example.weight.ui.common.WeightWiseEmptyState
-import com.example.weight.ui.common.movingAverage
 import com.example.weight.ui.diet.TrafficLightColors
 import com.example.weight.ui.theme.resolve
 import com.example.weight.util.ReportCaloriesStats
 import com.example.weight.util.ReportType
 import com.example.weight.util.ReportWeightStats
+import com.example.weight.util.FluctuationDirection
+import com.example.weight.util.TrendConfidence
+import com.example.weight.util.WeightTrendInsight
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModelProducer
 import com.patrykandpatrick.vico.compose.cartesian.data.lineModel
 import com.patrykandpatrick.vico.compose.common.vicoTheme
@@ -142,6 +144,7 @@ fun ReportScreen(
                         ReportChart(
                             dailyWeights = report.dailyWeights,
                             targetWeight = targetWeight,
+                            insight = report.trendInsight,
                         )
                     }
                     SectionHeader(
@@ -408,10 +411,9 @@ private fun CheckInCard(
 private fun ReportChart(
     dailyWeights: List<DailyWeight>,
     targetWeight: Double,
+    insight: WeightTrendInsight,
 ) {
     val labels = remember(dailyWeights) { dailyWeights.map { it.recordDay } }
-    // 7 日移动平均：对记录序列做 7 点滑动窗口平均；不足 7 条（如周报）均线无意义，不画
-    val movingAverage = remember(dailyWeights) { movingAverage(dailyWeights.map { it.value }) }
     // Y 轴范围并入目标体重，保证目标参考虚线始终可见（与首页同规则）
     val chartMaxWeight = remember(dailyWeights, targetWeight) {
         val raw = dailyWeights.maxOfOrNull { it.value } ?: 0.0
@@ -423,29 +425,61 @@ private fun ReportChart(
     }
     // producer 提到数据键之外保持稳定，数据变化只 runTransaction 增量提交，不重建图表
     val modelProducer = remember { CartesianChartModelProducer() }
-    LaunchedEffect(dailyWeights, movingAverage) {
+    LaunchedEffect(dailyWeights, insight) {
         modelProducer.runTransaction {
             lineModel {
                 series(dailyWeights.map { it.value })
-                if (movingAverage.isNotEmpty()) {
-                    // 均线从第 7 个记录点起才有完整窗口，用显式 x 对齐横轴
+                if (insight.smoothedTrend.isNotEmpty()) {
                     series(
-                        x = dailyWeights.indices.drop(6),
-                        y = movingAverage,
+                        x = insight.smoothedTrend.map { it.index },
+                        y = insight.smoothedTrend.map { it.value },
+                    )
+                }
+                if (insight.sevenDayAverage.isNotEmpty()) {
+                    series(
+                        x = insight.sevenDayAverage.map { it.index },
+                        y = insight.sevenDayAverage.map { it.value },
                     )
                 }
             }
         }
     }
-    WeightChart(
-        lineColor = vicoTheme.lineColor,
-        modelProducer = modelProducer,
-        maxWeight = chartMaxWeight,
-        minWeight = chartMinWeight,
-        xLabels = labels,
-        showMovingAverage = movingAverage.isNotEmpty(),
-        targetWeight = targetWeight,
-    )
+    Column {
+        WeightChart(
+            lineColor = vicoTheme.lineColor,
+            modelProducer = modelProducer,
+            maxWeight = chartMaxWeight,
+            minWeight = chartMinWeight,
+            xLabels = labels,
+            showMovingAverage = insight.sevenDayAverage.isNotEmpty(),
+            showSmoothedTrend = insight.smoothedTrend.isNotEmpty(),
+            targetWeight = targetWeight,
+        )
+        ReportTrendInsight(insight)
+    }
+}
+
+@Composable
+private fun ReportTrendInsight(insight: WeightTrendInsight) {
+    val message = when {
+        insight.confidence == TrendConfidence.LOW -> "数据较少，本期仅展示记录事实，不做趋势定论"
+        insight.isPlateau -> "近两周变化很小，出现平台期信号"
+        insight.fluctuation != null -> {
+            val position = if (insight.fluctuation.direction == FluctuationDirection.ABOVE_TREND) "高于" else "低于"
+            "最新体重${position}平滑趋势 ${String.format(Locale.CHINA, "%.1f", kotlin.math.abs(insight.fluctuation.deltaKg))} kg，优先视作短期波动"
+        }
+        insight.weeklyRateKg != null ->
+            "平滑趋势 ${insight.direction.label} · ${String.format(Locale.CHINA, "%+.2f", insight.weeklyRateKg)} kg/周"
+        else -> "暂时没有足够跨度计算每周趋势"
+    }
+    Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
+        Text(message, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+        Text(
+            "${insight.confidence.label} · ${insight.confidenceReason}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }
 
 /** 统计卡：最高 / 最低 / 平均 三列，底部披露当前每日口径 */

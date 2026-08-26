@@ -45,6 +45,17 @@ class CalorieCalculatorTest {
     }
 
     @Test
+    fun `减重热量缺口随每周目标速度调整`() {
+        val intake = CalorieCalculator.recommendedIntake(
+            Gender.MALE, 75.0, 178.0, 30, ActivityLevel.MODERATE,
+            targetWeightKg = 70.0,
+            weeklyTargetChangeKg = 0.3,
+        )
+        // 0.3kg/周约等于 300kcal/日缺口
+        assertEquals(2362, intake)
+    }
+
+    @Test
     fun `增重目标加 300 大卡`() {
         val intake = CalorieCalculator.recommendedIntake(
             Gender.MALE, 75.0, 178.0, 30, ActivityLevel.MODERATE, targetWeightKg = 80.0,

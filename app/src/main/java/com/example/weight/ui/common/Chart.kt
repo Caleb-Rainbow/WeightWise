@@ -390,7 +390,7 @@ private fun Preview(){
 }
 
 /**
- * 体重趋势折线图：主线（渐变面积填充）+ 可选 7 日均线（细实线）+ 目标体重虚线。
+ * 体重趋势折线图：主线（渐变面积填充）+ 平滑趋势 + 可选 7 日均线 + 目标体重虚线。
  * 从首页抽出，供首页与报告页共用；marker 点击联动回调由调用方决定用途。
  */
 @Composable
@@ -402,12 +402,14 @@ fun WeightChart(
     minWeight: Double,
     lineColor: Color,
     showMovingAverage: Boolean = false,
+    showSmoothedTrend: Boolean = false,
     targetWeight: Double = 0.0,
     onMarkerClick: (Int) -> Unit = NoOpMarkerClick,
 ) {
     val fitAllPoints = shouldFitAllChartPoints(xLabels.size)
-    val movingAverageColor = MaterialTheme.colorScheme.secondary
-    val targetLineColor = MaterialTheme.colorScheme.tertiary
+    val movingAverageColor = MaterialTheme.colorScheme.tertiary
+    val smoothedTrendColor = MaterialTheme.colorScheme.secondary
+    val targetLineColor = MaterialTheme.colorScheme.onSurfaceVariant
     // 目标线标签带背景，避免和数据线重叠时看不清
     val targetLabelComponent = rememberTextComponent(
         style = TextStyle(color = targetLineColor, textAlign = TextAlign.Center),
@@ -437,24 +439,40 @@ fun WeightChart(
         CartesianLayerRangeProvider.fixed(maxY = maxWeight, minY = minWeight)
     }
     val startAxisTitle: (ExtraStore) -> CharSequence? = remember { { "体重" } }
-    val valueFormatter = remember {
+    val valueFormatter = remember(showSmoothedTrend, showMovingAverage) {
         // 有均线的点位同时显示当日体重与均值，颜色与各自曲线一致
         DefaultCartesianMarker.ValueFormatter { _, targets ->
             val points =
                 (targets.firstOrNull() as? LineCartesianLayerMarkerTarget)?.points.orEmpty()
             val weightPoint = points.firstOrNull { it.entry.seriesIndex == 0 }
-            val averagePoint = points.firstOrNull { it.entry.seriesIndex == 1 }
+            val trendIndex = if (showSmoothedTrend) 1 else -1
+            val averageIndex = when {
+                !showMovingAverage -> -1
+                showSmoothedTrend -> 2
+                else -> 1
+            }
+            val trendPoint = points.firstOrNull { it.entry.seriesIndex == trendIndex }
+            val averagePoint = points.firstOrNull { it.entry.seriesIndex == averageIndex }
             when {
                 weightPoint == null -> ""
-                averagePoint == null ->
+                trendPoint == null && averagePoint == null ->
                     String.format(Locale.CHINA, "%.1fkg", weightPoint.entry.y)
                 else -> buildAnnotatedString {
                     withStyle(SpanStyle(color = weightPoint.color, fontWeight = FontWeight.Bold)) {
                         append(String.format(Locale.CHINA, "%.1f", weightPoint.entry.y))
                     }
-                    append("kg  均 ")
-                    withStyle(SpanStyle(color = averagePoint.color, fontWeight = FontWeight.Bold)) {
-                        append(String.format(Locale.CHINA, "%.1f", averagePoint.entry.y))
+                    append("kg")
+                    trendPoint?.let {
+                        append("  趋势 ")
+                        withStyle(SpanStyle(color = it.color, fontWeight = FontWeight.Bold)) {
+                            append(String.format(Locale.CHINA, "%.1f", it.entry.y))
+                        }
+                    }
+                    averagePoint?.let {
+                        append("  7日 ")
+                        withStyle(SpanStyle(color = it.color, fontWeight = FontWeight.Bold)) {
+                            append(String.format(Locale.CHINA, "%.1f", it.entry.y))
+                        }
                     }
                 }
             }
@@ -494,28 +512,33 @@ fun WeightChart(
         minZoom = Zoom.Content,
         maxZoom = if (fitAllPoints) Zoom.Content else defaultMaxZoom,
     )
+    val mainLine = LineCartesianLayer.rememberLine(
+        fill = LineCartesianLayer.LineFill.single(Fill(lineColor)),
+        areaFill = LineCartesianLayer.AreaFill.single(
+            Fill(verticalGradient(listOf(lineColor.copy(alpha = 0.4f), Color.Transparent)))
+        ),
+    )
+    val trendLine = LineCartesianLayer.rememberLine(
+        fill = LineCartesianLayer.LineFill.single(Fill(smoothedTrendColor)),
+        stroke = LineCartesianLayer.LineStroke.Continuous(thickness = 2.dp),
+    )
+    val averageLine = LineCartesianLayer.rememberLine(
+        fill = LineCartesianLayer.LineFill.single(Fill(movingAverageColor)),
+        stroke = LineCartesianLayer.LineStroke.Continuous(thickness = 1.2.dp),
+    )
+    val lineProvider = remember(showSmoothedTrend, showMovingAverage, mainLine, trendLine, averageLine) {
+        when {
+            showSmoothedTrend && showMovingAverage ->
+                LineCartesianLayer.LineProvider.series(mainLine, trendLine, averageLine)
+            showSmoothedTrend -> LineCartesianLayer.LineProvider.series(mainLine, trendLine)
+            showMovingAverage -> LineCartesianLayer.LineProvider.series(mainLine, averageLine)
+            else -> LineCartesianLayer.LineProvider.series(mainLine)
+        }
+    }
     CartesianChartHost(
         rememberCartesianChart(
             rememberLineCartesianLayer(
-                lineProvider =
-                LineCartesianLayer.LineProvider.series(
-                    LineCartesianLayer.rememberLine(
-                        fill = LineCartesianLayer.LineFill.single(Fill(lineColor)),
-                        areaFill =
-                        LineCartesianLayer.AreaFill.single(
-                            Fill(
-                                verticalGradient(
-                                    listOf(lineColor.copy(alpha = 0.4f), Color.Transparent)
-                                )
-                            )
-                        ),
-                    ),
-                    // 7 日均线：细实线、无面积填充，与主线拉开视觉层级
-                    LineCartesianLayer.rememberLine(
-                        fill = LineCartesianLayer.LineFill.single(Fill(movingAverageColor)),
-                        stroke = LineCartesianLayer.LineStroke.Continuous(thickness = 1.5.dp),
-                    ),
-                ),
+                lineProvider = lineProvider,
                 rangeProvider = rangeProvider,
             ),
             startAxis = VerticalAxis.rememberStart(

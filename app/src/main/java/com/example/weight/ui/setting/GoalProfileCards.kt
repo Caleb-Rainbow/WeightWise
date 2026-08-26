@@ -87,6 +87,10 @@ import org.koin.compose.koinInject
 internal fun GoalCard() {
     val targetWeight by LocalStorageData.targetWeight.collectAsStateWithLifecycle()
     val startWeight by LocalStorageData.startWeight.collectAsStateWithLifecycle()
+    val weeklyTargetChangeKg by LocalStorageData.weeklyTargetChangeKg.collectAsStateWithLifecycle()
+    val stageGoalStepKg by LocalStorageData.stageGoalStepKg.collectAsStateWithLifecycle()
+    val targetWaistCm by LocalStorageData.targetWaistCm.collectAsStateWithLifecycle()
+    val targetBodyFatPercent by LocalStorageData.targetBodyFatPercent.collectAsStateWithLifecycle()
     val recordDao = koinInject<RecordDao>()
 
     // 未手动设置起始体重时，回显第一条记录的体重作为默认值
@@ -114,6 +118,10 @@ internal fun GoalCard() {
 
     var editingTarget by remember { mutableStateOf(false) }
     var editingStart by remember { mutableStateOf(false) }
+    var editingWeeklyRate by remember { mutableStateOf(false) }
+    var editingStageStep by remember { mutableStateOf(false) }
+    var editingTargetWaist by remember { mutableStateOf(false) }
+    var editingTargetBodyFat by remember { mutableStateOf(false) }
     val effectiveStart = if (startWeight > 0) startWeight else firstRecordWeight
 
     SettingsCard(title = "目标") {
@@ -129,7 +137,29 @@ internal fun GoalCard() {
             valueColor = unsetOrValue(effectiveStart != null),
             onClick = { editingStart = true },
         )
-        SettingsFootnote("起始体重默认取第一条记录，改动实时刷新小组件")
+        SettingsRow(
+            label = "每周目标速度",
+            value = "${weeklyTargetChangeKg.formatPlain()} kg/周",
+            onClick = { editingWeeklyRate = true },
+        )
+        SettingsRow(
+            label = "阶段目标间隔",
+            value = "${stageGoalStepKg.formatPlain()} kg",
+            onClick = { editingStageStep = true },
+        )
+        SettingsRow(
+            label = "目标腰围",
+            value = if (targetWaistCm > 0) "${targetWaistCm.formatPlain()} cm" else "未设置",
+            valueColor = unsetOrValue(targetWaistCm > 0),
+            onClick = { editingTargetWaist = true },
+        )
+        SettingsRow(
+            label = "目标体脂率",
+            value = if (targetBodyFatPercent > 0) "${targetBodyFatPercent.formatPlain()} %" else "未设置",
+            valueColor = unsetOrValue(targetBodyFatPercent > 0),
+            onClick = { editingTargetBodyFat = true },
+        )
+        SettingsFootnote("目标速度会用于计划日期与减重热量建议；阶段目标帮助拆分长期目标")
     }
 
     if (editingTarget) {
@@ -154,6 +184,50 @@ internal fun GoalCard() {
             onDismiss = { editingStart = false },
         )
     }
+    if (editingWeeklyRate) {
+        NumberEditDialog(
+            title = "每周目标速度",
+            initialValue = weeklyTargetChangeKg,
+            integerRange = 0..1,
+            unit = "kg/周",
+            onConfirm = { value ->
+                LocalStorageData.weeklyTargetChangeKg.update { value.coerceIn(0.1, 1.0) }
+            },
+            onDismiss = { editingWeeklyRate = false },
+        )
+    }
+    if (editingStageStep) {
+        NumberEditDialog(
+            title = "阶段目标间隔",
+            initialValue = stageGoalStepKg,
+            integerRange = 1..10,
+            unit = "kg",
+            onConfirm = { value -> LocalStorageData.stageGoalStepKg.update { value.coerceAtLeast(0.5) } },
+            onDismiss = { editingStageStep = false },
+        )
+    }
+    if (editingTargetWaist) {
+        NumberEditDialog(
+            title = "目标腰围",
+            initialValue = if (targetWaistCm > 0) targetWaistCm else 75.0,
+            integerRange = 40..200,
+            unit = "cm",
+            resetValue = 0.0,
+            onConfirm = { value -> LocalStorageData.targetWaistCm.update { value } },
+            onDismiss = { editingTargetWaist = false },
+        )
+    }
+    if (editingTargetBodyFat) {
+        NumberEditDialog(
+            title = "目标体脂率",
+            initialValue = if (targetBodyFatPercent > 0) targetBodyFatPercent else 20.0,
+            integerRange = 5..60,
+            unit = "%",
+            resetValue = 0.0,
+            onConfirm = { value -> LocalStorageData.targetBodyFatPercent.update { value } },
+            onDismiss = { editingTargetBodyFat = false },
+        )
+    }
 }
 
 /** 身体档案：身高/年龄/性别/活动水平，齐全时展示基础代谢与建议摄入成果条 */@Composable
@@ -163,6 +237,8 @@ internal fun ProfileCard() {
     val activityLevel by LocalStorageData.activityLevel.collectAsStateWithLifecycle()
     val height by LocalStorageData.height.collectAsStateWithLifecycle()
     val targetWeight by LocalStorageData.targetWeight.collectAsStateWithLifecycle()
+    val weeklyTargetChangeKg by LocalStorageData.weeklyTargetChangeKg.collectAsStateWithLifecycle()
+    val currentWaistCm by LocalStorageData.currentWaistCm.collectAsStateWithLifecycle()
     val recordDao = koinInject<RecordDao>()
 
     // 最新体重，用于档案热量预览
@@ -177,6 +253,7 @@ internal fun ProfileCard() {
     var editingAge by remember { mutableStateOf(false) }
     var editingGender by remember { mutableStateOf(false) }
     var editingActivity by remember { mutableStateOf(false) }
+    var editingWaist by remember { mutableStateOf(false) }
 
     val selectedGender = Gender.entries.find { it.name == gender }
     val selectedActivity = ActivityLevel.entries.find { it.name == activityLevel }
@@ -206,6 +283,12 @@ internal fun ProfileCard() {
             valueColor = unsetOrValue(selectedActivity != null),
             onClick = { editingActivity = true },
         )
+        SettingsRow(
+            label = "当前腰围",
+            value = if (currentWaistCm > 0) "${currentWaistCm.formatPlain()} cm" else "未设置",
+            valueColor = unsetOrValue(currentWaistCm > 0),
+            onClick = { editingWaist = true },
+        )
 
         val latest = latestWeight
         val intakeInfo = if (latest != null && selectedGender != null && selectedActivity != null) {
@@ -217,6 +300,7 @@ internal fun ProfileCard() {
                 age = age,
                 activityLevel = selectedActivity,
                 targetWeightKg = targetWeight,
+                weeklyTargetChangeKg = weeklyTargetChangeKg,
             )
             if (bmrValue != null && intake != null) bmrValue.roundToInt() to intake else null
         } else null
@@ -268,6 +352,17 @@ internal fun ProfileCard() {
             includeUnset = true,
             onSelect = { value -> LocalStorageData.activityLevel.update { value } },
             onDismiss = { editingActivity = false },
+        )
+    }
+    if (editingWaist) {
+        NumberEditDialog(
+            title = "当前腰围",
+            initialValue = if (currentWaistCm > 0) currentWaistCm else 80.0,
+            integerRange = 40..200,
+            unit = "cm",
+            resetValue = 0.0,
+            onConfirm = { value -> LocalStorageData.currentWaistCm.update { value } },
+            onDismiss = { editingWaist = false },
         )
     }
 }

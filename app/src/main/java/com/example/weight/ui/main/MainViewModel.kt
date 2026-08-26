@@ -36,6 +36,7 @@ import java.time.LocalDate
 data class UiState(
     val selectedRecord: DailyWeight? = null,
     val firstRecord: Record? = null,
+    val latestRecord: Record? = null,
 )
 
 data class DialogState(
@@ -98,7 +99,7 @@ class MainViewModel(
                 recordDao.getLastDataFlow(),
                 LocalStorageData.startWeight,
             ) { first, last, configuredStartWeight ->
-                _uiState.update { it.copy(firstRecord = first) }
+                _uiState.update { it.copy(firstRecord = first, latestRecord = last) }
                 val startWeight = GoalProgressCalculator.effectiveStartWeight(
                     configuredStartWeight, first?.weight
                 )
