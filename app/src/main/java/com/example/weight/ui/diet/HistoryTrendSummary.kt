@@ -2,9 +2,9 @@ package com.example.weight.ui.diet
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -84,7 +83,7 @@ internal fun HistoryTrendSummary(state: HistoryTabState, modifier: Modifier = Mo
             HistoryLegendDot(IntakeRingCellColorResolved.OVER, isDark, "超出")
             Spacer(modifier = Modifier.weight(1f))
             Text(
-                "格子=天，左旧右新",
+                "每格一天",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -117,50 +116,122 @@ private fun TrendStatCell(label: String, value: String, unit: String, modifier: 
     }
 }
 
-/** 周对齐（周一为一行之首）迷你热力格：列=周，超出屏宽横向滚动，最新一天在最右 */
+/** 窗口列数（列=周）不超过该值时用日历形态；超过则格子会太小，改紧凑形态 */
+private const val CALENDAR_FORM_MAX_COLUMNS = 6
+
+/**
+ * 迷你热力格（周一为行/列之首），格子尺寸自适应铺满卡宽，右侧不留空白：
+ * - 短窗口（30 天，≤6 列）：7 列日历形态，行=周，格内带日期数字；
+ * - 长窗口（90/180 天）：列=周的紧凑形态（贡献图式），纯色格铺满整行。
+ */
 @Composable
 private fun MiniHeatGrid(days: List<HistoryDay>, statuses: List<HistoryCellStatus>) {
     if (days.isEmpty()) return
     val isDark = LocalIsDarkTheme.current
-    // days 新→旧：反转为旧→新后按周分列
+    // days 新→旧：反转为旧→新后从左到右排布
     val cells = remember(days, statuses) { statuses.asReversed() }
+    val dayNumbers = remember(days) { days.asReversed().map { LocalDate.parse(it.date).dayOfMonth } }
     val leadBlanks = remember(days) {
         // LocalDate.dayOfWeek.ordinal：MONDAY=0 … SUNDAY=6，与格子行号一致
         LocalDate.parse(days.last().date).dayOfWeek.ordinal
     }
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        val totalSlots = leadBlanks + cells.size
-        val columns = (totalSlots + 6) / 7
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val todayIndex = cells.lastIndex // 旧→新序列末位即今天
-        repeat(columns) { col ->
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                repeat(7) { row ->
-                    val index = col * 7 + row - leadBlanks
-                    val status = cells.getOrNull(index)
-                    Box(
-                        modifier = Modifier
-                            .size(11.dp)
-                            .let { m ->
-                                if (index == todayIndex) m.border(
-                                    1.dp,
-                                    MaterialTheme.colorScheme.onSurface,
-                                    RoundedCornerShape(3.dp),
-                                ) else m
-                            }
-                            .background(
-                                status.cellColor(isDark),
-                                RoundedCornerShape(3.dp),
-                            ),
-                    )
+        val columns = (leadBlanks + cells.size + 6) / 7
+
+        if (columns <= CALENDAR_FORM_MAX_COLUMNS) {
+            // 日历形态：行=周、列=周一~周日，格子放大铺满 7 列并显示日期数字
+            val gap = 3.dp
+            val cellSize = (maxWidth - gap * 6) / 7
+            val rows = columns
+            Column(verticalArrangement = Arrangement.spacedBy(gap)) {
+                var index = -leadBlanks
+                repeat(rows) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                        repeat(7) {
+                            CalendarDayCell(
+                                status = cells.getOrNull(index),
+                                dayNumber = dayNumbers.getOrNull(index),
+                                isToday = index == todayIndex,
+                                size = cellSize,
+                                isDark = isDark,
+                            )
+                            index++
+                        }
+                    }
+                }
+            }
+        } else {
+            // 紧凑形态：列=周（每列 7 格纵向），格子自适应铺满整行宽度
+            val gap = 2.dp
+            val cellSize = (maxWidth - gap * (columns - 1)) / columns
+            Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                repeat(columns) { col ->
+                    Column(verticalArrangement = Arrangement.spacedBy(gap)) {
+                        repeat(7) { row ->
+                            val index = col * 7 + row - leadBlanks
+                            val status = cells.getOrNull(index)
+                            Box(
+                                modifier = Modifier
+                                    .size(cellSize)
+                                    .let { m ->
+                                        if (index == todayIndex) m.border(
+                                            1.dp,
+                                            MaterialTheme.colorScheme.onSurface,
+                                            RoundedCornerShape(3.dp),
+                                        ) else m
+                                    }
+                                    .background(
+                                        status.cellColor(isDark),
+                                        RoundedCornerShape(3.dp),
+                                    ),
+                            )
+                        }
+                    }
                 }
             }
         }
+    }
+}
+
+/** 日历形态单格：状态色底 + 居中日期数字；窗口外补位（status/dayNumber 双 null）完全透明 */
+@Composable
+private fun CalendarDayCell(
+    status: HistoryCellStatus?,
+    dayNumber: Int?,
+    isToday: Boolean,
+    size: androidx.compose.ui.unit.Dp,
+    isDark: Boolean,
+) {
+    val shape = RoundedCornerShape(6.dp)
+    if (dayNumber == null) {
+        // 窗口外的前后补位：不渲染任何内容，仅占位对齐
+        Box(modifier = Modifier.size(size))
+        return
+    }
+    val filled = status != null && status != HistoryCellStatus.EMPTY
+    Box(
+        modifier = Modifier
+            .size(size)
+            .let { m -> if (isToday) m.border(1.dp, MaterialTheme.colorScheme.onSurface, shape) else m }
+            .background(
+                when (status) {
+                    null -> androidx.compose.ui.graphics.Color.Transparent
+                    else -> status.cellColor(isDark)
+                },
+                shape,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            dayNumber.toString(),
+            style = MaterialTheme.typography.labelMedium,
+            // 状态色块按昼夜取深浅反色数字；空档日无底色，用次要文字色
+            color = if (!filled) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+            else if (isDark) androidx.compose.ui.graphics.Color(0xFF10201A)
+            else androidx.compose.ui.graphics.Color.White,
+        )
     }
 }
 
