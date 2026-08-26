@@ -3,6 +3,7 @@ package com.example.weight
 import android.app.Application
 import androidx.room.Room
 import com.example.weight.data.AppDataBase
+import com.example.weight.data.MIGRATION_10_11
 import com.example.weight.data.createDefaultHttpClient
 import com.example.weight.data.diet.DietRecordDao
 import com.example.weight.data.record.RecordDao
@@ -20,7 +21,9 @@ class KoinModule {
     @Single
     fun provideAppDataBase(application: Application): AppDataBase {
         return Room.databaseBuilder(application, AppDataBase::class.java, "database")
-            .fallbackToDestructiveMigration(false).build()
+            .fallbackToDestructiveMigration(false)
+            .addMigrations(MIGRATION_10_11)
+            .build()
     }
 
     @Single

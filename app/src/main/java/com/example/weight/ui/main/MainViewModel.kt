@@ -3,6 +3,7 @@ package com.example.weight.ui.main
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.weight.data.LocalStorageData
+import com.example.weight.data.record.BodyComposition
 import com.example.weight.data.record.DailyMinWeight
 import com.example.weight.data.record.Record
 import com.example.weight.data.record.RecordDao
@@ -157,16 +158,16 @@ class MainViewModel(
         time: String,
         log: String,
         weight: Double,
-        bodyComposition: String = "",
+        composition: BodyComposition? = null,
         onSuccess: () -> Unit,
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             recordDao.insert(
-                Record(
+                Record.create(
                     timestamp = TimeUtils.convertTimeToMillis("$date $time:00"),
                     weight = weight,
                     log = log,
-                    bodyComposition = bodyComposition,
+                    composition = composition,
                 )
             )
             // 小组件刷新走独立协程：updateAll 含跨进程 binder + RemoteViews 组合，

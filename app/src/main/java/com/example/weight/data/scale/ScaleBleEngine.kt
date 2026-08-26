@@ -466,11 +466,11 @@ class ScaleBleEngine(
                     System.currentTimeMillis() - last.timestamp < DEDUP_WINDOW_MS
                 if (!duplicate) {
                     recordDao.insert(
-                        Record(
+                        Record.create(
                             weight = rounded,
                             log = "",
                             timestamp = System.currentTimeMillis(),
-                            bodyComposition = composition?.let { BodyCompositionJson.encode(it) } ?: "",
+                            composition = composition,
                         )
                     )
                 } else {

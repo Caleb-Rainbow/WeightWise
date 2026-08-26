@@ -27,6 +27,10 @@ data class RecordBackup(
     val timestamp: Long,
     /** 体脂秤成分 JSON（[com.example.weight.data.record.BodyComposition]）；旧备份缺字段时为空串 */
     val bodyComposition: String = "",
+    /** 高频三率冗余列（迁移 11 起）；旧备份缺字段取 0.0，导入时可从 JSON 回填 */
+    val fatRatio: Double = 0.0,
+    val muscleRatio: Double = 0.0,
+    val waterRatio: Double = 0.0,
 )
 
 @Serializable

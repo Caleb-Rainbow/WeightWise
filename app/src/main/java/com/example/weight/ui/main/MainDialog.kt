@@ -221,16 +221,14 @@ fun AddRecordDialog(onDismissRequest: () -> Unit, viewModel: MainViewModel = koi
         val snackBarShow = LocalSnackBarShow.current
         Button(onClick = {
             // 体脂秤测得值与滚轮值一致（±0.5kg）才带上成分；用户手改过大视为放弃秤数据
-            val compositionJson = measuredWeight
+            val composition = measuredWeight
                 ?.takeIf { kotlin.math.abs(it - weight) <= 0.5 }
                 ?.let { engine.lastComposition }
-                ?.let { BodyCompositionJson.encode(it) }
-                ?: ""
             viewModel.insertRecord(
                 date = date, time = time, weight = weight, log = log,
-                bodyComposition = compositionJson,
+                composition = composition,
             ) {
-                snackBarShow.invoke(if (compositionJson.isNotBlank()) "添加成功（含身体成分）" else "添加成功")
+                snackBarShow.invoke(if (composition != null) "添加成功（含身体成分）" else "添加成功")
                 onDismissRequest()
             }
         }) {

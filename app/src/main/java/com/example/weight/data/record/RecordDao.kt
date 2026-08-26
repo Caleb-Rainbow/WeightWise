@@ -98,6 +98,17 @@ interface RecordDao {
     @Query("SELECT timestamp, bodyComposition FROM Record WHERE timestamp >= :startTimeMillis AND bodyComposition != '' ORDER BY timestamp ASC")
     fun getCompositionsSince(startTimeMillis: Long): Flow<List<RecordCompositionRaw>>
 
+    /**
+     * 列级成分投影（迁移 11 起）：高频三率直接读列，不物化 JSON，
+     * 供未来 SQL 层按体脂率/肌肉率/水分率过滤或排序的功能使用。
+     * 三列之和 > 0 表示该行有成分数据（0.0=未测得，与 BodyComposition 的 0/空=未测得口径一致）。
+     */
+    @Query(
+        "SELECT timestamp, fatRatio, muscleRatio, waterRatio FROM Record " +
+            "WHERE timestamp >= :startTimeMillis AND fatRatio + muscleRatio + waterRatio > 0 ORDER BY timestamp ASC"
+    )
+    fun getMetricColumnsSince(startTimeMillis: Long): Flow<List<RecordMetricRaw>>
+
     @Query("SELECT * FROM Record WHERE timestamp >= :startTimeMillis")
     suspend fun getRecordWeightSince(startTimeMillis: Long): List<Record>
 

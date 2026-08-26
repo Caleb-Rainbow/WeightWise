@@ -64,7 +64,12 @@ class BackupRepository(
         val dietRecords = dietRecordDao.getAllOnce()
         val backup = BackupFile(
             exportedAt = System.currentTimeMillis(),
-            records = records.map { RecordBackup(it.weight, it.log, it.timestamp, it.bodyComposition) },
+            records = records.map {
+                RecordBackup(
+                    it.weight, it.log, it.timestamp, it.bodyComposition,
+                    it.fatRatio, it.muscleRatio, it.waterRatio,
+                )
+            },
             dietRecords = dietRecords.map { record ->
                 DietRecordBackup(
                     date = record.date,

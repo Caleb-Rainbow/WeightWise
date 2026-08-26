@@ -2,6 +2,7 @@ package com.example.weight.data.backup
 
 import com.example.weight.data.diet.DietRecord
 import com.example.weight.data.diet.DietRecordDedupKey
+import com.example.weight.data.record.BodyCompositionJson
 import com.example.weight.data.record.Record
 import com.example.weight.data.record.RecordDedupKey
 
@@ -27,17 +28,32 @@ object BackupDeduplicator {
             if (RecordKey(item.timestamp, item.weight) in existing) {
                 skipped++
             } else {
-                toInsert.add(
-                    Record(
-                        weight = item.weight,
-                        log = item.log,
-                        timestamp = item.timestamp,
-                        bodyComposition = item.bodyComposition,
-                    )
-                )
+                toInsert.add(item.toRecord())
             }
         }
         return DedupResult(toInsert, skipped)
+    }
+
+    /**
+     * 备份行还原为 Record：优先用备份冗余列；三列全 0 的旧备份从成分 JSON 回填
+     * （与新装迁移 10→11 的回填口径一致）。
+     */
+    private fun RecordBackup.toRecord(): Record {
+        val columnsAllZero = fatRatio == 0.0 && muscleRatio == 0.0 && waterRatio == 0.0
+        val composition = if (columnsAllZero && bodyComposition.isNotEmpty()) {
+            BodyCompositionJson.decode(bodyComposition)
+        } else {
+            null
+        }
+        return Record(
+            weight = weight,
+            log = log,
+            timestamp = timestamp,
+            bodyComposition = bodyComposition,
+            fatRatio = if (columnsAllZero) (composition?.fatRatio ?: 0.0) else fatRatio,
+            muscleRatio = if (columnsAllZero) (composition?.muscleRatio ?: 0.0) else muscleRatio,
+            waterRatio = if (columnsAllZero) (composition?.waterRatio ?: 0.0) else waterRatio,
+        )
     }
 
     fun filterNewDietRecords(
