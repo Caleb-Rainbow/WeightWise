@@ -8,7 +8,7 @@
   - **Context:** 源自 plan-design-review Pass 5 发现：项目无 DESIGN.md，评分被拉低且规格决策全靠反推。
   - **Depends on:** 无。
 
-- [ ] **T-4 统一一级目的地导航**
+- [x] **T-4 统一一级目的地导航**
   - **What:** 调整 Navigation3 结构，让设置、饮食、记录、报告等一级目的地始终保留底部导航；饮食内部继续使用“今日 / 历史”二级分段，新增记录保持独立任务流。
   - **Why:** 本轮已修复饮食默认落点与新增流程，但进入饮食后底部导航仍消失，用户对应用整体位置的感知会中断。只对饮食页做局部底栏会制造双重导航，应在应用级统一处理。
   - **Pros:** 一级导航心智稳定；各模块返回行为一致；后续深链更容易落到正确目的地。
@@ -16,8 +16,9 @@
   - **Context:** 2026-08-23 饮食设计评审 F1；Today-first 已落地，剩余为应用级架构问题。
   - **Effort:** M（human ~1-2 天 / CC ~1-2 小时）
   - **Priority:** P1
+  - **Done:** 2026-08-26 落地。MainBottomToolbar 上提为全局层挂宿主 Scaffold bottomBar；navigateToTopLevel 清栈重置语义（切 tab 丢弃二级页）；一级间转场 fade+scale 120ms；深链/中央记体重/饮食长按全部改走新管道。真机回归通过。
 
-- [ ] **T-5 饮食历史趋势摘要**
+- [x] **T-5 饮食历史趋势摘要**
   - **What:** 在历史页增加迷你日历热力格、近 30 天记录天数、日均热量和达标天数；保留当前“只显示有记录日期”的时间线。
   - **Why:** 当前已消除连续空日期噪音，但历史页仍以逐条回看为主，缺少能回答“最近记录得怎么样”的趋势摘要。
   - **Pros:** 提升历史页复访价值；漏记与连续记录更直观；复用现有 Room 数据即可完成。
@@ -25,8 +26,9 @@
   - **Context:** 2026-08-23 饮食设计评审 F4；空日期压缩已完成，趋势层为后续增强。
   - **Effort:** M（human ~1 天 / CC ~1 小时）
   - **Priority:** P2
+  - **Done:** 2026-08-26 落地。HistoryTrendAggregator 纯函数（口径对齐 ReportAggregator/intakeStatus）+ 摘要卡（记录天数/日均/超出额度天数）+ 周对齐迷你热力格；档案不全降级提示。真机验证通过。
 
-- [ ] **T-6 食物质量三态数据模型**
+- [x] **T-6 食物质量三态数据模型**
   - **What:** 将 `RecognizedFoodItem.isHealthy: Boolean` 迁移为可持久化的三态质量字段，并兼容旧 JSON、AI prompt、常用食物聚合、编辑器和 `TrafficLightCalculator`。
   - **Why:** 本轮 UI 已将二元标签改为中性的“适合经常吃 / 偶尔吃”，记录级红绿灯也有文字标签；若要让单个食物真正支持“健康 / 尚可 / 放纵一下”，必须先升级数据模型，不能只做第三个 UI 按钮。
   - **Pros:** 单项质量与整餐三态语义完全一致；后续报告可提供更细粒度分析。
@@ -34,6 +36,7 @@
   - **Context:** 2026-08-23 饮食设计评审 F3；本轮刻意避免伪造无法持久化的第三状态。
   - **Effort:** M
   - **Priority:** P3
+  - **Done:** 2026-08-26 落地。FoodQuality 枚举（OFTEN/SOMETIMES/INDULGENT）+ effectiveQuality 旧值映射（false 保守归 SOMETIMES）；TrafficLightCalculator 计分制（INDULGENT=1/SOMETIMES=0.5，≥1/3 判红，全 SOMETIMES 保持红）；prompt 协议升级；宏量同批可空化（null=无数据/0=真 0）。序列化兼容测试锁定。
 
 - [ ] **T-1 桌面小组件快速记饮食**
   - **What:** 主屏 Glance 小组件增加「记一笔」入口，弹出常用食物快速添加（或直达饮食页添加 Tab）。
