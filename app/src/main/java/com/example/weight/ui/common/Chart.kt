@@ -547,7 +547,8 @@ fun MetricTrendChart(
             when {
                 valuePoint == null -> ""
                 averagePoint == null ->
-                    String.format(Locale.CHINA, "%.${decimalCount}f$unit", valuePoint.entry.y)
+                    // 单位不能拼进格式串：体脂率等百分比指标会让末尾 % 被当成转换符而崩溃
+                    String.format(Locale.CHINA, "%.${decimalCount}f", valuePoint.entry.y) + unit
                 else -> buildAnnotatedString {
                     withStyle(SpanStyle(color = valuePoint.color, fontWeight = FontWeight.Bold)) {
                         append(String.format(Locale.CHINA, "%.${decimalCount}f", valuePoint.entry.y))
