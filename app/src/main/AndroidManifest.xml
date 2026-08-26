@@ -5,9 +5,12 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <!-- 体脂秤 BLE：扫描结果在 Android 12+ 依赖 NEARBY_BLUETOOTH_DEVICES，11 及以下依赖精确定位 -->
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
-        android:usesPermissionFlags="neverForLocation"/>
+        android:usesPermissionFlags="neverForLocation"
+        tools:ignore="UnusedAttribute"/>
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <!-- 仅供 API ≤30 的 BLE 扫描；31+ 由 neverForLocation 的 SCAN/CONNECT 取代，不再安装定位权限 -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"
+        android:maxSdkVersion="30"/>
     <!-- CAMERA 权限已随拍照升级移除：TakePicture 委托系统相机拍摄，无需本 App 持有权限；
          注意 manifest 一旦声明 CAMERA，TakePicture 启动前必须已授权，否则抛 SecurityException -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
@@ -15,9 +18,9 @@
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
-        android:icon="@drawable/icon_logo"
+        android:icon="@mipmap/icon_logo"
         android:label="@string/app_name"
-        android:roundIcon="@drawable/icon_logo"
+        android:roundIcon="@mipmap/icon_logo"
         android:supportsRtl="true"
         android:name=".App"
         android:theme="@style/Theme.Weight"

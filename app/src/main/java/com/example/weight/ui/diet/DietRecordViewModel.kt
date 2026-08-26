@@ -636,7 +636,6 @@ class DietRecordViewModel(
     }
 
     override fun onCleared() {
-        super.onCleared()
         analysisJob?.cancel()
         cachedAnalysisBitmap = null
     }

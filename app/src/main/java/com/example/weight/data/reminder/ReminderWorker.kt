@@ -62,7 +62,7 @@ class ReminderWorker(
 
         val streakText = readStreakText()
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.icon_logo)
+            .setSmallIcon(R.mipmap.icon_logo)
             .setContentTitle("该称体重啦")
             .setContentText(streakText)
             .setAutoCancel(true)

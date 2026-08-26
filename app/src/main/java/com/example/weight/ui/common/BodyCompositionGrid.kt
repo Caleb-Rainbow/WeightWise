@@ -47,6 +47,7 @@ import com.example.weight.data.record.MetricDisplay
 import com.example.weight.data.record.MetricGuide
 import com.example.weight.ui.theme.DayNightColor
 import com.example.weight.ui.theme.resolve
+import java.util.Locale
 
 /**
  * 身体成分指标网格：3 列小卡（上数值下标签），渲染 [BodyComposition.metricItems] 全部指标。
@@ -367,4 +368,4 @@ private fun MetricRangeBar(bar: MetricGuide.Bar) {
 }
 
 private fun trim(v: Double): String =
-    if (v == v.toLong().toDouble()) v.toLong().toString() else String.format("%.1f", v)
+    if (v == v.toLong().toDouble()) v.toLong().toString() else String.format(Locale.CHINA, "%.1f", v)

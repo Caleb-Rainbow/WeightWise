@@ -2,6 +2,7 @@ package com.example.weight.data.record
 
 import java.time.Instant
 import java.time.ZoneOffset
+import java.util.Locale
 
 /**
  * 成分趋势页的指标定义与每日聚合口径（纯函数，供 UI 与单测共用）。
@@ -47,7 +48,7 @@ enum class TrendMetric(
 
     /** 按本指标小数位格式化数值（整数指标不带小数尾零） */
     fun formatValue(v: Double): String =
-        if (decimals == 0) v.toLong().toString() else String.format("%.1f", v)
+        if (decimals == 0) v.toLong().toString() else String.format(Locale.CHINA, "%.1f", v)
 
     companion object {
         fun fromKey(key: String): TrendMetric? = entries.firstOrNull { it.key == key }

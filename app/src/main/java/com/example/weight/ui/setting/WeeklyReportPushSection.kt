@@ -53,6 +53,8 @@ internal fun WeeklyPushRows(modifier: Modifier = Modifier) {
         snackBarShow("将在每周一 ${LocalStorageData.weeklyReportPushTime.value} 推送上周报告")
     }
 
+    // 常量编译期内联进 class，且仅在下方的 TIRAMISU 版本守卫后才真正使用，低版本无影响
+    @Suppress("InlinedApi")
     val notificationPermission = Manifest.permission.POST_NOTIFICATIONS
 
     fun needsNotificationPermission(): Boolean =

@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- API 31+ 选择器里的静态预览（假数据，样式与宽卡实际渲染保持一致：左体重右趋势线+底部信息条） -->
+<!-- API 31+ 选择器里的静态预览（假数据，样式与宽卡实际渲染保持一致：左体重右趋势线+底部信息条）；
+     硬编码文本与忽略 baselineAligned 均为静态展示所需，不参与本地化 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="HardcodedText,DisableBaselineAlignment"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_background"
@@ -11,6 +14,7 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:baselineAligned="false"
         android:gravity="center_vertical"
         android:orientation="horizontal">
 

@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.graphics.createBitmap
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
 import androidx.glance.Image
@@ -44,7 +45,6 @@ import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import androidx.glance.color.ColorProvider as DayNightColorProvider
 import com.example.weight.MainActivity
-import com.example.weight.data.LocalStorageData
 import com.example.weight.data.record.DailyMinWeight
 import com.example.weight.data.widget.WeightWidgetData
 import com.example.weight.ui.common.BMI
@@ -85,14 +85,12 @@ private const val SPARKLINE_HEIGHT_DP = 64
 private const val SPARKLINE_SCALE = 3
 
 @Composable
-fun WeightWidgetContent(data: WeightWidgetData?) {
+fun WeightWidgetContent(data: WeightWidgetData?, preset: ThemePreset) {
     // Responsive 模式下返回命中的断点尺寸，据此切换紧凑/完整布局
     val size = LocalSize.current
     // 趋势线是预渲染位图，昼夜色无法交给宿主解析，需在组合期按系统深色模式自行取色
     val isNight = LocalContext.current.resources.configuration.uiMode and
         Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
-    // 主题中心:小组件跟随用户所选配色(MMKV),与 App 内 ColorProviders 同源
-    val preset = ThemePreset.fromId(LocalStorageData.themeId.value)
     GlanceTheme(colors = androidx.glance.material3.ColorProviders(preset.light, preset.dark)) {
         val openAdd = actionStartActivity<MainActivity>(
             parameters = actionParametersOf(openAddDialogKey to true),
@@ -386,7 +384,7 @@ private fun SparklineImage(
 
 /** 折线 + 底部渐变面积 + 末端当前点；单点或全平等退化场景由调用方过滤（size >= 2 才绘制） */
 private fun drawSparkline(weights: List<Double>, widthPx: Int, heightPx: Int, lineColor: Int): Bitmap {
-    val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
+    val bitmap = createBitmap(widthPx, heightPx)
     val canvas = Canvas(bitmap)
     val min = weights.min()
     val max = weights.max()

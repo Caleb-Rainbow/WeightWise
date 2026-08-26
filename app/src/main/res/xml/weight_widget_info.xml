@@ -4,6 +4,8 @@
      updatePeriodMillis=0：数据变化由 WidgetUpdater 推送刷新（增删记录/导入/换主题均触发），
      30 分钟轮询只会在数据没变时白白拉起进程做 4 次数据库查询，Glance 官方推荐禁用 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="UnusedAttribute"
     android:minWidth="110dp"
     android:minHeight="110dp"
     android:maxResizeWidth="320dp"
@@ -13,6 +15,6 @@
     android:resizeMode="horizontal"
     android:updatePeriodMillis="0"
     android:initialLayout="@layout/glance_default_loading_layout"
-    android:previewImage="@drawable/icon_logo"
+    android:previewImage="@mipmap/icon_logo"
     android:previewLayout="@layout/weight_widget_preview"
     android:description="@string/weight_widget_description" />

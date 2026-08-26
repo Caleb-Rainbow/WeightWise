@@ -1,6 +1,7 @@
 package com.example.weight.data.record
 
 import androidx.compose.runtime.Immutable
+import java.util.Locale
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -65,7 +66,7 @@ data class BodyComposition(
     }
 
     private fun fmt(v: Double): String =
-        if (v == v.toLong().toDouble()) v.toLong().toString() else String.format("%.1f", v)
+        if (v == v.toLong().toDouble()) v.toLong().toString() else String.format(Locale.CHINA, "%.1f", v)
 
     /** 按指标 key 反查原始数值（未测/非数值型返回 null），供 [MetricGuide] 状态判定 */
     fun rawValueOf(key: String): Double? = when (key) {

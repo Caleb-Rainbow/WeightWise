@@ -54,6 +54,8 @@ internal fun DailyReminderRows(modifier: Modifier = Modifier) {
         snackBarShow("将在每天 ${LocalStorageData.reminderTime.value} 提醒你称体重")
     }
 
+    // 常量编译期内联进 class，且仅在下方的 TIRAMISU 版本守卫后才真正使用，低版本无影响
+    @Suppress("InlinedApi")
     val notificationPermission = Manifest.permission.POST_NOTIFICATIONS
 
     fun needsNotificationPermission(): Boolean =

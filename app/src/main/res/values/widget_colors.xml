@@ -6,6 +6,5 @@
     <color name="widget_on_surface_variant">#FF42474E</color>
     <color name="widget_primary">#FF2B638B</color>
     <color name="widget_decrease">#FF378646</color>
-    <color name="widget_increase">#FFD44439</color>
     <color name="widget_track">#FFE3EAF0</color>
 </resources>

@@ -9,6 +9,8 @@ import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.provideContent
 import com.example.weight.R
+import com.example.weight.data.LocalStorageData
+import com.example.weight.ui.theme.ThemePreset
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.koin.core.context.GlobalContext
@@ -36,7 +38,10 @@ class WeightWidget : GlanceAppWidget(errorUiLayout = R.layout.weight_widget_erro
             Log.w(TAG, "小组件数据加载失败", e)
             null
         }
-        provideContent { WeightWidgetContent(data) }
+        // 主题 ID 在组合外读取传入：Glance 每次刷新都会重新执行本函数，组合函数保持纯渲染，
+        // 避免在组合期读 StateFlow.value；主题切换由设置页监听后主动触发 updateAll
+        val preset = ThemePreset.fromId(LocalStorageData.themeId.value)
+        provideContent { WeightWidgetContent(data, preset) }
     }
 
     companion object {

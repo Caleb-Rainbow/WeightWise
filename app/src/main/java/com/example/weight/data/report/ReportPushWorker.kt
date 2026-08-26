@@ -80,7 +80,7 @@ class ReportPushWorker(
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.icon_logo)
+            .setSmallIcon(R.mipmap.icon_logo)
             .setContentTitle("上周体重报告")
             .setContentText(contentText)
             .setAutoCancel(true)

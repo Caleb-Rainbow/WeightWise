@@ -11,14 +11,14 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="⚖️"
+        android:text="@string/widget_error_emoji"
         android:textSize="24sp" />
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
-        android:text="小组件加载失败，点击重试"
+        android:text="@string/widget_error_message"
         android:textColor="@color/widget_on_surface_variant"
         android:textSize="13sp" />
 </LinearLayout>
