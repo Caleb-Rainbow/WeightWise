@@ -1,6 +1,6 @@
 package com.example.weight.util
 
-import com.example.weight.data.record.DailyMinWeight
+import com.example.weight.data.record.DailyWeight
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -11,9 +11,9 @@ class WeightPredictorTest {
     private val baseTs = 1_750_000_000_000L // 任意固定基准时间
 
     /** 生成按天递增的每日最低体重记录，weights[i] 为第 i 天的体重 */
-    private fun dailyWeights(weights: List<Double>): List<DailyMinWeight> =
+    private fun dailyWeights(weights: List<Double>): List<DailyWeight> =
         weights.mapIndexed { i, w ->
-            DailyMinWeight(minWeight = w, recordDay = "day-$i", timestamp = baseTs + i * dayMillis)
+            DailyWeight(value = w, recordDay = "day-$i", timestamp = baseTs + i * dayMillis)
         }
 
     @Test
@@ -64,8 +64,8 @@ class WeightPredictorTest {
         // 双周称重：14 天一称、每次 -0.5kg，近 30 天只有 2 个点，
         // 无法可靠判断局部趋势，不应据此拒绝预测
         val records = List(7) { k ->
-            DailyMinWeight(
-                minWeight = 90.0 - 0.5 * k,
+            DailyWeight(
+                value = 90.0 - 0.5 * k,
                 recordDay = "day-${14 * k}",
                 timestamp = baseTs + 14 * k * dayMillis
             )

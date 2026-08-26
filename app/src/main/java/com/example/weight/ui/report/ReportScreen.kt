@@ -51,7 +51,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.weight.LocalShowMessageDialog
 import com.example.weight.data.LocalStorageData
-import com.example.weight.data.record.DailyMinWeight
+import com.example.weight.data.record.DailyStatMode
+import com.example.weight.data.record.DailyWeight
 import com.example.weight.ui.common.AnalysisBottomSheet
 import com.example.weight.ui.common.MyTopBar
 import com.example.weight.ui.common.SectionHeader
@@ -396,19 +397,19 @@ private fun CheckInCard(
 /** 周期内体重趋势图：与首页同款（主线 + 7 日均线 + 目标虚线） */
 @Composable
 private fun ReportChart(
-    dailyWeights: List<DailyMinWeight>,
+    dailyWeights: List<DailyWeight>,
     targetWeight: Double,
 ) {
     val labels = remember(dailyWeights) { dailyWeights.map { it.recordDay } }
     // 7 日移动平均：对记录序列做 7 点滑动窗口平均；不足 7 条（如周报）均线无意义，不画
-    val movingAverage = remember(dailyWeights) { movingAverage(dailyWeights.map { it.minWeight }) }
+    val movingAverage = remember(dailyWeights) { movingAverage(dailyWeights.map { it.value }) }
     // Y 轴范围并入目标体重，保证目标参考虚线始终可见（与首页同规则）
     val chartMaxWeight = remember(dailyWeights, targetWeight) {
-        val raw = dailyWeights.maxOfOrNull { it.minWeight } ?: 0.0
+        val raw = dailyWeights.maxOfOrNull { it.value } ?: 0.0
         (if (targetWeight > 0) maxOf(raw, targetWeight) else raw).plus(1)
     }
     val chartMinWeight = remember(dailyWeights, targetWeight) {
-        val raw = dailyWeights.minOfOrNull { it.minWeight } ?: 0.0
+        val raw = dailyWeights.minOfOrNull { it.value } ?: 0.0
         (if (targetWeight > 0) minOf(raw, targetWeight) else raw).minus(1)
     }
     // producer 提到数据键之外保持稳定，数据变化只 runTransaction 增量提交，不重建图表
@@ -416,7 +417,7 @@ private fun ReportChart(
     LaunchedEffect(dailyWeights, movingAverage) {
         modelProducer.runTransaction {
             lineModel {
-                series(dailyWeights.map { it.minWeight })
+                series(dailyWeights.map { it.value })
                 if (movingAverage.isNotEmpty()) {
                     // 均线从第 7 个记录点起才有完整窗口，用显式 x 对齐横轴
                     series(
@@ -438,19 +439,18 @@ private fun ReportChart(
     )
 }
 
-/** 统计卡：最高 / 最低 / 平均 三列 */
+/** 统计卡：最高 / 最低 / 平均 三列，底部披露当前每日口径 */
 @Composable
 private fun WeightStatsCard(
     modifier: Modifier,
     weightStats: ReportWeightStats,
 ) {
+    val statMode = DailyStatMode.fromId(LocalStorageData.dailyStatMode.collectAsStateWithLifecycle().value)
     Card(modifier = modifier) {
-        Row(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        Column(modifier = Modifier.padding(16.dp).fillMaxWidth()) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
             ReportStatItem(
                 modifier = Modifier.weight(1f),
                 value = String.format(Locale.CHINA, "%.1f", weightStats.maxWeight),
@@ -467,6 +467,13 @@ private fun WeightStatsCard(
                 modifier = Modifier.weight(1f),
                 value = String.format(Locale.CHINA, "%.1f", weightStats.avgWeight),
                 label = "平均",
+            )
+            }
+            Text(
+                text = "按每日${statMode.label}统计",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 10.dp).align(Alignment.CenterHorizontally),
             )
         }
     }

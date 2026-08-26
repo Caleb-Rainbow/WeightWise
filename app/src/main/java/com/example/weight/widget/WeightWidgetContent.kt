@@ -45,7 +45,7 @@ import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import androidx.glance.color.ColorProvider as DayNightColorProvider
 import com.example.weight.MainActivity
-import com.example.weight.data.record.DailyMinWeight
+import com.example.weight.data.record.DailyWeight
 import com.example.weight.data.widget.WeightWidgetData
 import com.example.weight.ui.common.BMI
 import com.example.weight.ui.theme.ThemePreset
@@ -202,7 +202,7 @@ private fun WidgetDataContent(
                         SparklineImage(points = data.dailyWeights, isNight = isNight, preset = preset, openReport = openReport)
                         Text(
                             text = String.format(
-                                Locale.CHINA, "7天均 %.1f", data.dailyWeights.map { it.minWeight }.average()
+                                Locale.CHINA, "7天均 %.1f", data.dailyWeights.map { it.value }.average()
                             ),
                             style = TextStyle(
                                 color = GlanceTheme.colors.onSurfaceVariant,
@@ -356,7 +356,7 @@ private fun DeltaText(delta: Double) {
 /** 近 7 天趋势线：Glance 无画布组件，预渲染位图后经 ImageProvider(bitmap) 上屏 */
 @Composable
 private fun SparklineImage(
-    points: List<DailyMinWeight>,
+    points: List<DailyWeight>,
     isNight: Boolean,
     preset: ThemePreset,
     openReport: Action,
@@ -365,7 +365,7 @@ private fun SparklineImage(
     val lineColor = (if (isNight) preset.dark.primary else preset.light.primary).toArgb()
     val bitmap = remember(points, isNight, preset) {
         drawSparkline(
-            weights = points.map { it.minWeight },
+            weights = points.map { it.value },
             widthPx = SPARKLINE_WIDTH_DP * SPARKLINE_SCALE,
             heightPx = SPARKLINE_HEIGHT_DP * SPARKLINE_SCALE,
             lineColor = lineColor,

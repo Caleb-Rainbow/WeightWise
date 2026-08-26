@@ -58,6 +58,7 @@ import com.example.weight.data.backup.BackupException
 import com.example.weight.data.backup.BackupRepository
 import com.example.weight.data.backup.ImportPreview
 import com.example.weight.data.chat.ChatModel
+import com.example.weight.data.record.DailyStatMode
 import com.example.weight.data.record.RecordDao
 import com.example.weight.data.widget.WidgetUpdater
 import com.example.weight.ui.common.MyTopBar
@@ -103,6 +104,7 @@ fun SettingScreen(modifier: Modifier = Modifier, goBack: () -> Unit) {
             item { GoalCard() }
             item { ProfileCard() }
             item { AppearanceCard() }
+            item { DailyStatModeCard() }
             item { ReminderPushCard() }
             item { AiModelCard() }
             item { DataManagementCard() }
@@ -138,6 +140,58 @@ private fun SettingsIntro() {
                 color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.66f),
             )
         }
+    }
+}
+
+/** 统计口径：一天多次称重时的折算方式，影响首页图表、报告与小组件趋势 */
+@Composable
+private fun DailyStatModeCard() {
+    val modeId by LocalStorageData.dailyStatMode.collectAsStateWithLifecycle()
+    val current = DailyStatMode.fromId(modeId)
+    val widgetUpdater = koinInject<WidgetUpdater>()
+    var editing by remember { mutableStateOf(false) }
+
+    // 口径影响小组件趋势线与 7 天均值，切换后主动刷新（小组件取数是一次性读取）
+    LaunchedEffect(Unit) {
+        LocalStorageData.dailyStatMode
+            .drop(1)
+            .collectLatest { widgetUpdater.notifyDataChanged() }
+    }
+
+    SettingsCard(title = "统计") {
+        SettingsRow(
+            label = "每日体重口径",
+            value = current.label,
+            onClick = { editing = true },
+        )
+        SettingsFootnote("一天多次称重时的折算方式，影响首页图表、报告与小组件趋势")
+    }
+
+    if (editing) {
+        AlertDialog(
+            onDismissRequest = { editing = false },
+            title = { Text("每日体重口径") },
+            text = {
+                Column {
+                    DailyStatMode.entries.forEach { mode ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    LocalStorageData.dailyStatMode.update { mode.name }
+                                    editing = false
+                                }
+                                .padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(selected = mode == current, onClick = null)
+                            Text(mode.label, modifier = Modifier.padding(start = 8.dp))
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+        )
     }
 }
 

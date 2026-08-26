@@ -1,6 +1,6 @@
 package com.example.weight.data.report
 
-import com.example.weight.data.record.DailyMinWeight
+import com.example.weight.data.record.DailyWeight
 import java.time.Duration
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -58,7 +58,7 @@ class ReportPushSchedulerTest {
 
 class WeeklyReportTextBuilderTest {
 
-    private fun day(date: String, weight: Double) = DailyMinWeight(minWeight = weight, recordDay = date, timestamp = 0L)
+    private fun day(date: String, weight: Double) = DailyWeight(value = weight, recordDay = date, timestamp = 0L)
 
     @Test
     fun `上周无打卡返回null`() {

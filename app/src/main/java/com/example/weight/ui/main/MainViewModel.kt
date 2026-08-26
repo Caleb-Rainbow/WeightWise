@@ -4,7 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.weight.data.LocalStorageData
 import com.example.weight.data.record.BodyComposition
-import com.example.weight.data.record.DailyMinWeight
+import com.example.weight.data.record.DailyWeight
+import com.example.weight.data.record.dailyWeightsSince
 import com.example.weight.data.record.Record
 import com.example.weight.data.record.RecordDao
 import com.example.weight.data.widget.WidgetUpdater
@@ -33,7 +34,7 @@ import org.koin.core.annotation.KoinViewModel
 import java.time.LocalDate
 
 data class UiState(
-    val selectedRecord: DailyMinWeight? = null,
+    val selectedRecord: DailyWeight? = null,
     val firstRecord: Record? = null,
 )
 
@@ -63,8 +64,8 @@ class MainViewModel(
     // 切范围时 StateFlow 保留旧值直到新范围首份数据到达（原先由 UI 层 cachedData 兜底，语义相同）；
     // null 仅出现在真正的首次加载，UI 用它区分加载中（转圈）与没有数据（空状态）
     @OptIn(ExperimentalCoroutinesApi::class)
-    val currentScopeData: StateFlow<List<DailyMinWeight>?> = selectedScope
-        .flatMapLatest { scope -> recordDao.getDailyMinWeightSince(scope.startTimeMillis()) }
+    val currentScopeData: StateFlow<List<DailyWeight>?> = selectedScope
+        .flatMapLatest { scope -> recordDao.dailyWeightsSince(scope.startTimeMillis()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     init {
@@ -116,9 +117,9 @@ class MainViewModel(
         }
     }
 
-    /** 预测目标达成天数用的固定窗口数据：最近 90 天每日最低体重，不随图表统计范围切换，保证预测稳定；同样 stateIn 缓存，导航返回不重查 */
-    val predictionData: StateFlow<List<DailyMinWeight>> = recordDao
-        .getDailyMinWeightSince(getStartTimeForLastDays(WeightPredictor.ANALYSIS_WINDOW_DAYS.toInt()))
+    /** 预测目标达成天数用的固定窗口数据：最近 90 天每日代表值（口径随设置），不随图表统计范围切换，保证预测稳定；同样 stateIn 缓存，导航返回不重查 */
+    val predictionData: StateFlow<List<DailyWeight>> = recordDao
+        .dailyWeightsSince(getStartTimeForLastDays(WeightPredictor.ANALYSIS_WINDOW_DAYS.toInt()))
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // StateFlow 更新线程安全且为微秒级操作，直接在调用线程执行即可，无需切 IO 调度
@@ -142,7 +143,7 @@ class MainViewModel(
         _dialogState.update { it.copy(isShowSetHeightDialog = false) }
     }
 
-    fun setSelectedRecord(record: DailyMinWeight?) {
+    fun setSelectedRecord(record: DailyWeight?) {
         _uiState.update { it.copy(selectedRecord = record) }
     }
 

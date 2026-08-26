@@ -2,15 +2,15 @@ package com.example.weight.util
 
 import com.example.weight.data.diet.DailyCalories
 import com.example.weight.data.diet.TrafficLightCount
-import com.example.weight.data.record.DailyMinWeight
+import com.example.weight.data.record.DailyWeight
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
 class ReportAggregatorTest {
 
-    private fun day(date: String, weight: Double) = DailyMinWeight(
-        minWeight = weight, recordDay = date, timestamp = 0L
+    private fun day(date: String, weight: Double) = DailyWeight(
+        value = weight, recordDay = date, timestamp = 0L
     )
 
     @Test

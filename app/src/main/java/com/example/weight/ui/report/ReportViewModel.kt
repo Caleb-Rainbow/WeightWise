@@ -13,7 +13,8 @@ import com.example.weight.data.chat.MessageModel
 import com.example.weight.data.diet.DailyCalories
 import com.example.weight.data.diet.DietRecordDao
 import com.example.weight.data.diet.TrafficLightCount
-import com.example.weight.data.record.DailyMinWeight
+import com.example.weight.data.record.DailyWeight
+import com.example.weight.data.record.dailyWeightsBetween
 import com.example.weight.data.record.RecordDao
 import com.example.weight.util.ActivityLevel
 import com.example.weight.util.Gender
@@ -49,7 +50,7 @@ data class ReportData(
     val anchor: LocalDate,
     val title: String,
     val totalDays: Int,
-    val dailyWeights: List<DailyMinWeight>,
+    val dailyWeights: List<DailyWeight>,
     val weightStats: ReportWeightStats?,
     val caloriesStats: ReportCaloriesStats?,
     val changeVsPrevPeriod: Double?,
@@ -100,12 +101,12 @@ class ReportViewModel(
                 coroutineScope {
                     // 与主数据流并行，不阻塞本期数据先到先渲染
                     val prevWeights = async {
-                        recordDao.getDailyMinWeightBetween(prevRange.first, prevRange.second).first()
+                        recordDao.dailyWeightsBetween(prevRange.first, prevRange.second).first()
                     }
                     val startDate = TimeUtils.convertMillisToDate(start)
                     val endDate = TimeUtils.convertMillisToDate(end)
                     combine(
-                        recordDao.getDailyMinWeightBetween(start, end),
+                        recordDao.dailyWeightsBetween(start, end),
                         dietRecordDao.getDailyCaloriesBetween(startDate, endDate),
                         dietRecordDao.getTrafficLightBetween(startDate, endDate),
                         recommendedIntake,
@@ -120,7 +121,7 @@ class ReportViewModel(
                             weightStats = ReportAggregator.weightStats(weights),
                             caloriesStats = ReportAggregator.caloriesStats(calories, lights, intake),
                             changeVsPrevPeriod = ReportAggregator.changeVsPrevPeriod(weights, prevWeights.await()),
-                            endBmi = weights.lastOrNull()?.let { ReportAggregator.bmi(it.minWeight, height) },
+                            endBmi = weights.lastOrNull()?.let { ReportAggregator.bmi(it.value, height) },
                         )
                     }.collect { emit(it) }
                 }
@@ -168,10 +169,10 @@ class ReportViewModel(
                         TimeUtils.convertMillisToDate(start), TimeUtils.convertMillisToDate(end),
                     ).first()
                 }
-                val weightsDeferred = async { recordDao.getDailyMinWeightBetween(start, end).first() }
+                val weightsDeferred = async { recordDao.dailyWeightsBetween(start, end).first() }
                 caloriesDeferred.await() to weightsDeferred.await()
             }
-            val endBmi = weights.lastOrNull()?.let { ReportAggregator.bmi(it.minWeight, LocalStorageData.height.value) }
+            val endBmi = weights.lastOrNull()?.let { ReportAggregator.bmi(it.value, LocalStorageData.height.value) }
             val gender = Gender.entries.find { it.name == LocalStorageData.gender.value }
             val activityLevel = ActivityLevel.entries.find { it.name == LocalStorageData.activityLevel.value }
             val prompt = AnalysisPromptBuilder.build(

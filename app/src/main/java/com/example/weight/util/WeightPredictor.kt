@@ -1,12 +1,12 @@
 package com.example.weight.util
 
-import com.example.weight.data.record.DailyMinWeight
+import com.example.weight.data.record.DailyWeight
 import kotlin.math.absoluteValue
 import kotlin.math.ceil
 import kotlin.math.pow
 
 /**
- * 目标体重预测算法：对近期"每日最低体重"做指数加权线性回归，拟合出趋势斜率（kg/天），
+ * 目标体重预测算法：对近期"每日代表值"做指数加权线性回归，拟合出趋势斜率（kg/天），
  * 再用 剩余距离 ÷ 朝目标的有效速率 估算达成目标还需多少天。
  *
  * 相比旧的"全历史平均速率"（总减重 ÷ 总天数）方案，它更贴近近期真实状态：
@@ -46,13 +46,13 @@ object WeightPredictor {
     /**
      * 预测距离目标体重还需多少天。
      *
-     * @param dailyWeights 每日最低体重列表（按时间升序），早于最新记录 [ANALYSIS_WINDOW_DAYS] 天的数据会被自动忽略
+     * @param dailyWeights 每日代表值列表（按时间升序，口径见 DailyStatMode），早于最新记录 [ANALYSIS_WINDOW_DAYS] 天的数据会被自动忽略
      * @param currentWeight 当前体重，剩余距离按它计算，保证与界面展示口径一致
      * @param targetWeight 目标体重，须大于 0
      * @return 预计剩余天数（向上取整）；数据不足、趋势停滞或反向、超出可信范围时返回 null
      */
     fun estimateDaysToTarget(
-        dailyWeights: List<DailyMinWeight>,
+        dailyWeights: List<DailyWeight>,
         currentWeight: Double,
         targetWeight: Double,
     ): Long? {
@@ -66,7 +66,7 @@ object WeightPredictor {
         for (record in dailyWeights) {
             if (record.timestamp >= windowStartTs) {
                 xs.add((record.timestamp - windowStartTs) / MILLIS_PER_DAY)
-                ys.add(record.minWeight)
+                ys.add(record.value)
             }
         }
         val pointCount = xs.size

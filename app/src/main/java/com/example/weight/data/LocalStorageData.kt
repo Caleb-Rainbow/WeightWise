@@ -50,4 +50,8 @@ object LocalStorageData : MMKVOwner(mmapID = "settings") {
 
     /** 深浅模式,存 [com.example.weight.ui.theme.AppearanceMode].name */
     val appearanceMode by mmkvString(default = "SYSTEM").asStateFlow()
+
+    /*--------统计---------*/
+    /** 每日体重统计口径，存 [com.example.weight.data.record.DailyStatMode].name；默认最低值保持历史行为 */
+    val dailyStatMode by mmkvString(default = "MIN").asStateFlow()
 }

@@ -14,7 +14,8 @@ import androidx.work.WorkerParameters
 import com.example.weight.MainActivity
 import com.example.weight.R
 import com.example.weight.data.LocalStorageData
-import com.example.weight.data.record.DailyMinWeight
+import com.example.weight.data.record.DailyWeight
+import com.example.weight.data.record.dailyWeightsBetween
 import com.example.weight.data.record.RecordDao
 import com.example.weight.util.ReportType
 import java.time.LocalDate
@@ -44,10 +45,10 @@ class ReportPushWorker(
     }
 
     /** 读取某个周一所在周的每日最低体重；调用方保证在 IO 线程 */
-    private suspend fun readWeekWeights(monday: LocalDate): List<DailyMinWeight> = runCatching {
+    private suspend fun readWeekWeights(monday: LocalDate): List<DailyWeight> = runCatching {
         val dao = GlobalContext.get().get<RecordDao>()
         val (start, end) = ReportType.WEEK.periodRange(monday)
-        dao.getDailyMinWeightBetween(start, end).first()
+        dao.dailyWeightsBetween(start, end).first()
     }.getOrDefault(emptyList())
 
     private suspend fun showNotification() {
@@ -107,12 +108,12 @@ internal object WeeklyReportTextBuilder {
      * @param prevWeekWeights 上上周每日最低体重，供对比；空列表表示无对比
      * @return 通知正文；上周无打卡记录返回 null（不发通知）
      */
-    fun build(lastWeekWeights: List<DailyMinWeight>, prevWeekWeights: List<DailyMinWeight>): String? {
+    fun build(lastWeekWeights: List<DailyWeight>, prevWeekWeights: List<DailyWeight>): String? {
         if (lastWeekWeights.isEmpty()) return null
-        val netChange = lastWeekWeights.last().minWeight - lastWeekWeights.first().minWeight
+        val netChange = lastWeekWeights.last().value - lastWeekWeights.first().value
         val base = "上周打卡 ${lastWeekWeights.size} 天，体重 ${signedFormat.format(netChange)}kg"
         if (prevWeekWeights.isEmpty()) return base
-        val prevNet = prevWeekWeights.last().minWeight - prevWeekWeights.first().minWeight
+        val prevNet = prevWeekWeights.last().value - prevWeekWeights.first().value
         val vs = netChange - prevNet
         if (kotlin.math.abs(vs) < 0.05) return base
         val vsText = if (vs < 0) "比前一周多降 ${plainFormat.format(-vs)}kg" else "比前一周少降 ${plainFormat.format(vs)}kg"

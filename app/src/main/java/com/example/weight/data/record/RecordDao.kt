@@ -12,6 +12,11 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface RecordDao {
+    /** 日期归组的固定北京时区后缀，与 [BEIJING_OFFSET] 同源；见 DailyStat.kt 的口径说明 */
+    companion object {
+        const val BEIJING_TZ_SQL = "+8 hours"
+    }
+
     @Insert
     suspend fun insert(record: Record)
 
@@ -29,7 +34,7 @@ interface RecordDao {
         """
     SELECT * FROM Record
     WHERE log LIKE '%' || :query || '%'
-       OR DATE(timestamp / 1000, 'unixepoch', '+8 hours') LIKE '%' || :query || '%'
+       OR DATE(timestamp / 1000, 'unixepoch', '$BEIJING_TZ_SQL') LIKE '%' || :query || '%'
     ORDER BY timestamp DESC
     """
     )
@@ -51,48 +56,16 @@ interface RecordDao {
     @Query("SELECT * FROM Record ORDER BY id asc LIMIT 1")
     fun getFirstDataFlow(): Flow<Record?>
 
+    /**
+     * 每日统计的原始输入：时间窗内全部称重（[startMillis] 含、[endMillis] 排他，升序）。
+     * 日期归组与口径选择（首条/末条/最低/平均）在 [DailyWeightAggregator] 纯函数层完成，
+     * SQL 不再绑定任何统计口径；便捷入口见 [dailyWeightsSince] / [dailyWeightsBetween]。
+     */
     @Query(
-        """
-    SELECT
-        t.weight AS minWeight,
-        t.recordDay, -- 这个 recordDay 现在是北京时间的日期
-        t.timestamp
-    FROM (
-        SELECT
-            weight,
-            DATE(timestamp / 1000, 'unixepoch', '+8 hours') AS recordDay, -- 按北京时间提取日期
-            timestamp,
-            ROW_NUMBER() OVER (PARTITION BY DATE(timestamp / 1000, 'unixepoch', '+8 hours') ORDER BY weight ASC, timestamp ASC) as rn -- 按北京时间分区
-        FROM Record
-        WHERE timestamp >= :startTimeMillis
-    ) AS t
-    WHERE t.rn = 1
-    ORDER BY t.recordDay ASC
-"""
+        "SELECT timestamp, weight FROM Record " +
+            "WHERE timestamp >= :startMillis AND timestamp < :endMillis ORDER BY timestamp ASC"
     )
-    fun getDailyMinWeightSince(startTimeMillis: Long): Flow<List<DailyMinWeight>>
-
-    /** 周期报告取数：[startMillis] 含、[endMillis] 排他（周期结束次日零点），保证翻历史周期不混入之后的数据 */
-    @Query(
-        """
-    SELECT
-        t.weight AS minWeight,
-        t.recordDay,
-        t.timestamp
-    FROM (
-        SELECT
-            weight,
-            DATE(timestamp / 1000, 'unixepoch', '+8 hours') AS recordDay,
-            timestamp,
-            ROW_NUMBER() OVER (PARTITION BY DATE(timestamp / 1000, 'unixepoch', '+8 hours') ORDER BY weight ASC, timestamp ASC) as rn
-        FROM Record
-        WHERE timestamp >= :startMillis AND timestamp < :endMillis
-    ) AS t
-    WHERE t.rn = 1
-    ORDER BY t.recordDay ASC
-"""
-    )
-    fun getDailyMinWeightBetween(startMillis: Long, endMillis: Long): Flow<List<DailyMinWeight>>
+    fun getWeightsRaw(startMillis: Long, endMillis: Long): Flow<List<RecordWeightRaw>>
 
     /** 成分趋势页取数：时间窗内含成分的记录（升序），空串手动记录排除；JSON 逐条解码与每日聚合在 [MetricTrend] 纯函数层完成 */
     @Query("SELECT timestamp, bodyComposition FROM Record WHERE timestamp >= :startTimeMillis AND bodyComposition != '' ORDER BY timestamp ASC")
@@ -125,7 +98,7 @@ interface RecordDao {
 
     /** 全部打卡日（北京时间 yyyy-MM-dd，去重升序），供连续打卡计算 */
     @Query(
-        "SELECT DISTINCT DATE(timestamp / 1000, 'unixepoch', '+8 hours') AS recordDay " +
+        "SELECT DISTINCT DATE(timestamp / 1000, 'unixepoch', '$BEIJING_TZ_SQL') AS recordDay " +
             "FROM Record ORDER BY recordDay ASC"
     )
     fun getRecordDaysFlow(): Flow<List<String>>

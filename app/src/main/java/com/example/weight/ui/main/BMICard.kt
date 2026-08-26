@@ -19,14 +19,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.weight.data.record.DailyMinWeight
+import com.example.weight.data.record.DailyWeight
 import com.example.weight.ui.common.BMI
 import com.example.weight.ui.common.BMIIndexChart
 import com.example.weight.ui.common.bmiColor
 import java.text.DecimalFormat
 
 @Composable
-fun BMIContent(modifier: Modifier, record: DailyMinWeight?, bmi: Double) {
+fun BMIContent(modifier: Modifier, record: DailyWeight?, bmi: Double) {
 
     val bmiLeave by remember(bmi) {
         mutableStateOf(BMI.fromBMIValue(bmi))

@@ -1,7 +1,8 @@
 package com.example.weight.data.widget
 
 import com.example.weight.data.LocalStorageData
-import com.example.weight.data.record.DailyMinWeight
+import com.example.weight.data.record.DailyWeight
+import com.example.weight.data.record.dailyWeightsSince
 import com.example.weight.data.record.Record
 import com.example.weight.data.record.RecordDao
 import com.example.weight.util.GoalProgressCalculator
@@ -17,14 +18,14 @@ import java.time.LocalDate
 /** 桌面小组件展示数据。currentWeight 为 null 表示无任何记录（空状态） */
 data class WeightWidgetData(
     val currentWeight: Double?,
-    /** 近 7 天窗口内最早一天的最低体重，作为「较 7 天前」的对比基准 */
+    /** 近 7 天窗口内最早一天的代表值，作为「较 7 天前」的对比基准 */
     val baselineWeight: Double?,
     val targetWeight: Double,
     /** 目标进度百分比；目标未设置时为 null（不展示进度条） */
     val progressPercent: Int?,
     val updatedAt: Long,
-    /** 近 7 天每日最低体重序列（按天升序），供宽卡趋势线与均值使用 */
-    val dailyWeights: List<DailyMinWeight> = emptyList(),
+    /** 近 7 天每日代表值序列（口径随设置）（按天升序），供宽卡趋势线与均值使用 */
+    val dailyWeights: List<DailyWeight> = emptyList(),
     /** BMI（当前体重 + 档案身高）；身高未配置时为 null */
     val bmi: Double? = null,
     /** 连续打卡天数（口径同首页） */
@@ -45,12 +46,12 @@ class WidgetRepository(private val recordDao: RecordDao) {
         // 三次独立查询并行执行；Room suspend 自带 IO 调度，不再额外 withContext
         val currentDeferred = async { recordDao.getLastData() }
         val dailyDeferred = async {
-            recordDao.getDailyMinWeightSince(getStartTimeForLastDays(PREDICT_WINDOW_DAYS)).first()
+            recordDao.dailyWeightsSince(getStartTimeForLastDays(PREDICT_WINDOW_DAYS)).first()
         }
         val firstDeferred = async { recordDao.getFirstData() }
         val recordDaysDeferred = async { recordDao.getRecordDaysFlow().first() }
         val current: Record? = currentDeferred.await()
-        val allDays: List<DailyMinWeight> = dailyDeferred.await()
+        val allDays: List<DailyWeight> = dailyDeferred.await()
         val first: Record? = firstDeferred.await()
         val last7Days = allDays.filter { it.timestamp >= getStartTimeForLastDays(7) }
         val currentWeight = current?.weight
@@ -59,7 +60,7 @@ class WidgetRepository(private val recordDao: RecordDao) {
         val height = LocalStorageData.height.value
         WeightWidgetData(
             currentWeight = currentWeight,
-            baselineWeight = last7Days.firstOrNull()?.minWeight,
+            baselineWeight = last7Days.firstOrNull()?.value,
             targetWeight = targetWeight,
             progressPercent = if (currentWeight != null) {
                 GoalProgressCalculator.progressPercent(

@@ -10,7 +10,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
-import com.example.weight.data.record.DailyMinWeight
+import com.example.weight.data.record.DailyWeight
 import com.example.weight.ui.theme.AppTheme
 import com.example.weight.util.StreakInfo
 import org.junit.Assert.assertEquals
@@ -29,8 +29,8 @@ class SelectedRecordContentUiTest {
     @get:Rule
     val composeRule = createComposeRule()
 
-    private val record = DailyMinWeight(
-        minWeight = 68.4,
+    private val record = DailyWeight(
+        value = 68.4,
         recordDay = "2026-08-24",
         timestamp = 1_777_000_000_000,
     )

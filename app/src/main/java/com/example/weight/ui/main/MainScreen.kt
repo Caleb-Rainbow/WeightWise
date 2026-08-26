@@ -90,7 +90,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.weight.LocalSnackBarShow
 import com.example.weight.data.LocalStorageData
-import com.example.weight.data.record.DailyMinWeight
+import com.example.weight.data.record.DailyStatMode
+import com.example.weight.data.record.DailyWeight
 import com.example.weight.data.record.Record
 import com.example.weight.ui.common.WeightChart
 import com.example.weight.ui.common.SectionHeader
@@ -165,7 +166,7 @@ fun MainScreen(
     // 普通 remember 计算值即可：此处从不写入，mutableStateOf 是无意义的包装
     val bmi = remember(uiState.selectedRecord, height) {
         val heightMeters = height / 100
-        uiState.selectedRecord?.minWeight?.div(heightMeters.times(heightMeters)) ?: 0.0
+        uiState.selectedRecord?.value?.div(heightMeters.times(heightMeters)) ?: 0.0
     }
     MainDialog()
     // 导航坞已上提为全局层(T-4):由 MainActivity 宿主 Scaffold 承载,所有一级目的地常驻
@@ -192,17 +193,17 @@ fun MainScreen(
                 scopeData == null -> LoadingContent()
                 scopeData.isEmpty() -> EmptyContent(onAddRecord = viewModel::showAddDialog)
                 else -> {
-                    val maxWeightRecord = remember(scopeData) { scopeData.maxByOrNull { it.minWeight } }
-                    val minWeightRecord = remember(scopeData) { scopeData.minByOrNull { it.minWeight } }
+                    val maxWeightRecord = remember(scopeData) { scopeData.maxByOrNull { it.value } }
+                    val minWeightRecord = remember(scopeData) { scopeData.minByOrNull { it.value } }
                     val predictionDataList by viewModel.predictionData.collectAsStateWithLifecycle()
                     val targetWeight by LocalStorageData.targetWeight.collectAsStateWithLifecycle()
                     // Y 轴范围并入目标体重，保证目标参考虚线始终可见
                     val chartMaxWeight = remember(maxWeightRecord, targetWeight) {
-                        val raw = maxWeightRecord?.minWeight ?: 0.0
+                        val raw = maxWeightRecord?.value ?: 0.0
                         (if (targetWeight > 0) maxOf(raw, targetWeight) else raw).plus(1)
                     }
                     val chartMinWeight = remember(minWeightRecord, targetWeight) {
-                        val raw = minWeightRecord?.minWeight ?: 0.0
+                        val raw = minWeightRecord?.value ?: 0.0
                         (if (targetWeight > 0) minOf(raw, targetWeight) else raw).minus(1)
                     }
 
@@ -211,7 +212,7 @@ fun MainScreen(
                         val selectedScope by viewModel.selectedScope.collectAsStateWithLifecycle()
                         // 稳定引用：内联 lambda 每次重组都是新实例，会让图表的 marker listener 链失效重建
                         val onRecordSelected = remember(viewModel) {
-                            { record: DailyMinWeight -> viewModel.setSelectedRecord(record) }
+                            { record: DailyWeight -> viewModel.setSelectedRecord(record) }
                         }
 
                         val heroContent: @Composable (Modifier) -> Unit = { heroModifier ->
@@ -477,9 +478,9 @@ private fun DashboardSectionTitle(
 @Composable
 private fun GoalProgressContent(
     modifier: Modifier,
-    currentRecord: DailyMinWeight?,
+    currentRecord: DailyWeight?,
     firstRecord: Record?,
-    recentDailyWeights: List<DailyMinWeight>
+    recentDailyWeights: List<DailyWeight>
 ) {
     currentRecord?.let {
         val targetWeight by LocalStorageData.targetWeight.collectAsStateWithLifecycle()
@@ -488,7 +489,7 @@ private fun GoalProgressContent(
         val startWeight =
             GoalProgressCalculator.effectiveStartWeight(configuredStartWeight, firstRecord?.weight)
                 ?: 0.0
-        val currentWeight = it.minWeight
+        val currentWeight = it.value
         if (targetWeight > 0) {
             val goalReached = currentWeight <= targetWeight
 
@@ -501,7 +502,7 @@ private fun GoalProgressContent(
                 targetValue = progress,
                 label = "目标进度",
             )
-            // 基于近 90 天每日最低体重的加权回归趋势估算剩余天数，
+            // 基于近 90 天每日代表值的加权回归趋势估算剩余天数，
             // 趋势停滞、反向或数据不足时返回 null，不显示天数
             val remainingDays = remember(recentDailyWeights, currentWeight, targetWeight) {
                 WeightPredictor.estimateDaysToTarget(recentDailyWeights, currentWeight, targetWeight)
@@ -589,7 +590,7 @@ private fun GoalRing(progress: Float, modifier: Modifier = Modifier) {
 
 @Composable
 fun SelectedRecordContent(
-    record: DailyMinWeight?,
+    record: DailyWeight?,
     selectedScope: StatisticsScope,
     onScopeSelected: (StatisticsScope) -> Unit,
     modifier: Modifier = Modifier,
@@ -654,7 +655,7 @@ fun SelectedRecordContent(
             }
             Spacer(Modifier.height(22.dp))
             Row(verticalAlignment = Alignment.Bottom) {
-                AnimatedContent(targetState = record?.minWeight ?: 0.0, transitionSpec = {
+                AnimatedContent(targetState = record?.value ?: 0.0, transitionSpec = {
                     if (targetState > initialState) {
                         slideInVertically { height -> height } + fadeIn() togetherWith
                             slideOutVertically { height -> -height } + fadeOut()
@@ -793,16 +794,16 @@ private fun ScopeSelector(
 
 @Composable
 private fun StatisticChart(
-    currentScopeDataList: List<DailyMinWeight>,
+    currentScopeDataList: List<DailyWeight>,
     maxWeight: Double,
     minWeight: Double,
-    onMarkerClick: (DailyMinWeight) -> Unit,
+    onMarkerClick: (DailyWeight) -> Unit,
 ) {
     // 根据收集到的数据构建 LineChart 所需的参数，当 currentScopeDataList 变化时重组
     val labels = remember(currentScopeDataList) { currentScopeDataList.map { it.recordDay } }
     // 7 日移动平均：对记录序列做 7 点滑动窗口平均，与图表按记录排布的横轴自洽；
     // 数据不足 7 条时（如近7天范围内）均线无意义，不画
-    val movingAverage = remember(currentScopeDataList) { movingAverage(currentScopeDataList.map { it.minWeight }) }
+    val movingAverage = remember(currentScopeDataList) { movingAverage(currentScopeDataList.map { it.value }) }
     val targetWeight by LocalStorageData.targetWeight.collectAsStateWithLifecycle()
 
     // 当 chartData 不为空时才显示图表
@@ -812,7 +813,7 @@ private fun StatisticChart(
         LaunchedEffect(currentScopeDataList, movingAverage) {
             modelProducer.runTransaction {
                 lineModel {
-                    series(currentScopeDataList.map { it.minWeight })
+                    series(currentScopeDataList.map { it.value })
                     if (movingAverage.isNotEmpty()) {
                         // 均线从第 7 个记录点起才有完整窗口，用显式 x 对齐横轴
                         series(
@@ -845,13 +846,15 @@ private fun StatisticChart(
 @Composable
 private fun PeriodDigest(
     modifier: Modifier,
-    maxWeightRecord: DailyMinWeight?,
-    minWeightRecord: DailyMinWeight?,
-    firstWeightRecord: DailyMinWeight?,
-    lastWeightRecord: DailyMinWeight?
+    maxWeightRecord: DailyWeight?,
+    minWeightRecord: DailyWeight?,
+    firstWeightRecord: DailyWeight?,
+    lastWeightRecord: DailyWeight?
 ) {
-    val delta = lastWeightRecord?.minWeight?.minus(firstWeightRecord?.minWeight ?: 0.0) ?: 0.0
+    val delta = lastWeightRecord?.value?.minus(firstWeightRecord?.value ?: 0.0) ?: 0.0
     val deltaFormat = remember { DecimalFormat("+#.#;-#.#") }
+    // 口径披露：摘要极值与变化按每日口径折算，与图表同源（见设置-统计）
+    val statMode = DailyStatMode.fromId(LocalStorageData.dailyStatMode.collectAsStateWithLifecycle().value)
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 8.dp, bottomStart = 8.dp, bottomEnd = 28.dp),
@@ -894,6 +897,11 @@ private fun PeriodDigest(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.52f),
                 )
+                Text(
+                    "按每日${statMode.label}统计",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.42f),
+                )
             }
             VerticalDivider(
                 Modifier
@@ -912,7 +920,7 @@ private fun PeriodDigest(
 @Composable
 private fun DigestExtrema(
     label: String,
-    record: DailyMinWeight?,
+    record: DailyWeight?,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
@@ -922,7 +930,7 @@ private fun DigestExtrema(
         )
         Spacer(Modifier.weight(1f))
         Text(
-            text = String.format(Locale.CHINA, "%.1f", record?.minWeight ?: 0.0),
+            text = String.format(Locale.CHINA, "%.1f", record?.value ?: 0.0),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.inverseOnSurface,
