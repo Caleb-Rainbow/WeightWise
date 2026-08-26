@@ -56,6 +56,55 @@ class DailyMacroAggregatorTest {
         )
         assertEquals(10, macros.protein)
         assertTrue(macros.hasMacroData)
+        assertTrue(macros.partialMacroData)
+    }
+
+    @Test
+    fun `同日全量数据不标记部分和`() {
+        val macros = DailyMacroAggregator.aggregate(
+            listOf(
+                record("""[{"name":"米饭","estimatedCalories":300,"protein":6,"carbs":66,"fat":1}]"""),
+                record("""[{"name":"鸡蛋","estimatedCalories":150,"protein":12,"carbs":1,"fat":10}]"""),
+            ),
+            json,
+        )
+        assertFalse(macros.partialMacroData)
+    }
+
+    @Test
+    fun `全无宏量数据的日期不标记部分和_是完全无数据`() {
+        val macros = DailyMacroAggregator.aggregate(
+            listOf(record("""[{"name":"旧记录食物","estimatedCalories":300}]""")),
+            json,
+        )
+        assertFalse(macros.hasMacroData)
+        assertFalse(macros.partialMacroData)
+    }
+
+    @Test
+    fun `显式零宏量是真零值_计入数据且和为零`() {
+        val macros = DailyMacroAggregator.aggregate(
+            listOf(record("""[{"name":"零卡可乐","estimatedCalories":0,"protein":0,"carbs":0,"fat":0}]""")),
+            json,
+        )
+        assertEquals(0, macros.protein)
+        assertTrue(macros.hasMacroData)
+        assertFalse(macros.partialMacroData)
+    }
+
+    @Test
+    fun `显式零宏量与无数据食物混合_和只含非零项且零值项算有数据`() {
+        val macros = DailyMacroAggregator.aggregate(
+            listOf(
+                record("""[{"name":"零卡可乐","estimatedCalories":0,"protein":0,"carbs":0,"fat":0}]"""),
+                record("""[{"name":"旧记录食物","estimatedCalories":300}]"""),
+                record("""[{"name":"鸡蛋","estimatedCalories":150,"protein":12}]"""),
+            ),
+            json,
+        )
+        assertEquals(12, macros.protein)
+        assertTrue(macros.hasMacroData)
+        assertTrue(macros.partialMacroData)
     }
 
     @Test
