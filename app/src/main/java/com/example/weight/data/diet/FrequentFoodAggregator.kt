@@ -35,9 +35,9 @@ object FrequentFoodAggregator {
         data class Sample(
             val grams: Int,
             val calories: Int,
-            val protein: Int,
-            val carbs: Int,
-            val fat: Int,
+            val protein: Int?,
+            val carbs: Int?,
+            val fat: Int?,
             val category: String,
             val isHealthy: Boolean,
         )
@@ -76,9 +76,10 @@ object FrequentFoodAggregator {
                         .maxWithOrNull(compareBy<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
                         ?.key.orEmpty(),
                     isHealthy = samples.count { it.isHealthy } * 2 >= samples.size,
-                    protein = medianOfPositive(samples.map { it.protein }) ?: 0,
-                    carbs = medianOfPositive(samples.map { it.carbs }) ?: 0,
-                    fat = medianOfPositive(samples.map { it.fat }) ?: 0,
+                    // 宏量样本只取非 null 值；全无样本返回 null（无数据），不再伪 0
+                    protein = medianOfPositive(samples.mapNotNull { it.protein }),
+                    carbs = medianOfPositive(samples.mapNotNull { it.carbs }),
+                    fat = medianOfPositive(samples.mapNotNull { it.fat }),
                 )
             }
     }

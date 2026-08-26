@@ -7,9 +7,10 @@ data class DailyMacros(
     val protein: Int,
     val carbs: Int,
     val fat: Int,
-    /** 近似标记：任一食物存在非零宏量即认为该日有宏量数据。真 0 宏量食物（无糖可乐）
-     *  与旧版无宏量字段记录不可区分，按「有数据」近似；混合日为部分和，UI 需配合 skippedRecords 提示 */
+    /** 任一食物存在宏量数据（字段非 null）即认为该日有宏量数据 */
     val hasMacroData: Boolean,
+    /** 部分食物无宏量数据（字段为 null）被跳过，合计是部分和；UI 应提示而非当完整值展示 */
+    val partialMacroData: Boolean,
     /** 解析失败被跳过的记录条数（调用方负责 Log 观测） */
     val skippedRecords: Int,
 )
@@ -36,6 +37,7 @@ object DailyMacroAggregator {
         var carbs = 0
         var fat = 0
         var hasMacroData = false
+        var partial = false
         var skipped = 0
         for (record in records) {
             val foods = decode(record.recognizedFoodJson)
@@ -44,13 +46,14 @@ object DailyMacroAggregator {
                 continue
             }
             for (food in foods) {
-                protein += food.protein
-                carbs += food.carbs
-                fat += food.fat
-                if (food.protein > 0 || food.carbs > 0 || food.fat > 0) hasMacroData = true
+                val anyNonNull = food.protein != null || food.carbs != null || food.fat != null
+                if (anyNonNull) hasMacroData = true else partial = true
+                food.protein?.let { protein += it }
+                food.carbs?.let { carbs += it }
+                food.fat?.let { fat += it }
             }
         }
-        return DailyMacros(protein, carbs, fat, hasMacroData, skipped)
+        return DailyMacros(protein, carbs, fat, hasMacroData, partial && hasMacroData, skipped)
     }
 
     /**

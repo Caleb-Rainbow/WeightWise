@@ -60,13 +60,14 @@ fun FoodItemEditorSheet(
     var grams by remember(initialItem) { mutableStateOf(initialItem?.estimatedGrams?.toString() ?: "") }
     var category by remember(initialItem) { mutableStateOf(initialItem?.category ?: "") }
     var isHealthy by remember(initialItem) { mutableStateOf(initialItem?.isHealthy ?: true) }
-    var protein by remember(initialItem) { mutableStateOf(initialItem?.protein?.takeIf { it > 0 }?.toString() ?: "") }
-    var carbs by remember(initialItem) { mutableStateOf(initialItem?.carbs?.takeIf { it > 0 }?.toString() ?: "") }
-    var fat by remember(initialItem) { mutableStateOf(initialItem?.fat?.takeIf { it > 0 }?.toString() ?: "") }
+    // null（无数据）与 0（真 0）都原样显示：留空保存=无数据，填 0=真 0 宏量
+    var protein by remember(initialItem) { mutableStateOf(initialItem?.protein?.toString() ?: "") }
+    var carbs by remember(initialItem) { mutableStateOf(initialItem?.carbs?.toString() ?: "") }
+    var fat by remember(initialItem) { mutableStateOf(initialItem?.fat?.toString() ?: "") }
     var showAdvanced by remember(initialItem) {
         mutableStateOf(
             initialItem?.let {
-                it.category.isNotBlank() || it.protein > 0 || it.carbs > 0 || it.fat > 0
+                it.category.isNotBlank() || it.protein != null || it.carbs != null || it.fat != null
             } ?: false
         )
     }
@@ -202,7 +203,7 @@ fun FoodItemEditorSheet(
                     }
                 }
 
-                // 宏量营养素（可选填，留空按 0 计）
+                // 宏量营养素（可选填，留空保存为无数据，不计入日聚合）
                 item(key = "macros") {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(
@@ -246,9 +247,9 @@ fun FoodItemEditorSheet(
                             estimatedGrams = grams.toIntOrNull() ?: 0,
                             category = category,
                             isHealthy = isHealthy,
-                            protein = protein.toIntOrNull() ?: 0,
-                            carbs = carbs.toIntOrNull() ?: 0,
-                            fat = fat.toIntOrNull() ?: 0,
+                            protein = protein.toIntOrNull(),
+                            carbs = carbs.toIntOrNull(),
+                            fat = fat.toIntOrNull(),
                             isManuallyAdded = initialItem?.isManuallyAdded ?: true,
                         )
                         onConfirm(item)

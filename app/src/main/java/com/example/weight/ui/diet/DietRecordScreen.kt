@@ -890,9 +890,9 @@ private fun AiResultSection(
     val chipColors = lightChipColors(trafficLight)
     val totalCalories = foods.sumOf { it.estimatedCalories }
     val macros = Macros(
-        protein = foods.sumOf { it.protein },
-        carbs = foods.sumOf { it.carbs },
-        fat = foods.sumOf { it.fat },
+        protein = foods.sumOf { it.protein ?: 0 },
+        carbs = foods.sumOf { it.carbs ?: 0 },
+        fat = foods.sumOf { it.fat ?: 0 },
     )
 
     Card(
@@ -1288,6 +1288,14 @@ private fun IntakeHero(
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 "${macros.skippedRecords} 条记录数据异常未计入宏量",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.62f),
+                            )
+                        }
+                        if (macros.partialMacroData) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                "部分食物无营养数据,以上为部分和",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.62f),
                             )

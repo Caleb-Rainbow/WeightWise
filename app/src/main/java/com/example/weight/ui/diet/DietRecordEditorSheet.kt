@@ -228,9 +228,13 @@ fun DietRecordEditorSheet(
                             Text(food.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
                             val macroText = buildString {
                                 append("${food.estimatedGrams}g · ${food.estimatedCalories}kcal")
-                                if (food.protein > 0 || food.carbs > 0 || food.fat > 0) {
-                                    append(" · 蛋白${food.protein} 碳水${food.carbs} 脂肪${food.fat}")
-                                }
+                                // 只列出有数据的宏量项；null=无数据不展示，0=真 0 照常展示
+                                val macroParts = listOfNotNull(
+                                    food.protein?.let { "蛋白$it" },
+                                    food.carbs?.let { "碳水$it" },
+                                    food.fat?.let { "脂肪$it" },
+                                )
+                                if (macroParts.isNotEmpty()) append(" · ${macroParts.joinToString(" ")}")
                             }
                             Text(
                                 macroText,
