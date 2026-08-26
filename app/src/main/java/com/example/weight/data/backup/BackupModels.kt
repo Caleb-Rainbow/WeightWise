@@ -71,4 +71,6 @@ data class SettingsBackup(
     val themeId: String = "",
     /** 深浅模式 [com.example.weight.ui.theme.AppearanceMode].name；空串/非法值不覆盖 */
     val appearanceMode: String = "",
+    /** 每日统计口径 [com.example.weight.data.record.DailyStatMode].name；空串/非法值不覆盖 */
+    val dailyStatMode: String = "",
 )

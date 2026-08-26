@@ -540,14 +540,17 @@ private fun DataManagementCard() {
     var pendingImport by remember { mutableStateOf<ImportPreview?>(null) }
 
     val exportLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/json")
+        ActivityResultContracts.CreateDocument("application/zip")
     ) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
             showLoading()
             try {
                 val result = backupRepository.export(context, uri)
-                snackBarShow("已导出 ${result.recordCount} 条体重记录、${result.dietCount} 条饮食记录")
+                snackBarShow(
+                    "已导出 ${result.recordCount} 条体重记录、${result.dietCount} 条饮食记录" +
+                        if (result.imageCount > 0) "、${result.imageCount} 张照片" else ""
+                )
             } catch (e: Exception) {
                 snackBarShow("导出失败：${e.message ?: "未知错误"}")
             } finally {
@@ -564,7 +567,7 @@ private fun DataManagementCard() {
             showLoading()
             try {
                 val backup = backupRepository.parseBackup(context, uri)
-                val preview = backupRepository.previewImport(backup)
+                val preview = backupRepository.previewImport(context, backup)
                 if (preview.newRecordCount == 0 && preview.newDietCount == 0) {
                     snackBarShow("备份里没有新数据，均与现有记录重复")
                 } else {
@@ -599,7 +602,7 @@ private fun DataManagementCard() {
 
     SettingsCard(title = "数据管理") {
         SettingsRow(
-            label = "导出数据（JSON）",
+            label = "导出数据（备份包）",
             value = "",
             onClick = {
                 exportLauncher.launch(
@@ -617,11 +620,15 @@ private fun DataManagementCard() {
             },
         )
         SettingsRow(
-            label = "导入数据（JSON）",
+            label = "导入数据（备份包/JSON）",
             value = "",
-            onClick = { importLauncher.launch(arrayOf("application/json")) },
+            onClick = {
+                importLauncher.launch(
+                    arrayOf("application/zip", "application/octet-stream", "application/json")
+                )
+            },
         )
-        SettingsFootnote("导出全部体重与饮食记录及设置；导入时重复记录自动跳过，饮食图片不入备份包")
+        SettingsFootnote("备份包含全部记录、设置与饮食照片（带完整性校验）；导入时重复记录自动跳过")
     }
 
     // 导入确认弹窗：展示去重后的数量，用户确认才写入
@@ -634,7 +641,8 @@ private fun DataManagementCard() {
                     "将导入 ${preview.newRecordCount} 条体重记录" +
                         "（跳过重复 ${preview.skippedRecordCount} 条）、" +
                         "${preview.newDietCount} 条饮食记录" +
-                        "（跳过重复 ${preview.skippedDietCount} 条）。"
+                        "（跳过重复 ${preview.skippedDietCount} 条）" +
+                        if (preview.imageCount > 0) "、恢复 ${preview.imageCount} 张照片。" else "。"
                 )
             },
             confirmButton = {
@@ -648,6 +656,7 @@ private fun DataManagementCard() {
                             snackBarShow(
                                 "导入完成：新增 ${result.insertedRecords} 条体重、" +
                                     "${result.insertedDietRecords} 条饮食" +
+                                    (if (result.restoredImages > 0) "、恢复 ${result.restoredImages} 张照片" else "") +
                                     if (result.settingsApplied) "，设置已更新" else ""
                             )
                         } catch (e: Exception) {
