@@ -62,6 +62,7 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -104,6 +105,7 @@ import com.example.weight.data.diet.DailyMacroAggregator
 import com.example.weight.data.diet.Macros
 import com.example.weight.data.diet.MealType
 import com.example.weight.data.diet.RecognizedFoodItem
+import com.example.weight.ui.common.DatePickerDocked
 import com.example.weight.ui.common.MyTopBar
 import com.example.weight.ui.common.WeightWiseDimens
 import com.example.weight.ui.common.WeightWiseEmptyState
@@ -231,7 +233,7 @@ fun DietRecordScreen(
                 is DietEvent.RecordSaved -> {
                     noteState.value = ""
                     snackBarShow(
-                        event.remainingCalories?.let { "已记录,今日还可摄入 $it kcal" } ?: "已记录"
+                        savedMessage(event.date, LocalDate.now(), event.remainingCalories)
                     )
                     showAddPage = false
                     pagerState.animateScrollToPage(TAB_TODAY)
@@ -298,6 +300,7 @@ fun DietRecordScreen(
                 noteState = noteState,
                 hasNote = hasNote,
                 onMealTypeSelected = viewModel::onMealTypeSelected,
+                onDateSelected = viewModel::onDateSelected,
                 onTakePhoto = { launchCamera() },
                 onPickFromGallery = {
                     pickMedia.launch(
@@ -386,13 +389,14 @@ private fun DietModeSwitcher(selected: Int, onSelected: (Int) -> Unit) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun AddTabPage(
+internal fun AddTabPage(
     state: AddTabState,
     todayTotalCalories: Int,
     recommendedCalories: Int?,
     noteState: MutableState<String>,
     hasNote: Boolean,
     onMealTypeSelected: (MealType) -> Unit,
+    onDateSelected: (String) -> Unit,
     onTakePhoto: () -> Unit,
     onPickFromGallery: () -> Unit,
     onClearImage: () -> Unit,
@@ -414,6 +418,10 @@ private fun AddTabPage(
         hasFoods = state.recognizedFoods.isNotEmpty(),
         hasResult = state.aiResponse != null,
     )
+    // 额度相关文案(等待期迷你行/保存前预览)是今天口径,补记别的日期时换文案
+    val today = remember { LocalDate.now() }
+    val isAddToday = state.date == TimeUtils.getCurrentDate()
+    val addDateLabel: String? = if (isAddToday) null else TimeUtils.humanizeDate(today, state.date)
     LazyColumn(
         state = listState,
         modifier = modifier.fillMaxSize(),
@@ -519,7 +527,7 @@ private fun AddTabPage(
             }
         }
 
-        // 第二步补充上下文。餐次有默认值,备注可跳过,不阻断最快保存路径。
+        // 第二步补充上下文。餐次有默认值,日期默认今天(可改过去日期补记),备注可跳过,不阻断最快保存路径。
         item(key = "meal_details") {
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -527,7 +535,7 @@ private fun AddTabPage(
             ) {
                 AddSectionHeader(
                     title = "用餐信息",
-                    description = "确认餐次，备注可选",
+                    description = "确认餐次与日期，备注可选",
                 )
                 FlowRow(
                     modifier = Modifier.fillMaxWidth(),
@@ -544,6 +552,21 @@ private fun AddTabPage(
                         )
                     }
                 }
+                // 补记入口:与编辑器同款交互;显示走人性化文案(今天/昨天/M月d日 周X),仅展示不回传
+                val datePickerState = rememberDatePickerState(
+                    initialSelectedDateMillis = TimeUtils.convertDateToUtcMillis(state.date)
+                )
+                DatePickerDocked(
+                    modifier = Modifier.fillMaxWidth(),
+                    selectedDate = TimeUtils.humanizeDate(today, state.date),
+                    datePickerState = datePickerState,
+                    label = "用餐日期",
+                    onDetermine = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            onDateSelected(TimeUtils.convertUtcMillisToDate(millis))
+                        }
+                    },
+                )
                 NoteField(noteState)
             }
         }
@@ -552,8 +575,18 @@ private fun AddTabPage(
         if (action != DietPrimaryAction.HIDDEN) {
             item(key = "primary_action") {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    when (action) {
-                        DietPrimaryAction.SAVE_THIS_MEAL -> {
+                    when {
+                        // 识别中是最高优先级渲染分支,必须覆盖一切输入组合:
+                        // SAVE_THIS_MEAL 组合(常用食物+备注)若不覆盖,「改用文本识别」
+                        // 点击后界面零反馈会诱发连点重发请求,且「保存这餐」在 AI 结果
+                        // 合并前仍可误点
+                        state.isAnalyzing -> AnalyzingPrimaryButton(
+                            onCancelAnalysis = onCancelAnalysis,
+                            recommendedCalories = recommendedCalories,
+                            todayTotalCalories = todayTotalCalories,
+                            isAddToday = isAddToday,
+                        )
+                        action == DietPrimaryAction.SAVE_THIS_MEAL -> {
                             val quickTotal = state.recognizedFoods.sumOf { it.estimatedCalories }
                             Button(
                                 onClick = onSave,
@@ -577,48 +610,19 @@ private fun AddTabPage(
                                 }
                             }
                         }
-                        DietPrimaryAction.ANALYZE -> {
+                        action == DietPrimaryAction.ANALYZE -> {
                             Button(
-                                onClick = if (state.isAnalyzing) onCancelAnalysis else onStartAnalysis,
+                                onClick = onStartAnalysis,
                                 modifier = Modifier.fillMaxWidth(),
-                                // 分析中该按钮是「取消识别」,必须可点;空闲时要求有图或有备注
-                                enabled = !state.isSaving && (state.isAnalyzing || state.hasImage || hasNote),
+                                enabled = !state.isSaving && (state.hasImage || hasNote),
                                 shape = RoundedCornerShape(12.dp),
                             ) {
-                                if (state.isAnalyzing) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(20.dp),
-                                        strokeWidth = 2.dp,
-                                        color = MaterialTheme.colorScheme.onPrimary,
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("取消识别")
-                                } else {
-                                    Icon(Icons.Default.AddAPhoto, contentDescription = null, modifier = Modifier.size(20.dp))
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(if (state.hasImage) "开始识别" else "文本识别")
-                                }
-                            }
-                            if (state.isAnalyzing) {
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    "识别中,通常需要 10–20 秒 · 可继续改餐次或备注",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                                // 等待期迷你额度行:把 10–20 秒焦虑转化为预算心智
-                                if (recommendedCalories != null && recommendedCalories > 0) {
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        "识别期间:今日还可摄入 ${(recommendedCalories - todayTotalCalories).coerceAtLeast(0)} kcal",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        fontWeight = FontWeight.SemiBold,
-                                    )
-                                }
+                                Icon(Icons.Default.AddAPhoto, contentDescription = null, modifier = Modifier.size(20.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(if (state.hasImage) "开始识别" else "文本识别")
                             }
                         }
-                        DietPrimaryAction.DISABLED -> {
+                        action == DietPrimaryAction.DISABLED -> {
                             Button(
                                 onClick = {},
                                 modifier = Modifier.fillMaxWidth(),
@@ -628,7 +632,7 @@ private fun AddTabPage(
                                 Text("拍照、点常用食物或写备注开始")
                             }
                         }
-                        DietPrimaryAction.HIDDEN -> Unit
+                        else -> Unit
                     }
                 }
             }
@@ -644,6 +648,7 @@ private fun AddTabPage(
                     isFallback = state.isFallback,
                     todayTotalCalories = todayTotalCalories,
                     recommendedCalories = recommendedCalories,
+                    addDateLabel = addDateLabel,
                     onEditFood = onEditFood,
                     onRemoveFood = onRemoveFood,
                     onAddFood = { onEditFood(-1) },
@@ -681,6 +686,48 @@ private fun AddTabPage(
             delay(200) // 等结果卡完成组合
             runCatching { listState.animateScrollToItem(1) }
         }
+    }
+}
+
+/**
+ * 识别中的主按钮形态(D11 高优先级分支):进度圈+「取消识别」+等待文案+迷你额度行。
+ * 与输入组合无关——任何 action 下分析进行中都渲染本组件,保证点击识别后必有反馈
+ */
+@Composable
+private fun AnalyzingPrimaryButton(
+    onCancelAnalysis: () -> Unit,
+    recommendedCalories: Int?,
+    todayTotalCalories: Int,
+    isAddToday: Boolean,
+) {
+    Button(
+        onClick = onCancelAnalysis,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        CircularProgressIndicator(
+            modifier = Modifier.size(20.dp),
+            strokeWidth = 2.dp,
+            color = MaterialTheme.colorScheme.onPrimary,
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text("取消识别")
+    }
+    Spacer(modifier = Modifier.height(6.dp))
+    Text(
+        "识别中,通常需要 10–20 秒 · 可继续改餐次或备注",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    // 等待期迷你额度行:把 10–20 秒焦虑转化为预算心智;补记别的日期时今日额度不适用,隐藏
+    if (isAddToday && recommendedCalories != null && recommendedCalories > 0) {
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            "识别期间:今日还可摄入 ${(recommendedCalories - todayTotalCalories).coerceAtLeast(0)} kcal",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.SemiBold,
+        )
     }
 }
 
@@ -833,6 +880,8 @@ private fun AiResultSection(
     isFallback: Boolean,
     todayTotalCalories: Int,
     recommendedCalories: Int?,
+    /** 补记时的人性化日期文案;null=记今天(额度预览走今日口径) */
+    addDateLabel: String?,
     onEditFood: (Int) -> Unit,
     onRemoveFood: (Int) -> Unit,
     onAddFood: () -> Unit,
@@ -992,8 +1041,21 @@ private fun AiResultSection(
                 Text("添加食物")
             }
 
-            // 保存前额度预览:延续编辑器「不突袭」原则,保存前看到这餐的影响
-            if (recommendedCalories != null && recommendedCalories > 0) {
+            // 保存前额度预览:延续编辑器「不突袭」原则,保存前看到这餐的影响。
+            // 补记(addDateLabel 非空)时今日额度不适用,改为告知记录落点
+            if (addDateLabel != null) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    "这餐 $totalCalories kcal · 将记入 $addDateLabel",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(10.dp))
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                )
+            } else if (recommendedCalories != null && recommendedCalories > 0) {
                 Spacer(modifier = Modifier.height(10.dp))
                 val after = recommendedCalories - todayTotalCalories - totalCalories
                 Text(

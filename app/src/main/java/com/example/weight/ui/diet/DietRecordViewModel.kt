@@ -64,6 +64,8 @@ data class AddTabState(
     val selectedMealType: MealType = MealTypeInference.inferNow(),
     /** 手动选过餐次后本会话（VM 生命周期，跨午夜重置）不再自动覆盖 */
     val mealTypeManuallySelected: Boolean = false,
+    /** 用餐日期（yyyy-MM-dd），默认今天；改为过去日期即补记，保存落在所选日 */
+    val date: String = TimeUtils.getCurrentDate(),
     val isAnalyzing: Boolean = false,
     val isSaving: Boolean = false,
     val aiResponse: AiDietResponse? = null,
@@ -108,7 +110,8 @@ data class HistoryDay(
 
 /** 跨 Tab 单次事件（SnackBar 文案、切 Tab 动线） */
 sealed interface DietEvent {
-    data class RecordSaved(val remainingCalories: Int?) : DietEvent
+    /** date=保存落在的日期；非今天时 remainingCalories 恒为 null（今日口径算不出该日余量） */
+    data class RecordSaved(val date: String, val remainingCalories: Int?) : DietEvent
     data object SaveFailed : DietEvent
 
     /** 拍照回调 ok=true 但文件缺失/0 字节（MIUI 异步写盘、存储满） */
@@ -211,11 +214,13 @@ class DietRecordViewModel(
             ImageCompressor.clearCameraCaptures(application, keep = keepFile)
         }
         if (_todayDate.value != today) {
+            val oldToday = _todayDate.value
             _todayDate.value = today
             _addTab.update {
                 it.copy(
                     mealTypeManuallySelected = false,
                     selectedMealType = MealTypeInference.inferNow(),
+                    date = advanceAddTabDate(it.date, oldToday, today),
                 )
             }
         }
@@ -226,6 +231,10 @@ class DietRecordViewModel(
 
     fun onMealTypeSelected(mealType: MealType) {
         _addTab.update { it.copy(selectedMealType = mealType, mealTypeManuallySelected = true) }
+    }
+
+    fun onDateSelected(date: String) {
+        _addTab.update { it.copy(date = date) }
     }
 
     fun onGallerySelected(uri: Uri) {
@@ -405,7 +414,7 @@ class DietRecordViewModel(
                     DietRecordWriter.Draft(
                         foods = snapshot.recognizedFoods,
                         mealType = snapshot.selectedMealType,
-                        date = _todayDate.value,
+                        date = snapshot.date,
                         userInput = userNote,
                         imageUri = imagePath,
                         // OV1B:食物清单与 AI 评级快照一致才采信 AI 评级,否则本地重算,
@@ -428,14 +437,21 @@ class DietRecordViewModel(
                         trafficLight = "",
                         aiAdvice = "",
                         isFallback = false,
+                        // 补记日期不跨次保留：下次进添加页回到默认的今天
+                        date = _todayDate.value,
                     )
                 }
                 refreshFrequentFoods()
-                // SnackBar 余量用本地计算：Room Flow 尚未重发，直接读会拿到旧值
-                val remaining = _todayTab.value.recommendedCalories?.let {
-                    it - (_todayTab.value.totalCalories + savedCalories)
+                // SnackBar 余量用本地计算：Room Flow 尚未重发，直接读会拿到旧值；
+                // _todayTab 是今天口径，补记别的日期时算不出该日余量，传 null 让文案走补记分支
+                val remaining = if (snapshot.date == _todayDate.value) {
+                    _todayTab.value.recommendedCalories?.let {
+                        it - (_todayTab.value.totalCalories + savedCalories)
+                    }
+                } else {
+                    null
                 }
-                _events.send(DietEvent.RecordSaved(remaining))
+                _events.send(DietEvent.RecordSaved(snapshot.date, remaining))
             } catch (e: Exception) {
                 Log.e(TAG, "保存饮食记录失败", e)
                 _events.send(DietEvent.SaveFailed)
@@ -635,3 +651,15 @@ private fun stripMarkdownFences(text: String): String = text
     .removePrefix("```json").removePrefix("```")
     .removeSuffix("```")
     .trim()
+
+/** 跨午夜时添加页日期跟随规则：仅当用户未手动改过（仍等于旧「今天」）才前进到新「今天」，手动补记的日期保留 */
+internal fun advanceAddTabDate(current: String, oldToday: String, newToday: String): String =
+    if (current == oldToday) newToday else current
+
+/** 保存成功 SnackBar 文案：今天给今日余量，补记给人性化日期（「已补记昨天」「已补记 8月24日 周六」） */
+internal fun savedMessage(date: String, today: LocalDate, remainingCalories: Int?): String =
+    if (date == today.toString()) {
+        remainingCalories?.let { "已记录,今日还可摄入 $it kcal" } ?: "已记录"
+    } else {
+        "已补记 ${TimeUtils.humanizeDate(today, date)}"
+    }
