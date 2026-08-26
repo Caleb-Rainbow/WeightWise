@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-WeightWise is an Android weight-tracking app built with Jetpack Compose. All UI text and comments are in Chinese (Simplified). The app tracks weight records, calculates BMI, displays trend charts, and provides AI-generated daily exercise plans via the DeepSeek API.
+WeightWise is an Android weight-tracking app built with Jetpack Compose. All UI text and comments are in Chinese (Simplified). The app tracks weight records and body composition (BLE body-fat scale), diet records with AI food recognition, calculates BMI/TDEE, displays trend charts, and provides AI-generated weekly/period reports via the Doubao (Volcengine Ark) API.
 
 ## Build & Run
 
@@ -15,7 +15,7 @@ WeightWise is an Android weight-tracking app built with Jetpack Compose. All UI 
 # Build release APK (minification enabled)
 ./gradlew assembleRelease
 
-# Run unit tests (currently placeholder only)
+# Run unit tests (36 test classes: parsers, calculators, aggregators, theme contrast)
 ./gradlew test
 
 # Run instrumented tests
@@ -25,21 +25,21 @@ WeightWise is an Android weight-tracking app built with Jetpack Compose. All UI 
 ./gradlew :app:generateBaselineProfile
 ```
 
-**Requirements:** JDK 21, Android SDK with compileSdk 36, NDK (arm64-v8a), Gradle 8.13.
+**Requirements:** JDK 21, Android SDK with compileSdk 37 / minSdk 29 / targetSdk 36, Kotlin 2.4.10, NDK (arm64-v8a), Gradle 9.5.
 
 ## Architecture
 
 MVVM without a separate domain layer. Business logic lives in ViewModels and data objects.
 
 ```
-ui/{feature}/     → Screen composables + ViewModel (StateFlow)
-data/              → Room entities/DAOs, network, repositories
-util/              → TimeUtils (date formatting, Beijing timezone)
+ui/{feature}/     → Screen composables + ViewModel (StateFlow): main, diet, record, report, trend, setting
+data/              → Room entities/DAOs, network, scale BLE engine, backup, workers
+util/              → TimeUtils (date formatting, Beijing timezone), calculators/aggregators (TDEE, goal, streak, milestone, predictor, report)
 ```
 
 ### Navigation
 
-Uses **Navigation3** (`androidx.navigation3`), not traditional Navigation Compose. Four `@Serializable` destinations defined as objects in `MainActivity.kt`: `Main`, `Setting`, `Record`, `ExercisePlan`. Navigation is imperative via `backStack.add()` / `backStack.removeAt()`.
+Uses **Navigation3** (`androidx.navigation3`), not traditional Navigation Compose. Six `@Serializable` destinations defined as objects in `MainActivity.kt`: `Main`, `Setting`, `Record`, `DietRecord`, `Report`, `BodyTrend`. Navigation is imperative via `backStack.add()` / `backStack.removeAt()`.
 
 ### Dependency Injection
 
@@ -47,9 +47,9 @@ Uses **Navigation3** (`androidx.navigation3`), not traditional Navigation Compos
 
 ### Data Layer
 
-- **Room** (version 4 database): `Record`, `DailyPlan`, `ExerciseCompletion` entities. Auto-migrations enabled, destructive migration disabled.
-- **MMKV**: User preferences (height, target weight, exercise preferences). All values exposed as `StateFlow` via MMKV-KTX.
-- **Ktor + OkHttp**: Network calls to DeepSeek API. SSE streaming for AI responses. API key via `BuildConfig.DEEPSEEK_KEY` from `secrets.properties` (git-ignored).
+- **Room** (version 10 database): `Record` (weight + bodyComposition JSON), `DietRecord` entities. Auto-migrations enabled, destructive migration disabled; migration 7→8 (`Migration7To8`) deleted the removed exercise-plan/journey tables.
+- **MMKV**: User preferences (height, age, gender, activity level, target/start weight, reminder and weekly-report-push settings, Doubao model id, theme id, appearance mode). All values exposed as `StateFlow` via MMKV-KTX.
+- **Ktor + OkHttp**: Network calls to the Doubao (Volcengine Ark) API, OpenAI-compatible protocol. SSE streaming for AI responses. API key via `BuildConfig.DOUBAO_KEY` from `secrets.properties` (git-ignored).
 
 ### Bluetooth Scale (icomon)
 
@@ -72,14 +72,6 @@ Always read `DESIGN.md` before making visual or UI decisions. Font choices, colo
 - **kotlinx.serialization** for JSON — all serialized models use `@Serializable`.
 - ViewModels use single `MutableStateFlow<State>` pattern with `data class` state.
 - Time utilities use **Beijing timezone** (UTC+8) for daily weight aggregation SQL queries.
-
-## Exercise Plan System
-
-The exercise feature has a sophisticated fallback chain:
-1. AI-generated plan via DeepSeek API (`ExercisePromptBuilder` builds prompts from user data)
-2. Local fallback from `ExerciseCatalog` (23 exercises across 3 difficulty levels)
-3. `ExercisePreferences` supports blacklist/whitelist tags and scene filtering (indoor/outdoor/office)
-4. Difficulty adjustment based on user fitness level (stored in MMKV)
 
 ## Release Build Notes
 
