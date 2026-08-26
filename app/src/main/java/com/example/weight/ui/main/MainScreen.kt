@@ -124,6 +124,8 @@ fun MainScreen(
     goReport: () -> Unit = {},
     openAddDialogRequest: Boolean = false,
     onOpenAddDialogConsumed: () -> Unit = {},
+    quickAddRequest: Boolean = false,
+    onQuickAddConsumed: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val dialogState by viewModel.dialogState.collectAsStateWithLifecycle()
@@ -151,6 +153,14 @@ fun MainScreen(
             onOpenAddDialogConsumed()
         }
     }
+
+    // 全局导航坞「饮食」长按：回首页并弹快速记一餐
+    LaunchedEffect(quickAddRequest) {
+        if (quickAddRequest) {
+            showQuickAdd = true
+            onQuickAddConsumed()
+        }
+    }
     val height by LocalStorageData.height.collectAsStateWithLifecycle()
     // 普通 remember 计算值即可：此处从不写入，mutableStateOf 是无意义的包装
     val bmi = remember(uiState.selectedRecord, height) {
@@ -158,19 +168,11 @@ fun MainScreen(
         uiState.selectedRecord?.minWeight?.div(heightMeters.times(heightMeters)) ?: 0.0
     }
     MainDialog()
+    // 导航坞已上提为全局层(T-4):由 MainActivity 宿主 Scaffold 承载,所有一级目的地常驻
     Scaffold(
         modifier = modifier,
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0),
-        bottomBar = {
-            MainBottomToolbar(
-                onAddRecord = viewModel::showAddDialog,
-                onDietRecord = goDietRecord,
-                onDietQuickAdd = { showQuickAdd = true },
-                onRecord = goRecord,
-                onReport = goReport
-            )
-        }
     ) { paddingValues ->
         // 缓存在 ViewModel 的 StateFlow 里：导航返回直接回放旧值，null 仅表示真正的首次加载
         val currentScopeData by viewModel.currentScopeData.collectAsStateWithLifecycle()
@@ -468,124 +470,6 @@ private fun DashboardSectionTitle(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-    }
-}
-
-/** 深墨悬浮导航坞。导航与页面表面彻底分层，中心朱砂动作只负责记体重。 */
-@Composable
-private fun MainBottomToolbar(
-    onAddRecord: () -> Unit,
-    onDietRecord: () -> Unit,
-    onDietQuickAdd: () -> Unit,
-    onRecord: () -> Unit,
-    onReport: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(Color.Transparent)
-            .windowInsetsPadding(WindowInsets.navigationBars),
-    ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 7.dp),
-            shape = RoundedCornerShape(26.dp),
-            color = MaterialTheme.colorScheme.inverseSurface,
-            contentColor = MaterialTheme.colorScheme.inverseOnSurface,
-            shadowElevation = 18.dp,
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 5.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                MainToolbarItem(label = "首页", icon = Icons.Default.Home, onClick = {}, selected = true)
-                MainToolbarItem(
-                    label = "饮食",
-                    icon = Icons.Default.Restaurant,
-                    onClick = onDietRecord,
-                    onLongClick = onDietQuickAdd,
-                )
-                Column(
-                    modifier = Modifier.weight(1f),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    FilledIconButton(
-                        onClick = onAddRecord,
-                        modifier = Modifier.size(52.dp),
-                        shape = RoundedCornerShape(18.dp),
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.tertiary,
-                            contentColor = MaterialTheme.colorScheme.onTertiary,
-                        ),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "记体重",
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                }
-                MainToolbarItem(
-                    label = "记录",
-                    icon = Icons.AutoMirrored.Filled.ReceiptLong,
-                    onClick = onRecord
-                )
-                MainToolbarItem(
-                    label = "报告",
-                    icon = Icons.Default.Insights,
-                    onClick = onReport
-                )
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun RowScope.MainToolbarItem(
-    label: String,
-    icon: ImageVector,
-    onClick: () -> Unit,
-    onLongClick: (() -> Unit)? = null,
-    selected: Boolean = false,
-) {
-    Column(
-        modifier = Modifier
-            .weight(1f)
-            .clip(RoundedCornerShape(16.dp))
-            .then(
-                if (onLongClick != null) {
-                    Modifier.combinedClickable(
-                        role = Role.Button,
-                        onClickLabel = label,
-                        onClick = onClick,
-                        onLongClick = onLongClick,
-                    )
-                } else {
-                    Modifier.clickable(role = Role.Button, onClickLabel = label, onClick = onClick)
-                }
-            )
-            .padding(horizontal = 3.dp, vertical = 7.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = if (selected) MaterialTheme.colorScheme.inversePrimary
-            else MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.64f),
-            modifier = Modifier.size(22.dp),
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = if (selected) MaterialTheme.colorScheme.inversePrimary
-            else MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.68f),
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-            maxLines = 1
-        )
     }
 }
 

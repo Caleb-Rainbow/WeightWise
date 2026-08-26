@@ -51,6 +51,7 @@ import com.example.weight.ui.common.navPopTransitionSpec
 import com.example.weight.ui.common.navTransitionSpec
 import com.example.weight.ui.common.prependNavTransitionSpec
 import com.example.weight.ui.diet.DietRecordScreen
+import com.example.weight.ui.main.MainBottomToolbar
 import com.example.weight.ui.main.MainScreen
 import com.example.weight.ui.record.RecordScreen
 import com.example.weight.ui.report.ReportScreen
@@ -66,11 +67,14 @@ import kotlinx.serialization.Serializable
 
 class MainActivity : ComponentActivity() {
 
-    /** 来自通知/小组件的「直达记体重」请求；消费后由 UI 回调清零 */
+    /** 来自通知/小组件/全局导航坞中央按钮的「直达记体重」请求；消费后由 UI 回调清零 */
     private var openAddDialogRequest by mutableStateOf(false)
 
     /** 来自周报推送通知的「直达报告页」请求；消费后由 UI 回调清零 */
     private var openReportRequest by mutableStateOf(false)
+
+    /** 全局导航坞「饮食」长按 → 回首页弹快速记一餐（QuickAddSheet 宿主在 MainScreen） */
+    private var quickAddRequest by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableWeightWiseEdgeToEdge()
@@ -86,12 +90,59 @@ class MainActivity : ComponentActivity() {
             ) {
                 WeightWiseStatusBarEffect(window)
                 ProvideVicoTheme(rememberM3VicoTheme()) {
-                    ProvideSnackBarHost {
+                    // 导航状态上提到宿主层（T-4）：全局导航坞需要读栈顶高亮 tab；
+                    // backStack 经 remember 固定实例，navigateToTopLevel 捕获后跨重组有效
+                    val backStack = rememberNavBackStack(Main)
+                    val topLevelKeys = remember { setOf<NavKey>(Main, DietRecord, Record, Report) }
+
+                    fun navigateToTopLevel(key: NavKey) {
+                        // tab 切换 = 可预期重置：清到只剩 Main 再入目标（丢弃二级页），栈不随切换增长
+                        backStack.removeAll { it != Main }
+                        if (key != Main) backStack.add(key)
+                    }
+
+                    // 周报推送深链：直达报告 tab
+                    LaunchedEffect(openReportRequest) {
+                        if (openReportRequest) {
+                            navigateToTopLevel(Report)
+                            openReportRequest = false
+                        }
+                    }
+
+                    val currentTopLevel = backStack.lastOrNull { it in topLevelKeys }
+
+                    ProvideSnackBarHost(
+                        bottomBar = {
+                            MainBottomToolbar(
+                                currentTab = currentTopLevel,
+                                homeKey = Main,
+                                dietKey = DietRecord,
+                                recordKey = Record,
+                                reportKey = Report,
+                                onSelectHome = { navigateToTopLevel(Main) },
+                                onSelectDiet = { navigateToTopLevel(DietRecord) },
+                                onLongPressDiet = {
+                                    navigateToTopLevel(Main)
+                                    quickAddRequest = true
+                                },
+                                onSelectRecord = { navigateToTopLevel(Record) },
+                                onSelectReport = { navigateToTopLevel(Report) },
+                                onAddWeight = {
+                                    navigateToTopLevel(Main)
+                                    openAddDialogRequest = true
+                                },
+                            )
+                        },
+                    ) { padding ->
                         MainNav3(
+                            backStack = backStack,
+                            topLevelKeys = topLevelKeys,
+                            navigateToTopLevel = ::navigateToTopLevel,
+                            contentBottomPadding = padding,
                             openAddDialogRequest = openAddDialogRequest,
                             onOpenAddDialogConsumed = { openAddDialogRequest = false },
-                            openReportRequest = openReportRequest,
-                            onOpenReportConsumed = { openReportRequest = false },
+                            quickAddRequest = quickAddRequest,
+                            onQuickAddConsumed = { quickAddRequest = false },
                         )
                     }
                 }
@@ -169,35 +220,39 @@ object BodyTrend : NavKey
 
 @Composable
 private fun MainNav3(
+    backStack: androidx.navigation3.runtime.NavBackStack<NavKey>,
+    topLevelKeys: Set<NavKey>,
+    navigateToTopLevel: (NavKey) -> Unit,
+    contentBottomPadding: PaddingValues,
     openAddDialogRequest: Boolean,
     onOpenAddDialogConsumed: () -> Unit,
-    openReportRequest: Boolean,
-    onOpenReportConsumed: () -> Unit,
+    quickAddRequest: Boolean,
+    onQuickAddConsumed: () -> Unit,
 ) {
-    val backStack = rememberNavBackStack(Main)
-    // 周报推送通知的「直达报告页」深链；已在报告页时不再叠加一层
-    LaunchedEffect(openReportRequest) {
-        if (openReportRequest) {
-            if (backStack.lastOrNull() != Report) backStack.add(Report)
-            onOpenReportConsumed()
-        }
-    }
+    val transitionSpec = remember(topLevelKeys) { navTransitionSpec(topLevelKeys) }
     NavDisplay(
-        backStack = backStack, transitionSpec = navTransitionSpec,
+        backStack = backStack,
+        // 全局坞在宿主 Scaffold bottomBar,页面内容只垫底部,顶部 insets 由各页自管
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(bottom = contentBottomPadding.calculateBottomPadding()),
+        transitionSpec = transitionSpec,
         popTransitionSpec = navPopTransitionSpec,
         predictivePopTransitionSpec = prependNavTransitionSpec, entryProvider = entryProvider {
             entry<Main> {
                 MainScreen(
                     openAddDialogRequest = openAddDialogRequest,
                     onOpenAddDialogConsumed = onOpenAddDialogConsumed,
+                    quickAddRequest = quickAddRequest,
+                    onQuickAddConsumed = onQuickAddConsumed,
                     goSetting = {
-                        backStack.add(Setting)
+                        if (backStack.lastOrNull() != Setting) backStack.add(Setting)
                     }, goRecord = {
-                        backStack.add(Record)
+                        navigateToTopLevel(Record)
                     }, goDietRecord = {
-                        backStack.add(DietRecord)
+                        navigateToTopLevel(DietRecord)
                     }, goReport = {
-                        backStack.add(Report)
+                        navigateToTopLevel(Report)
                     })
             }
             entry<Setting> {
@@ -209,7 +264,7 @@ private fun MainNav3(
                 RecordScreen(
                     goBack = { backStack.removeAt(backStack.lastIndex) },
                     goBodyTrend = {
-                        // 已在趋势页时不再叠加一层（与报告页深链同防抖）
+                        // 已在趋势页时不再叠加一层（与设置页防抖同源）
                         if (backStack.lastOrNull() != BodyTrend) backStack.add(BodyTrend)
                     },
                 )
@@ -276,6 +331,7 @@ val LocalShowMessageDialog = staticCompositionLocalOf<(String, String, () -> Uni
  */
 @Composable
 fun ProvideSnackBarHost(
+    bottomBar: @Composable () -> Unit = {},
     content: @Composable (PaddingValues) -> Unit
 ) {
     val snackBarHostState = remember { SnackbarHostState() }
@@ -316,7 +372,8 @@ fun ProvideSnackBarHost(
             modifier = Modifier
                 .imePadding()
                 .fillMaxSize(),
-            snackbarHost = { SnackbarHost(hostState = snackBarHostState) }) { padding ->
+            snackbarHost = { SnackbarHost(hostState = snackBarHostState) },
+            bottomBar = bottomBar) { padding ->
             if (isShowLoadingDialog) {
                 LoadingDialog {
                     hideLoadingDialog()
