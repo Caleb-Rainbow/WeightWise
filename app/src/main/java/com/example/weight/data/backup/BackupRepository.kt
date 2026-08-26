@@ -57,7 +57,7 @@ data class ImportResult(
 
 /**
  * 全量备份导出/导入仓库。
- * 导出为 ZIP 备份包（.wwbak：manifest.json + data.json + images/，含 SHA-256 校验）；
+ * 导出为 ZIP 备份包（manifest.json + data.json + images/，含 SHA-256 校验）；
  * 导入兼容旧版纯 JSON。图片随包导出/恢复；旧 JSON 备份仅保留文件名。
  */
 @Single
@@ -355,8 +355,12 @@ class BackupRepository(
         /** ZIP 导入的图片暂存目录（cacheDir 下，导入完成或下次解析时清空） */
         private const val IMPORT_STAGING_DIR = "backup_import"
 
-        /** 导出文件的默认名，如 weightwise_backup_2026-08-20.wwbak（ZIP 容器） */
-        fun defaultExportFileName(today: String): String = "weightwise_backup_$today.wwbak"
+        /**
+         * 导出文件的默认名，如 weightwise_backup_2026-08-20.zip。
+         * 用标准 .zip 后缀而非 .wwbak：MIUI DocumentsUI 会按 mime 给无匹配后缀的文件名
+         * 追加 .zip（真机实测产生 .wwbak.zip 双后缀），标准后缀免去此问题且传输友好。
+         */
+        fun defaultExportFileName(today: String): String = "weightwise_backup_$today.zip"
 
         /** CSV 导出默认文件名 */
         fun defaultCsvFileName(today: String): String = "weightwise_$today.csv"

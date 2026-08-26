@@ -131,7 +131,7 @@ fun ReportScreen(
                     )
                     SectionHeader(
                         title = "趋势回顾",
-                        subtitle = "目标线与周期内每日最低体重",
+                        subtitle = "目标线与周期内每日体重代表值",
                         modifier = Modifier.padding(top = 22.dp, bottom = 8.dp),
                     )
                     Surface(
