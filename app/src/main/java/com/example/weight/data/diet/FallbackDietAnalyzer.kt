@@ -3,7 +3,7 @@ package com.example.weight.data.diet
 /**
  *@description: AI 不可用时的离线兜底分析器。
  *               红绿灯走 TrafficLightCalculator 本地推导（评审决策 #25）：
- *               兜底食物标记 isHealthy=false，旧实现写死 YELLOW 与之自相矛盾且污染报告统计
+ *               兜底食物标记 quality=SOMETIMES（默认估算值不确定，保守归「偶尔吃」）
  *@author: 杨帅林
  *@create: 2026/4/11
  **/
@@ -22,7 +22,7 @@ object FallbackDietAnalyzer {
                 name = userInput.ifBlank { "未知食物" },
                 estimatedCalories = defaultCalories,
                 category = "其他",
-                isHealthy = false,
+                quality = FoodQuality.SOMETIMES,
             )
         )
         return AiDietResponse(

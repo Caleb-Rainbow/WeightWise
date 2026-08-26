@@ -1,7 +1,6 @@
 package com.example.weight.data.diet
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class FallbackDietAnalyzerTest {
@@ -32,9 +31,9 @@ class FallbackDietAnalyzerTest {
     @Test
     fun `兜底结果红绿灯本地推导且不可直接信任`() {
         val response = FallbackDietAnalyzer.generateFallback("一碗牛肉面", "LUNCH")
-        // 评审决策 #25：兜底食物 isHealthy=false，红绿灯按本地规则推导为 RED（旧实现写死 YELLOW 自相矛盾）
+        // 评审决策 #25：兜底食物 quality=SOMETIMES，红绿灯按本地规则推导为 RED（旧实现写死 YELLOW 自相矛盾）
         assertEquals("RED", response.trafficLight)
-        assertFalse(response.foods.single().isHealthy)
+        assertEquals(FoodQuality.SOMETIMES, response.foods.single().effectiveQuality)
         assertEquals(response.foods.sumOf { it.estimatedCalories }, response.totalCalories)
     }
 }

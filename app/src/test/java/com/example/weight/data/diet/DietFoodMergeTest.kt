@@ -41,8 +41,9 @@ class DietFoodMergeTest {
     fun `食物被增删改后本地重算_不用陈旧 AI 评级`() {
         val rated = listOf(food("苹果"))
         val edited = listOf(food("苹果"), food("蛋糕", healthy = false))
-        // 本地规则:1/2 不健康 → RED;若误用 AI 的 GREEN 会污染报告页统计
-        assertEquals("RED", resolveTrafficLight(edited, ratedFoods = rated, aiTrafficLight = "GREEN"))
+        // 本地规则:1/2 SOMETIMES(旧数据 false 计半分) → YELLOW;关键是不等于 AI 的 GREEN,
+        // 误采信会污染报告页统计
+        assertEquals("YELLOW", resolveTrafficLight(edited, ratedFoods = rated, aiTrafficLight = "GREEN"))
     }
 
     @Test

@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.example.weight.data.diet.FoodQuality
 import com.example.weight.data.diet.RecognizedFoodItem
 
 /**
@@ -41,6 +42,12 @@ import com.example.weight.data.diet.RecognizedFoodItem
  **/
 
 private val FOOD_CATEGORIES = listOf("主食", "蔬菜", "肉类", "蛋奶", "饮品", "水果", "零食", "调味品", "其他")
+
+private fun qualityLabel(quality: FoodQuality): String = when (quality) {
+    FoodQuality.OFTEN -> "适合经常吃"
+    FoodQuality.SOMETIMES -> "偶尔吃"
+    FoodQuality.INDULGENT -> "放纵一下"
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,7 +66,7 @@ fun FoodItemEditorSheet(
     var calories by remember(initialItem) { mutableStateOf(initialItem?.estimatedCalories?.toString() ?: "") }
     var grams by remember(initialItem) { mutableStateOf(initialItem?.estimatedGrams?.toString() ?: "") }
     var category by remember(initialItem) { mutableStateOf(initialItem?.category ?: "") }
-    var isHealthy by remember(initialItem) { mutableStateOf(initialItem?.isHealthy ?: true) }
+    var quality by remember(initialItem) { mutableStateOf(initialItem?.effectiveQuality ?: FoodQuality.OFTEN) }
     // null（无数据）与 0（真 0）都原样显示：留空保存=无数据，填 0=真 0 宏量
     var protein by remember(initialItem) { mutableStateOf(initialItem?.protein?.toString() ?: "") }
     var carbs by remember(initialItem) { mutableStateOf(initialItem?.carbs?.toString() ?: "") }
@@ -148,18 +155,14 @@ fun FoodItemEditorSheet(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        FilterChip(
-                            selected = isHealthy,
-                            onClick = { isHealthy = true },
-                            label = { Text("适合经常吃") },
-                            shape = RoundedCornerShape(10.dp),
-                        )
-                        FilterChip(
-                            selected = !isHealthy,
-                            onClick = { isHealthy = false },
-                            label = { Text("偶尔吃") },
-                            shape = RoundedCornerShape(10.dp),
-                        )
+                        FoodQuality.entries.forEach { q ->
+                            FilterChip(
+                                selected = quality == q,
+                                onClick = { quality = q },
+                                label = { Text(qualityLabel(q)) },
+                                shape = RoundedCornerShape(10.dp),
+                            )
+                        }
                     }
                     Text(
                         "用于计算整餐的饮食质量",
@@ -246,7 +249,7 @@ fun FoodItemEditorSheet(
                             estimatedCalories = calories.toIntOrNull() ?: 0,
                             estimatedGrams = grams.toIntOrNull() ?: 0,
                             category = category,
-                            isHealthy = isHealthy,
+                            quality = quality,
                             protein = protein.toIntOrNull(),
                             carbs = carbs.toIntOrNull(),
                             fat = fat.toIntOrNull(),

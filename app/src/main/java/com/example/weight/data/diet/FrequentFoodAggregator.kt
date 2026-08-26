@@ -39,7 +39,7 @@ object FrequentFoodAggregator {
             val carbs: Int?,
             val fat: Int?,
             val category: String,
-            val isHealthy: Boolean,
+            val quality: FoodQuality,
         )
 
         val groups = LinkedHashMap<String, MutableList<Sample>>()
@@ -58,7 +58,7 @@ object FrequentFoodAggregator {
                         carbs = food.carbs,
                         fat = food.fat,
                         category = food.category,
-                        isHealthy = food.isHealthy,
+                        quality = food.effectiveQuality,
                     )
                 )
             }
@@ -75,7 +75,10 @@ object FrequentFoodAggregator {
                     category = samples.groupingBy { it.category }.eachCount()
                         .maxWithOrNull(compareBy<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
                         ?.key.orEmpty(),
-                    isHealthy = samples.count { it.isHealthy } * 2 >= samples.size,
+                    // 质量众数投票：平局取序更乐观的一档（与旧「平局偏健康」一致）
+                    quality = samples.groupingBy { it.quality }.eachCount()
+                        .maxWithOrNull(compareBy<Map.Entry<FoodQuality, Int>> { it.value }.thenBy { it.key })
+                        ?.key ?: FoodQuality.OFTEN,
                     // 宏量样本只取非 null 值；全无样本返回 null（无数据），不再伪 0
                     protein = medianOfPositive(samples.mapNotNull { it.protein }),
                     carbs = medianOfPositive(samples.mapNotNull { it.carbs }),
