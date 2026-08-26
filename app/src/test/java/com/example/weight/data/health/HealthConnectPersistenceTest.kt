@@ -83,4 +83,44 @@ class HealthConnectPersistenceTest {
         assertEquals("DINNER", dao.findNearest(timestamp = 20_500, toleranceMillis = 1_000)?.mealType)
         assertNull(dao.findNearest(timestamp = 22_000, toleranceMillis = 1_000))
     }
+
+    @Test
+    fun `仅清理指定测试来源且保留其他健康来源`() = runTest {
+        val recordDao = db.recordDao()
+        val dietDao = db.dietRecordDao()
+        recordDao.insert(
+            Record(
+                weight = 88.0,
+                log = "来自 Health Connect",
+                timestamp = 10_000,
+                healthConnectId = "debug-weight",
+                healthConnectOrigin = "com.example.weight.debug",
+            )
+        )
+        recordDao.insert(
+            Record(
+                weight = 70.0,
+                log = "来自体脂秤",
+                timestamp = 20_000,
+                healthConnectId = "scale-weight",
+                healthConnectOrigin = "com.vendor.scale",
+            )
+        )
+        dietDao.insert(
+            DietRecord(
+                date = "2026-08-26",
+                timestamp = 10_000,
+                mealType = "LUNCH",
+                recognizedFoodJson = "[]",
+                healthConnectId = "debug-diet",
+                healthConnectOrigin = "com.example.weight.debug",
+            )
+        )
+
+        assertEquals(1, recordDao.deleteByHealthConnectOrigin("com.example.weight.debug"))
+        assertEquals(1, dietDao.deleteByHealthConnectOrigin("com.example.weight.debug"))
+        assertNull(recordDao.getByHealthConnectId("debug-weight"))
+        assertNull(dietDao.getByHealthConnectId("debug-diet"))
+        assertEquals(70.0, recordDao.getByHealthConnectId("scale-weight")?.weight ?: 0.0, 0.0)
+    }
 }

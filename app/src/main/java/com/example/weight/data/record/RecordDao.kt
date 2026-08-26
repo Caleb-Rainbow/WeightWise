@@ -103,6 +103,10 @@ interface RecordDao {
     @Query("SELECT * FROM Record WHERE healthConnectId = :recordId LIMIT 1")
     suspend fun getByHealthConnectId(recordId: String): Record?
 
+    /** 移除曾从测试构建导入的污染数据；仅按明确来源包名删除。 */
+    @Query("DELETE FROM Record WHERE healthConnectOrigin = :originPackage")
+    suspend fun deleteByHealthConnectOrigin(originPackage: String): Int
+
     /** 首次导入时兼容已经手动录入的同一测量，避免连接后生成重复点 */
     @Query(
         "SELECT * FROM Record WHERE ABS(timestamp - :timestamp) <= :toleranceMillis " +

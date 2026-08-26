@@ -128,6 +128,10 @@ internal fun HealthConnectSettingCard(
             HealthConnectAvailability.UNAVAILABLE -> {
                 SettingsFootnote("此设备暂不支持 Health Connect。该能力需要 Android 9 以上及 Google Play 服务。")
             }
+
+            HealthConnectAvailability.DISABLED_FOR_BUILD -> {
+                SettingsFootnote("Debug 构建使用测试数据，已禁用真实 Health Connect，避免污染正式健康数据。")
+            }
         }
     }
 }

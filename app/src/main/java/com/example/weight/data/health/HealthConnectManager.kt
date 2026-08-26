@@ -24,6 +24,7 @@ import androidx.health.connect.client.units.Energy
 import androidx.health.connect.client.units.Mass
 import androidx.health.connect.client.units.Percentage
 import androidx.core.net.toUri
+import com.example.weight.BuildConfig
 import com.example.weight.data.LocalStorageData
 import com.example.weight.data.diet.DietRecord
 import com.example.weight.data.diet.DietRecordDao
@@ -57,6 +58,7 @@ enum class HealthConnectAvailability {
     AVAILABLE,
     UPDATE_REQUIRED,
     UNAVAILABLE,
+    DISABLED_FOR_BUILD,
 }
 
 data class HealthActivitySummary(
@@ -119,6 +121,7 @@ class HealthConnectManager(
         } else null
 
     suspend fun refreshStatus() {
+        purgeTestOriginImports()
         val availability = resolveAvailability()
         val granted = if (availability == HealthConnectAvailability.AVAILABLE) {
             runCatching { clientOrNull?.permissionController?.getGrantedPermissions().orEmpty() }
@@ -234,10 +237,26 @@ class HealthConnectManager(
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
 
-    private fun resolveAvailability(): HealthConnectAvailability = when (HealthConnectClient.getSdkStatus(application)) {
-        HealthConnectClient.SDK_AVAILABLE -> HealthConnectAvailability.AVAILABLE
-        HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED -> HealthConnectAvailability.UPDATE_REQUIRED
-        else -> HealthConnectAvailability.UNAVAILABLE
+    private fun resolveAvailability(): HealthConnectAvailability {
+        if (!BuildConfig.HEALTH_CONNECT_RUNTIME_ENABLED) {
+            return HealthConnectAvailability.DISABLED_FOR_BUILD
+        }
+        return when (HealthConnectClient.getSdkStatus(application)) {
+            HealthConnectClient.SDK_AVAILABLE -> HealthConnectAvailability.AVAILABLE
+            HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED -> HealthConnectAvailability.UPDATE_REQUIRED
+            else -> HealthConnectAvailability.UNAVAILABLE
+        }
+    }
+
+    /**
+     * 旧版本可能已把 Debug 写入 Health Connect 的合成数据导入正式库。
+     * 每次前台刷新做幂等清理，且只删除由当前正式包对应的 `.debug` 包写入的数据。
+     */
+    private suspend fun purgeTestOriginImports() {
+        val testOrigin = HealthConnectOriginPolicy.testOriginFor(application.packageName)
+        val deletedWeights = recordDao.deleteByHealthConnectOrigin(testOrigin)
+        dietRecordDao.deleteByHealthConnectOrigin(testOrigin)
+        if (deletedWeights > 0) widgetUpdater.notifyDataChanged()
     }
 
     private suspend fun pushLocalData(client: HealthConnectClient): Pair<Int, Int> {
@@ -519,7 +538,12 @@ class HealthConnectManager(
     }
 
     private fun <T : HealthRecord> List<T>.filterNotFromSelf(): List<T> =
-        filter { it.metadata.dataOrigin.packageName != application.packageName }
+        filter {
+            HealthConnectOriginPolicy.shouldImport(
+                originPackage = it.metadata.dataOrigin.packageName,
+                ownPackage = application.packageName,
+            )
+        }
 
     private fun String.toHealthMealType(): Int = when (this) {
         MealType.BREAKFAST.name -> HealthMealType.MEAL_TYPE_BREAKFAST
@@ -578,4 +602,13 @@ class HealthConnectManager(
                 now.minus(Duration.ofDays(30))
             }
     }
+}
+
+/** Release 拒绝导入同一应用 Debug 变体的数据；Debug 自身数据仍由“排除自己”规则覆盖。 */
+internal object HealthConnectOriginPolicy {
+    fun testOriginFor(packageName: String): String =
+        "${packageName.removeSuffix(".debug")}.debug"
+
+    fun shouldImport(originPackage: String, ownPackage: String): Boolean =
+        originPackage != ownPackage && originPackage != testOriginFor(ownPackage)
 }

@@ -116,6 +116,10 @@ interface DietRecordDao {
     @Query("SELECT * FROM DietRecord WHERE healthConnectId = :recordId LIMIT 1")
     suspend fun getByHealthConnectId(recordId: String): DietRecord?
 
+    /** 移除曾从测试构建导入的污染数据；仅按明确来源包名删除。 */
+    @Query("DELETE FROM DietRecord WHERE healthConnectOrigin = :originPackage")
+    suspend fun deleteByHealthConnectOrigin(originPackage: String): Int
+
     @Query(
         "SELECT * FROM DietRecord WHERE ABS(timestamp - :timestamp) <= :toleranceMillis " +
             "ORDER BY ABS(timestamp - :timestamp) ASC LIMIT 1"
