@@ -1,13 +1,13 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample backup rules file; uncomment and customize as necessary.
-   See https://developer.android.com/guide/topics/data/autobackup
-   for details.
-   Note: This file is ignored for devices older than API 31
-   See https://developer.android.com/about/versions/12/backup-restore
--->
+<?xml version="1.0" encoding="utf-8"?>
+<!-- API ≤30 云备份规则（fullBackupContent），31+ 见 data_extraction_rules.xml。
+     默认全量备份，仅排除两类文件：
+     - diet_images：饮食照片体积易超 25MB 云备份上限，超限会导致整个备份被系统拒收；
+       照片走应用内导出（未来 ZIP 备份），云备份只保设置与库数据
+     - database 的 wal/shm/journal：打开中的事务现场，恢复到新设备易致库损坏，
+       主库文件已含全部已提交数据，WAL 由 App 下次打开时重建 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <exclude domain="file" path="diet_images"/>
+    <exclude domain="database" path="database-wal"/>
+    <exclude domain="database" path="database-shm"/>
+    <exclude domain="database" path="database-journal"/>
 </full-backup-content>

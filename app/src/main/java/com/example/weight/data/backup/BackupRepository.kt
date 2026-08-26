@@ -9,7 +9,11 @@ import com.example.weight.data.diet.DietRecord
 import com.example.weight.data.diet.DietRecordDao
 import com.example.weight.data.record.Record
 import com.example.weight.data.record.RecordDao
+import com.example.weight.data.reminder.ReminderScheduler
+import com.example.weight.data.report.ReportPushScheduler
 import com.example.weight.data.widget.WidgetUpdater
+import com.example.weight.ui.theme.AppearanceMode
+import com.example.weight.ui.theme.ThemePreset
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.update
@@ -89,6 +93,13 @@ class BackupRepository(
                 age = LocalStorageData.age.value,
                 gender = LocalStorageData.gender.value,
                 activityLevel = LocalStorageData.activityLevel.value,
+                reminderEnabled = LocalStorageData.reminderEnabled.value,
+                reminderTime = LocalStorageData.reminderTime.value,
+                weeklyReportPushEnabled = LocalStorageData.weeklyReportPushEnabled.value,
+                weeklyReportPushTime = LocalStorageData.weeklyReportPushTime.value,
+                doubaoModelId = LocalStorageData.doubaoModelId.value,
+                themeId = LocalStorageData.themeId.value,
+                appearanceMode = LocalStorageData.appearanceMode.value,
             ),
         )
         // encodeToStream 直接写输出流，避免在内存里再持有一份完整 JSON 字符串
@@ -151,7 +162,11 @@ class BackupRepository(
         val settings = backup.settings
         val settingsApplied = settings.height > 0.0 || settings.targetWeight > 0.0 ||
                 settings.startWeight > 0.0 || settings.age > 0 ||
-                settings.gender.isNotEmpty() || settings.activityLevel.isNotEmpty()
+                settings.gender.isNotEmpty() || settings.activityLevel.isNotEmpty() ||
+                settings.reminderEnabled != null || settings.weeklyReportPushEnabled != null ||
+                settings.reminderTime.isNotEmpty() || settings.weeklyReportPushTime.isNotEmpty() ||
+                settings.doubaoModelId.isNotEmpty() ||
+                settings.themeId.isNotEmpty() || settings.appearanceMode.isNotEmpty()
         if (settings.height > 0.0) LocalStorageData.height.update { settings.height }
         if (settings.targetWeight > 0.0) LocalStorageData.targetWeight.update { settings.targetWeight }
         // 起始体重未设置（<=0）不覆盖本机已手动设置的值，与身高/目标体重口径一致
@@ -164,8 +179,36 @@ class BackupRepository(
         if (ActivityLevel.entries.any { it.name == settings.activityLevel }) {
             LocalStorageData.activityLevel.update { settings.activityLevel }
         }
-        // 体重数据变了，桌面小组件同步刷新
-        if (recordDedup.toInsert.isNotEmpty()) {
+        if (settings.doubaoModelId.isNotEmpty()) {
+            LocalStorageData.doubaoModelId.update { settings.doubaoModelId }
+        }
+        // 提醒/周报开关 null=旧备份未含，整组跳过；恢复时刻须先落库再排程（schedule 默认读 MMKV 当前值）
+        settings.reminderEnabled?.let { enabled ->
+            if (settings.reminderTime.isNotEmpty()) {
+                LocalStorageData.reminderTime.update { settings.reminderTime }
+            }
+            LocalStorageData.reminderEnabled.update { enabled }
+            if (enabled) ReminderScheduler.schedule(context) else ReminderScheduler.cancel(context)
+        }
+        settings.weeklyReportPushEnabled?.let { enabled ->
+            if (settings.weeklyReportPushTime.isNotEmpty()) {
+                LocalStorageData.weeklyReportPushTime.update { settings.weeklyReportPushTime }
+            }
+            LocalStorageData.weeklyReportPushEnabled.update { enabled }
+            if (enabled) ReportPushScheduler.schedule(context) else ReportPushScheduler.cancel(context)
+        }
+        // 主题外观：枚举校验合法才覆盖；变化后小组件需换色
+        var themeTouched = false
+        if (ThemePreset.entries.any { it.name == settings.themeId }) {
+            LocalStorageData.themeId.update { settings.themeId }
+            themeTouched = true
+        }
+        if (AppearanceMode.entries.any { it.name == settings.appearanceMode }) {
+            LocalStorageData.appearanceMode.update { settings.appearanceMode }
+            themeTouched = true
+        }
+        // 体重数据或主题变化，桌面小组件同步刷新
+        if (recordDedup.toInsert.isNotEmpty() || themeTouched) {
             widgetUpdater.notifyDataChanged()
         }
         ImportResult(
