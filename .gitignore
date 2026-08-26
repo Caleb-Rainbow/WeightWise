@@ -18,5 +18,7 @@ local.properties
 /.kotlin/
 /app/release
 /secrets.properties
+/key
+/key.jks
 /docs//.zcode/
 /.zcode/
