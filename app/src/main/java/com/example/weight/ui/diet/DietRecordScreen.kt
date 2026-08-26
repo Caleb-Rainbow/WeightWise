@@ -1676,6 +1676,10 @@ private fun HistoryTabPage(
                 }
             }
         } else {
+            // T-5 趋势摘要:三数字+热力格,先于逐日时间线回答「最近记录得怎么样」
+            item(key = "history_trend_summary") {
+                HistoryTrendSummary(state = state)
+            }
             item(key = "history_count") {
                 Text(
                     "有记录 ${recordedDays.size} 天",

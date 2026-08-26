@@ -98,6 +98,8 @@ data class HistoryTabState(
      * 空档日 records 为空；脏 JSON 日 records 非空但 trafficLight 为 null（灰点+保留合计）
      */
     val days: List<HistoryDay> = emptyList(),
+    /** 建议摄入（趋势摘要达标口径用）；null=档案不全不可比 */
+    val recommendedIntake: Int? = null,
 )
 
 /** 历史页单日：records 空=空档日；trafficLight null=有记录但评级不可知（食物 JSON 全部解析失败） */
@@ -190,6 +192,7 @@ class DietRecordViewModel(
         viewModelScope.launch {
             recommendedIntakeProvider.flow.collect { recommended ->
                 _todayTab.update { it.copy(recommendedCalories = recommended) }
+                _historyTab.update { it.copy(recommendedIntake = recommended) }
             }
         }
         observeFrequentFoods()
