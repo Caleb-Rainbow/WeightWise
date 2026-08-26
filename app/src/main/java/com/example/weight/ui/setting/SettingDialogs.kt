@@ -82,105 +82,118 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.compose.koinInject
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * 数字编辑弹窗：滚轮选择（复用 NumberSelector，与记体重弹窗同交互）。
+ * 传入 resetValue 时展示「恢复默认」，点击回填该值（如 0 = 跟随默认/清除手动值）。
+ */
 @Composable
-fun SettingScreen(modifier: Modifier = Modifier, goBack: () -> Unit) {
-    Scaffold(modifier = modifier, topBar = {
-        MyTopBar(title = "设置", goBack = goBack)
-    }) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues),
-            contentPadding = PaddingValues(
-                horizontal = WeightWiseDimens.PageHorizontal,
-                vertical = 10.dp,
-            ),
-            verticalArrangement = Arrangement.spacedBy(WeightWiseDimens.SectionGap),
-        ) {
-            item {
-                SettingsIntro()
+internal fun NumberEditDialog(
+    title: String,
+    initialValue: Double,
+    integerRange: IntRange,
+    unit: String,
+    onConfirm: (Double) -> Unit,
+    onDismiss: () -> Unit,
+    showDecimal: Boolean = true,
+    resetValue: Double? = null,
+) {
+    var selected by remember { mutableStateOf(initialValue) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                NumberSelector(
+                    integerList = remember(integerRange) { integerRange.toList() },
+                    decimalList = remember { (0..9).toList() },
+                    onWeightChange = { selected = it },
+                    initialWeight = initialValue,
+                    unit = unit,
+                    showDecimal = showDecimal,
+                )
             }
-            item { GoalCard() }
-            item { ProfileCard() }
-            item { AppearanceCard() }
-            item { DailyStatModeCard() }
-            item { ReminderPushCard() }
-            item { AiModelCard() }
-            item { DataManagementCard() }
-        }
-    }
+        },
+        confirmButton = {
+            Button(onClick = {
+                onConfirm(selected)
+                onDismiss()
+            }) { Text("确定") }
+        },
+        dismissButton = {
+            Row {
+                if (resetValue != null) {
+                    TextButton(onClick = {
+                        onConfirm(resetValue)
+                        onDismiss()
+                    }) { Text("恢复默认") }
+                }
+                TextButton(onClick = onDismiss) { Text("取消") }
+            }
+        },
+    )
+}
+
+/** 单选弹窗：性别/活动水平/AI 模型；includeUnset 时首项为「未设置」清除项 */
+@Composable
+internal fun SingleChoiceDialog(
+    title: String,
+    options: List<Pair<String, String>>,
+    selected: String?,
+    includeUnset: Boolean,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                if (includeUnset) {
+                    DialogOptionRow(
+                        text = "未设置",
+                        isSelected = selected.isNullOrEmpty(),
+                        onClick = {
+                            onSelect("")
+                            onDismiss()
+                        },
+                    )
+                }
+                options.forEach { (value, displayName) ->
+                    DialogOptionRow(
+                        text = displayName,
+                        isSelected = selected == value,
+                        onClick = {
+                            onSelect(value)
+                            onDismiss()
+                        },
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("取消") }
+        },
+    )
 }
 
 @Composable
-internal fun SettingsIntro() {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(
-            topStart = 28.dp,
-            topEnd = 8.dp,
-            bottomStart = 8.dp,
-            bottomEnd = 28.dp,
-        ),
-        color = MaterialTheme.colorScheme.inverseSurface,
-        contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+internal fun DialogOptionRow(
+    text: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 44.dp)
+            .clickable(onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp)) {
-            Text(
-                "PERSONAL CONTROL",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.55f),
-            )
-            Spacer(Modifier.size(6.dp))
-            Text("把计划调成你的节奏", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.size(4.dp))
-            Text(
-                "目标、身体档案、提醒和数据都从这里统一管理",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.66f),
-            )
-        }
-    }
-}
-
-/** 提醒与推送：每日称重提醒与周报推送合入一张卡 */
-@Composable
-internal fun ReminderPushCard() {
-    SettingsCard(title = "提醒与推送") {
-        DailyReminderRows()
-        HorizontalDivider(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-        )
-        WeeklyPushRows()
-    }
-}
-
-/** AI 分析：模型选择，用于 AI 分析与运动计划生成 */
-@Composable
-internal fun AiModelCard() {
-    val doubaoModelId by LocalStorageData.doubaoModelId.collectAsStateWithLifecycle()
-    var editing by remember { mutableStateOf(false) }
-    val selectedModel = ChatModel.entries.find { it.value == doubaoModelId }
-        ?: ChatModel.DOUBAO_SEED_2_0_LITE
-
-    SettingsCard(title = "AI 分析") {
-        SettingsRow(
-            label = "AI 模型",
-            value = selectedModel.displayName,
-            onClick = { editing = true },
-        )
-        SettingsFootnote("用于 AI 分析与运动计划生成")
-    }
-
-    if (editing) {
-        SingleChoiceDialog(
-            title = "选择 AI 模型",
-            options = ChatModel.entries.map { it.value to it.displayName },
-            selected = selectedModel.value,
-            includeUnset = false,
-            onSelect = { value -> LocalStorageData.doubaoModelId.update { value } },
-            onDismiss = { editing = false },
-        )
+        RadioButton(selected = isSelected, onClick = null)
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(text = text, style = MaterialTheme.typography.bodyLarge)
     }
 }
