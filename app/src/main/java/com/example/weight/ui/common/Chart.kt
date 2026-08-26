@@ -60,9 +60,11 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
+import com.patrykandpatrick.vico.compose.cartesian.AutoScrollCondition
 import com.patrykandpatrick.vico.compose.cartesian.CartesianDrawingContext
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
 import com.patrykandpatrick.vico.compose.cartesian.Scroll
+import com.patrykandpatrick.vico.compose.cartesian.Zoom
 import com.patrykandpatrick.vico.compose.cartesian.axis.HorizontalAxis
 import com.patrykandpatrick.vico.compose.cartesian.axis.VerticalAxis
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModelProducer
@@ -74,6 +76,7 @@ import com.patrykandpatrick.vico.compose.cartesian.marker.CartesianMarkerVisibil
 import com.patrykandpatrick.vico.compose.cartesian.marker.LineCartesianLayerMarkerTarget
 import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
 import com.patrykandpatrick.vico.compose.cartesian.rememberVicoScrollState
+import com.patrykandpatrick.vico.compose.cartesian.rememberVicoZoomState
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -105,6 +108,9 @@ internal fun movingAverage(values: List<Double>, window: Int = 7): List<Double> 
     }
     return result
 }
+
+/** 7/14 点短周期完整铺满一屏，避免横向滚动与 Marker 拖动争抢同一次手势。 */
+internal fun shouldFitAllChartPoints(pointCount: Int): Boolean = pointCount <= 14
 
 /**
  * 目标体重参考线：横贯图表的虚线 + 右端标签，让「距离目标多远」在图上直接可见。
@@ -399,6 +405,7 @@ fun WeightChart(
     targetWeight: Double = 0.0,
     onMarkerClick: (Int) -> Unit = NoOpMarkerClick,
 ) {
+    val fitAllPoints = shouldFitAllChartPoints(xLabels.size)
     val movingAverageColor = MaterialTheme.colorScheme.secondary
     val targetLineColor = MaterialTheme.colorScheme.tertiary
     // 目标线标签带背景，避免和数据线重叠时看不清
@@ -470,6 +477,23 @@ fun WeightChart(
             }
         }
     }
+    // 短周期从左到右可连续拖过全部节点：内容适配一屏并关闭横向滚动。
+    // 长周期保留默认点间距与横向浏览；模型变宽时自动回到末端，避免复用
+    // 7 天 scrollState 后仍停在旧的起始窗口。
+    val defaultInitialZoom = remember { Zoom.max(Zoom.fixed(), Zoom.Content) }
+    val defaultMaxZoom = remember { Zoom.max(Zoom.fixed(10f), Zoom.Content) }
+    val scrollState = rememberVicoScrollState(
+        scrollEnabled = !fitAllPoints,
+        initialScroll = Scroll.Absolute.End,
+        autoScroll = Scroll.Absolute.End,
+        autoScrollCondition = AutoScrollCondition.OnModelGrowth,
+    )
+    val zoomState = rememberVicoZoomState(
+        zoomEnabled = !fitAllPoints,
+        initialZoom = if (fitAllPoints) Zoom.Content else defaultInitialZoom,
+        minZoom = Zoom.Content,
+        maxZoom = if (fitAllPoints) Zoom.Content else defaultMaxZoom,
+    )
     CartesianChartHost(
         rememberCartesianChart(
             rememberLineCartesianLayer(
@@ -505,7 +529,8 @@ fun WeightChart(
         ),
         modelProducer = modelProducer,
         modifier = modifier.height(220.dp),
-        scrollState = rememberVicoScrollState(scrollEnabled = true, initialScroll = Scroll.Absolute.End),
+        scrollState = scrollState,
+        zoomState = zoomState,
     )
 }
 
