@@ -41,9 +41,13 @@ interface DietRecordDao {
     )
     fun getByDateRange(startDate: String, endDate: String): Flow<List<DietRecord>>
 
-    /** 常用食物聚合用轻量投影：只取 JSON 大字段且限定日期，避免全表物化（沿用 getDedupKeys 的惯例） */
-    @Query("SELECT recognizedFoodJson FROM DietRecord WHERE date >= :sinceDate AND recognizedFoodJson != ''")
-    suspend fun getFoodJsonSince(sinceDate: String): List<String>
+    /**
+     * 常用食物聚合用轻量投影：只取 JSON 大字段且限定日期窗口（双端含），避免全表物化
+     * （沿用 getDedupKeys 的惯例）。Flow 随表任意写操作重发，编辑/删除/撤销无需手动刷新；
+     * today 上界挡未来日期补记提前参与统计（日期选择器允许选未来日期）
+     */
+    @Query("SELECT recognizedFoodJson FROM DietRecord WHERE date >= :sinceDate AND date <= :today AND recognizedFoodJson != ''")
+    fun getFoodJsonBetween(sinceDate: String, today: String): Flow<List<String>>
 
     @Query("SELECT COALESCE(SUM(estimatedCalories), 0) FROM DietRecord WHERE date = :date")
     suspend fun getDailyCalories(date: String): Int

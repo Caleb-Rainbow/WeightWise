@@ -17,7 +17,7 @@ import com.example.weight.data.diet.DietRecord
 import com.example.weight.data.diet.DietRecordDao
 import com.example.weight.data.diet.DietRecordWriter
 import com.example.weight.data.diet.FallbackDietAnalyzer
-import com.example.weight.data.diet.FrequentFoodAggregator
+import com.example.weight.data.diet.FrequentFoodProvider
 import com.example.weight.data.diet.Macros
 import com.example.weight.data.diet.MealType
 import com.example.weight.data.diet.MealTypeInference
@@ -135,6 +135,7 @@ class DietRecordViewModel(
     private val writer: DietRecordWriter,
     private val deleteUndoManager: DietDeleteUndoManager,
     private val json: Json,
+    private val frequentFoodProvider: FrequentFoodProvider,
     recommendedIntakeProvider: RecommendedIntakeProvider,
 ) : ViewModel() {
 
@@ -191,7 +192,7 @@ class DietRecordViewModel(
                 _todayTab.update { it.copy(recommendedCalories = recommended) }
             }
         }
-        refreshFrequentFoods()
+        observeFrequentFoods()
     }
 
     /** 待撤销删除条数透传给 UI 弹撤销 SnackBar */
@@ -224,7 +225,7 @@ class DietRecordViewModel(
                 )
             }
         }
-        refreshFrequentFoods()
+        // 常用食物窗口随 today 滑动由 observeFrequentFoods 响应，无需手动刷新
     }
 
     // ================================ 添加 Tab ================================
@@ -441,7 +442,6 @@ class DietRecordViewModel(
                         date = _todayDate.value,
                     )
                 }
-                refreshFrequentFoods()
                 // SnackBar 余量用本地计算：Room Flow 尚未重发，直接读会拿到旧值；
                 // _todayTab 是今天口径，补记别的日期时算不出该日余量，传 null 让文案走补记分支
                 val remaining = if (snapshot.date == _todayDate.value) {
@@ -480,15 +480,12 @@ class DietRecordViewModel(
         }
     }
 
-    /** 近 60 天高频食物聚合（IO 线程）；轻量投影查询避免全表物化大字段 */
-    private fun refreshFrequentFoods() {
-        viewModelScope.launch(Dispatchers.IO) {
-            val since = LocalDate.now().minusDays(59).toString()
-            val foodJsonList = runCatching { dietRecordDao.getFoodJsonSince(since) }
-                .onFailure { Log.w(TAG, "常用食物查询失败", it) }
-                .getOrDefault(emptyList())
-            val foods = FrequentFoodAggregator.topFoods(foodJsonList, json)
-            _addTab.update { it.copy(frequentFoods = foods) }
+    /** 近 60 天高频食物：表任意写操作（编辑/删除/撤销/主屏 QuickAdd 落库）自动重发，today 变化滑动窗口 */
+    private fun observeFrequentFoods() {
+        viewModelScope.launch {
+            frequentFoodProvider.frequentFoods(_todayDate).collect { foods ->
+                _addTab.update { it.copy(frequentFoods = foods) }
+            }
         }
     }
 

@@ -7,7 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.weight.data.RecommendedIntakeProvider
 import com.example.weight.data.diet.DietRecordDao
 import com.example.weight.data.diet.DietRecordWriter
-import com.example.weight.data.diet.FrequentFoodAggregator
+import com.example.weight.data.diet.FrequentFoodProvider
 import com.example.weight.data.diet.MealType
 import com.example.weight.data.diet.MealTypeInference
 import com.example.weight.data.diet.RecognizedFoodItem
@@ -23,7 +23,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import org.koin.core.annotation.KoinViewModel
-import java.time.LocalDate
 
 /**
  *@description: 主屏快速记饮食弹层的 ViewModel（评审决策 #20：一级入口，离线零 AI 依赖）。
@@ -51,6 +50,7 @@ class QuickAddViewModel(
     private val dietRecordDao: DietRecordDao,
     private val writer: DietRecordWriter,
     private val json: Json,
+    private val frequentFoodProvider: FrequentFoodProvider,
     recommendedIntakeProvider: RecommendedIntakeProvider,
 ) : ViewModel() {
 
@@ -60,8 +60,11 @@ class QuickAddViewModel(
     private val _events = Channel<QuickAddEvent>(Channel.BUFFERED)
     val events: Flow<QuickAddEvent> = _events.receiveAsFlow()
 
+    /** 常用食物窗口锚点；保存时刷新（跨午夜首存即滑动窗口），表变更由 Room Flow 自动重发 */
+    private val today = MutableStateFlow(TimeUtils.getCurrentDate())
+
     init {
-        refreshFrequentFoods()
+        observeFrequentFoods()
         viewModelScope.launch {
             recommendedIntakeProvider.flow.collect { recommended ->
                 _state.update { it.copy(recommendedCalories = recommended) }
@@ -122,7 +125,7 @@ class QuickAddViewModel(
                     )
                 )
                 _state.update { it.copy(selectedFoods = emptyList()) }
-                refreshFrequentFoods()
+                today.value = TimeUtils.getCurrentDate()
                 val remaining = snapshot.recommendedCalories?.let {
                     it - (snapshot.todayTotalCalories + savedCalories)
                 }
@@ -136,13 +139,12 @@ class QuickAddViewModel(
         }
     }
 
-    private fun refreshFrequentFoods() {
-        viewModelScope.launch(Dispatchers.IO) {
-            val since = LocalDate.now().minusDays(59).toString()
-            val foodJsonList = runCatching { dietRecordDao.getFoodJsonSince(since) }
-                .getOrDefault(emptyList())
-            val foods = FrequentFoodAggregator.topFoods(foodJsonList, json)
-            _state.update { it.copy(frequentFoods = foods) }
+    /** 与饮食页共用同一聚合数据源：编辑/删除/撤销/本入口落库均自动重发 */
+    private fun observeFrequentFoods() {
+        viewModelScope.launch {
+            frequentFoodProvider.frequentFoods(today).collect { foods ->
+                _state.update { it.copy(frequentFoods = foods) }
+            }
         }
     }
 }

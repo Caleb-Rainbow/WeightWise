@@ -9,6 +9,15 @@ class FrequentFoodAggregatorTest {
 
     private val json = Json { ignoreUnknownKeys = true }
 
+    private fun itemJson(
+        name: String,
+        calories: Int = 200,
+        grams: Int = 100,
+    ) = """{"name":"$name","estimatedCalories":$calories,"estimatedGrams":$grams,"category":"主食","isHealthy":true}"""
+
+    /** 单餐多项:模拟一条记录的 recognizedFoodJson */
+    private fun mealJson(vararg items: String) = "[" + items.joinToString(",") + "]"
+
     private fun foodJson(
         name: String,
         calories: Int = 200,
@@ -52,12 +61,52 @@ class FrequentFoodAggregatorTest {
     }
 
     @Test
-    fun `热量全为零时回退全样本中位数`() {
+    fun `同一餐内同名重复项只计一餐`() {
+        // 记录1:[米饭,米饭](重复点 chip 产物),记录2/3:各一个鸡蛋 → 鸡蛋 2 餐 > 米饭 1 餐
         val result = FrequentFoodAggregator.topFoods(
+            listOf(
+                mealJson(itemJson("米饭"), itemJson("米饭")),
+                foodJson("鸡蛋"),
+                foodJson("鸡蛋"),
+            ),
+            json,
+        )
+        assertEquals(listOf("鸡蛋", "米饭"), result.map { it.name })
+    }
+
+    @Test
+    fun `重复项样本不参与中位数`() {
+        // 同餐重复项只取首个样本:克数样本 [300,100] → 中位数 200(未去重会是 [300,500,100] → 300)
+        val result = FrequentFoodAggregator.topFoods(
+            listOf(
+                mealJson(itemJson("米饭", calories = 300, grams = 300), itemJson("米饭", calories = 500, grams = 500)),
+                foodJson("米饭", calories = 100, grams = 100),
+            ),
+            json,
+        )
+        val rice = result.single()
+        assertEquals(200, rice.estimatedGrams)
+        assertEquals(200, rice.estimatedCalories)
+    }
+
+    @Test
+    fun `热量全零或负值时钳为0不虚构兜底`() {
+        // 全 0 无正值样本:直接给 0(旧「回退全样本」对全 0 输入结果仍是 0,已删)
+        val allZero = FrequentFoodAggregator.topFoods(
             listOf(foodJson("黄瓜", calories = 0, grams = 100), foodJson("黄瓜", calories = 0, grams = 200)),
             json,
         )
-        assertEquals(0, result.single().estimatedCalories)
+        assertEquals(0, allZero.single().estimatedCalories)
+        // 混入负值脏样本:忽略负值,只在正值样本里取中位数
+        val withNegative = FrequentFoodAggregator.topFoods(
+            listOf(
+                foodJson("牛奶", calories = -50, grams = 250),
+                foodJson("牛奶", calories = 150, grams = 200),
+                foodJson("牛奶", calories = 250, grams = 300),
+            ),
+            json,
+        )
+        assertEquals(200, withNegative.single().estimatedCalories)
     }
 
     @Test
