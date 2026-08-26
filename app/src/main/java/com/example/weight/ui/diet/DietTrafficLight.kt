@@ -3,6 +3,9 @@ package com.example.weight.ui.diet
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
+import com.example.weight.data.diet.TrafficLightCalculator.RED
+import com.example.weight.data.diet.TrafficLightCalculator.GREEN
+import com.example.weight.data.diet.TrafficLightCalculator.YELLOW
 import com.example.weight.ui.theme.DayNightColor
 import com.example.weight.ui.theme.LocalIsDarkTheme
 import com.example.weight.ui.theme.resolve
@@ -77,17 +80,17 @@ private val ChipNeutralContainer = DayNightColor(Color(0xFFEEF2F6), Color(0xFF3A
 private val ChipNeutralText = DayNightColor(Color(0xFF5C7080), Color(0xFFC3CBD3))
 
 fun lightChipColors(light: String, isDark: Boolean): LightChipColors = when (light) {
-    "GREEN" -> LightChipColors(
+    GREEN -> LightChipColors(
         ChipGreenContainer.resolve(isDark),
         TrafficLightColors.Green.resolve(isDark),
         ChipGreenText.resolve(isDark),
     )
-    "YELLOW" -> LightChipColors(
+    YELLOW -> LightChipColors(
         ChipAmberContainer.resolve(isDark),
         TrafficLightColors.Amber.resolve(isDark),
         ChipAmberText.resolve(isDark),
     )
-    "RED" -> LightChipColors(
+    RED -> LightChipColors(
         ChipRedContainer.resolve(isDark),
         TrafficLightColors.Red.resolve(isDark),
         ChipRedText.resolve(isDark),
@@ -103,9 +106,9 @@ fun lightChipColors(light: String, isDark: Boolean): LightChipColors = when (lig
 fun lightChipColors(light: String): LightChipColors = lightChipColors(light, LocalIsDarkTheme.current)
 
 internal fun trafficLightColor(light: String, isDark: Boolean): Color = when (light) {
-    "GREEN" -> TrafficLightColors.Green.resolve(isDark)
-    "YELLOW" -> TrafficLightColors.Amber.resolve(isDark)
-    "RED" -> TrafficLightColors.Red.resolve(isDark)
+    GREEN -> TrafficLightColors.Green.resolve(isDark)
+    YELLOW -> TrafficLightColors.Amber.resolve(isDark)
+    RED -> TrafficLightColors.Red.resolve(isDark)
     else -> TrafficLightColors.Unknown.resolve(isDark)
 }
 
@@ -113,8 +116,8 @@ internal fun trafficLightColor(light: String, isDark: Boolean): Color = when (li
 internal fun trafficLightColor(light: String): Color = trafficLightColor(light, LocalIsDarkTheme.current)
 
 internal fun trafficLightLabel(light: String): String = when (light) {
-    "GREEN" -> "健康饮食"
-    "YELLOW" -> "尚可"
-    "RED" -> "放纵一下"
+    GREEN -> "健康饮食"
+    YELLOW -> "尚可"
+    RED -> "放纵一下"
     else -> "未知"
 }

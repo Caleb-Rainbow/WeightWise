@@ -55,14 +55,6 @@ interface DietRecordDao {
     @Query("SELECT COALESCE(SUM(estimatedCalories), 0) FROM DietRecord WHERE date = :date")
     fun getDailyCaloriesFlow(date: String): Flow<Int>
 
-    @Query("""
-        SELECT trafficLight, COUNT(*) as count
-        FROM DietRecord
-        WHERE date = :date
-        GROUP BY trafficLight
-    """)
-    suspend fun getTrafficLightSummary(date: String): List<TrafficLightCount>
-
     /** 周期报告取数：[startDate] 含、[endDate] 排他（周期结束次日，yyyy-MM-dd 字典序比较） */
     @Query(
         """

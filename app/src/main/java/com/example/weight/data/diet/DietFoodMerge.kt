@@ -25,12 +25,16 @@ fun mergeFoods(
  * OV1B:食物清单与 AI 评级时的快照一致才采信 AI 评级;用户增删改过则本地重算,
  * 杜绝「AI 评级盖在改动后的食物上」的脏数据污染报告页统计。
  * 无 AI 路径(纯快速添加)ratedFoods/aiTrafficLight 均为空,直接本地重算。
+ * AI 值在此归一:非法值(小写/未知词)一律不采信,走本地重算兜底。
  */
 fun resolveTrafficLight(
     foods: List<RecognizedFoodItem>,
     ratedFoods: List<RecognizedFoodItem>?,
     aiTrafficLight: String?,
 ): String {
-    if (aiTrafficLight != null && ratedFoods != null && foods == ratedFoods) return aiTrafficLight
+    val normalized = aiTrafficLight?.trim()?.uppercase()
+    val trusted = normalized?.takeIf { it == TrafficLightCalculator.GREEN ||
+            it == TrafficLightCalculator.YELLOW || it == TrafficLightCalculator.RED }
+    if (trusted != null && ratedFoods != null && foods == ratedFoods) return trusted
     return TrafficLightCalculator.compute(foods)
 }

@@ -1,6 +1,7 @@
 package com.example.weight.util
 
 import com.example.weight.data.diet.DailyCalories
+import com.example.weight.data.diet.TrafficLightCalculator
 import com.example.weight.data.diet.TrafficLightCount
 import com.example.weight.data.record.DailyMinWeight
 import kotlin.math.roundToInt
@@ -72,9 +73,9 @@ object ReportAggregator {
             recordedDays = dailyCalories.size,
             daysOverTarget = if (target != null) dailyCalories.count { it.calories > target } else 0,
             hasTarget = target != null,
-            greenCount = countOf("GREEN"),
-            yellowCount = countOf("YELLOW"),
-            redCount = countOf("RED"),
+            greenCount = countOf(TrafficLightCalculator.GREEN),
+            yellowCount = countOf(TrafficLightCalculator.YELLOW),
+            redCount = countOf(TrafficLightCalculator.RED),
         )
     }
 
