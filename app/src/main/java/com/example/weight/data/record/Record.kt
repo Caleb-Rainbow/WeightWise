@@ -6,7 +6,7 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 // timestamp 索引：首页/报告/小组件的时间窗查询、最新记录、分页排序都依赖它，无索引时全部退化为全表扫描
-@Entity(indices = [Index("timestamp")])
+@Entity(indices = [Index("timestamp"), Index("healthConnectId")])
 data class Record(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
@@ -26,6 +26,12 @@ data class Record(
     /** 水分率 %（同上） */
     @ColumnInfo(defaultValue = "0.0")
     val waterRatio: Double = 0.0,
+    /** 从 Health Connect 导入时保存其记录 id；本地原生记录为空 */
+    @ColumnInfo(defaultValue = "")
+    val healthConnectId: String = "",
+    /** Health Connect 数据来源包名；非空记录不会再反向导出，避免同步回环 */
+    @ColumnInfo(defaultValue = "")
+    val healthConnectOrigin: String = "",
 ) {
     companion object {
         /**

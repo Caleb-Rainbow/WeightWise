@@ -54,4 +54,11 @@ object LocalStorageData : MMKVOwner(mmapID = "settings") {
     /*--------统计---------*/
     /** 每日体重统计口径，存 [com.example.weight.data.record.DailyStatMode].name；默认最低值保持历史行为 */
     val dailyStatMode by mmkvString(default = "MIN").asStateFlow()
+
+    /*--------Health Connect---------*/
+    /** 用户主动开启后才执行前台同步；权限被撤销时保留开关，便于重新授权后恢复 */
+    val healthConnectEnabled by mmkvBool(default = false).asStateFlow()
+
+    /** 最近一次完整同步成功时间（epoch millis）；0 表示从未同步 */
+    val healthConnectLastSyncAt by mmkvLong(default = 0L).asStateFlow()
 }

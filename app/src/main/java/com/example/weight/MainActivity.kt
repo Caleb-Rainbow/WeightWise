@@ -42,11 +42,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import com.example.weight.data.LocalStorageData
+import com.example.weight.data.health.HealthConnectManager
 import com.example.weight.ui.common.navPopTransitionSpec
 import com.example.weight.ui.common.navTransitionSpec
 import com.example.weight.ui.common.prependNavTransitionSpec
@@ -63,9 +65,12 @@ import com.example.weight.ui.trend.BodyTrendScreen
 import com.patrykandpatrick.vico.compose.common.ProvideVicoTheme
 import com.patrykandpatrick.vico.compose.m3.common.rememberM3VicoTheme
 import kotlinx.coroutines.launch
+import org.koin.android.ext.android.inject
 import kotlinx.serialization.Serializable
 
 class MainActivity : ComponentActivity() {
+
+    private val healthConnectManager: HealthConnectManager by inject()
 
     /** 来自通知/小组件/全局导航坞中央按钮的「直达记体重」请求；消费后由 UI 回调清零 */
     private var openAddDialogRequest by mutableStateOf(false)
@@ -158,6 +163,11 @@ class MainActivity : ComponentActivity() {
         if (intent.consumeBooleanExtra(EXTRA_OPEN_REPORT)) {
             openReportRequest = true
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        lifecycleScope.launch { healthConnectManager.syncIfEnabled() }
     }
 
     /** 读掉布尔 extra 后立即移除：否则配置变更（旋转）重建时 getIntent 仍带旧 extra，深链会再次触发 */

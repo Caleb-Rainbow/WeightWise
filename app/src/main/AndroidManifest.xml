@@ -14,6 +14,22 @@
     <!-- CAMERA 权限已随拍照升级移除：TakePicture 委托系统相机拍摄，无需本 App 持有权限；
          注意 manifest 一旦声明 CAMERA，TakePicture 启动前必须已授权，否则抛 SecurityException -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Health Connect：只在前台同步，不申请后台读取权限 -->
+    <uses-permission android:name="android.permission.health.READ_WEIGHT"/>
+    <uses-permission android:name="android.permission.health.WRITE_WEIGHT"/>
+    <uses-permission android:name="android.permission.health.READ_BODY_FAT"/>
+    <uses-permission android:name="android.permission.health.WRITE_BODY_FAT"/>
+    <uses-permission android:name="android.permission.health.READ_LEAN_BODY_MASS"/>
+    <uses-permission android:name="android.permission.health.WRITE_LEAN_BODY_MASS"/>
+    <uses-permission android:name="android.permission.health.READ_BODY_WATER_MASS"/>
+    <uses-permission android:name="android.permission.health.WRITE_BODY_WATER_MASS"/>
+    <uses-permission android:name="android.permission.health.READ_BONE_MASS"/>
+    <uses-permission android:name="android.permission.health.WRITE_BONE_MASS"/>
+    <uses-permission android:name="android.permission.health.READ_NUTRITION"/>
+    <uses-permission android:name="android.permission.health.WRITE_NUTRITION"/>
+    <uses-permission android:name="android.permission.health.READ_STEPS"/>
+    <uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED"/>
+    <uses-permission android:name="android.permission.health.READ_SLEEP"/>
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -36,6 +52,23 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".health.HealthConnectRationaleActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+            </intent-filter>
+        </activity>
+        <activity-alias
+            android:name=".ViewPermissionUsageActivity"
+            android:exported="true"
+            android:targetActivity=".health.HealthConnectRationaleActivity"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+            </intent-filter>
+        </activity-alias>
         <receiver
             android:name=".widget.WeightWidgetReceiver"
             android:exported="false"
@@ -69,5 +102,10 @@
                 tools:node="remove" />
         </provider>
     </application>
+
+    <!-- Android 13 及以下用于检查独立 Health Connect 应用是否已安装 -->
+    <queries>
+        <package android:name="com.google.android.apps.healthdata" />
+    </queries>
 
 </manifest>

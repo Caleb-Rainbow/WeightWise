@@ -18,7 +18,7 @@ interface RecordDao {
     }
 
     @Insert
-    suspend fun insert(record: Record)
+    suspend fun insert(record: Record): Long
 
     @Insert
     suspend fun insertAll(records: List<Record>)
@@ -95,6 +95,20 @@ interface RecordDao {
     /** 去重用轻量投影：只取 (timestamp, weight)，避免导入链路全量物化日志等大字段 */
     @Query("SELECT timestamp, weight FROM Record")
     suspend fun getDedupKeys(): List<RecordDedupKey>
+
+    /** Health Connect 只导出本地产生的记录，外部来源记录不会回写形成回环 */
+    @Query("SELECT * FROM Record WHERE healthConnectOrigin = '' ORDER BY timestamp ASC")
+    suspend fun getLocalRecordsForHealthConnect(): List<Record>
+
+    @Query("SELECT * FROM Record WHERE healthConnectId = :recordId LIMIT 1")
+    suspend fun getByHealthConnectId(recordId: String): Record?
+
+    /** 首次导入时兼容已经手动录入的同一测量，避免连接后生成重复点 */
+    @Query(
+        "SELECT * FROM Record WHERE ABS(timestamp - :timestamp) <= :toleranceMillis " +
+            "ORDER BY ABS(timestamp - :timestamp) ASC LIMIT 1"
+    )
+    suspend fun findNearest(timestamp: Long, toleranceMillis: Long): Record?
 
     /** 全部打卡日（北京时间 yyyy-MM-dd，去重升序），供连续打卡计算 */
     @Query(

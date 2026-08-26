@@ -103,6 +103,7 @@ fun SettingScreen(modifier: Modifier = Modifier, goBack: () -> Unit) {
             }
             item { GoalCard() }
             item { ProfileCard() }
+            item { HealthConnectSettingCard() }
             item { AppearanceCard() }
             item { DailyStatModeCard() }
             item { ReminderPushCard() }

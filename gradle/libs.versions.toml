@@ -31,6 +31,7 @@ ktor = "3.5.2"
 work = "2.11.2"
 glance = "1.1.1"
 exifinterface = "1.4.2"
+healthConnect = "1.1.0"
 
 secretsGradlePlugin = "2.0.1"
 markdownEditor = "0.44.0"
@@ -70,6 +71,7 @@ androidx-work-runtime = { group = "androidx.work", name = "work-runtime-ktx", ve
 androidx-glance-appwidget = { group = "androidx.glance", name = "glance-appwidget", version.ref = "glance" }
 androidx-glance-material3 = { group = "androidx.glance", name = "glance-material3", version.ref = "glance" }
 androidx-exifinterface = { group = "androidx.exifinterface", name = "exifinterface", version.ref = "exifinterface" }
+androidx-health-connect-client = { group = "androidx.health.connect", name = "connect-client", version.ref = "healthConnect" }
 
 koin-android = { module = "io.insert-koin:koin-android", version.ref = "koin" }
 koin-androidx-compose = { module = "io.insert-koin:koin-androidx-compose", version.ref = "koin" }

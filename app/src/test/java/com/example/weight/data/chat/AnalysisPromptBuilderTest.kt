@@ -1,6 +1,7 @@
 package com.example.weight.data.chat
 
 import com.example.weight.data.diet.DailyCalories
+import com.example.weight.data.health.HealthActivitySummary
 import com.example.weight.data.record.Record
 import java.time.Instant
 import java.time.LocalDate
@@ -91,6 +92,40 @@ class AnalysisPromptBuilderTest {
             dailyCalories = emptyList(),
         )
         assertFalse("空数据不应出现热量段落", "【热量摄入】" in prompt)
+    }
+
+    @Test
+    fun `Health Connect 摘要写入 Prompt 且限制因果推断`() {
+        val prompt = AnalysisPromptBuilder.build(
+            records = listOf(record(75.0), record(74.6)),
+            scopeLabel = "近7天",
+            bmi = 23.5,
+            heightCm = 175.0,
+            targetWeight = 70.0,
+            healthSummary = HealthActivitySummary(
+                rangeDays = 7,
+                steps = 56_000,
+                totalCaloriesBurned = 14_000,
+                sleepMinutes = 3_360,
+            ),
+        )
+        assertTrue("活动与恢复段落未输出", "【活动与恢复】" in prompt)
+        assertTrue("日均步数计算错误", "日均步数：8000 步" in prompt)
+        assertTrue("日均总消耗计算错误", "日均总消耗：2000 kcal" in prompt)
+        assertTrue("日均睡眠计算错误", "日均睡眠：8小时0分钟" in prompt)
+        assertTrue("应限制 AI 将相关性描述为因果", "不要把相关性描述为确定的因果关系" in prompt)
+    }
+
+    @Test
+    fun `无 Health Connect 摘要时不输出活动段落`() {
+        val prompt = AnalysisPromptBuilder.build(
+            records = listOf(record(75.0), record(74.6)),
+            scopeLabel = "近7天",
+            bmi = 23.5,
+            heightCm = 175.0,
+            targetWeight = 70.0,
+        )
+        assertFalse("空数据不应出现活动段落", "【活动与恢复】" in prompt)
     }
 
     @Test

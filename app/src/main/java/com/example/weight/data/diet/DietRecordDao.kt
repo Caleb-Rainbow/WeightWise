@@ -108,6 +108,19 @@ interface DietRecordDao {
     /** 去重用轻量投影：只取 (date, timestamp, mealType)，避免全量物化 recognizedFoodJson 等大字段 */
     @Query("SELECT date, timestamp, mealType FROM DietRecord")
     suspend fun getDedupKeys(): List<DietRecordDedupKey>
+
+    /** Health Connect 只导出本地产生的饮食，外部来源记录不会回写形成回环 */
+    @Query("SELECT * FROM DietRecord WHERE healthConnectOrigin = '' ORDER BY timestamp ASC")
+    suspend fun getLocalRecordsForHealthConnect(): List<DietRecord>
+
+    @Query("SELECT * FROM DietRecord WHERE healthConnectId = :recordId LIMIT 1")
+    suspend fun getByHealthConnectId(recordId: String): DietRecord?
+
+    @Query(
+        "SELECT * FROM DietRecord WHERE ABS(timestamp - :timestamp) <= :toleranceMillis " +
+            "ORDER BY ABS(timestamp - :timestamp) ASC LIMIT 1"
+    )
+    suspend fun findNearest(timestamp: Long, toleranceMillis: Long): DietRecord?
 }
 
 /** 备份去重键：与 [com.example.weight.data.backup.BackupDeduplicator] 的 (date, timestamp, mealType) 口径一致 */

@@ -13,6 +13,8 @@ import com.example.weight.data.chat.MessageModel
 import com.example.weight.data.diet.DailyCalories
 import com.example.weight.data.diet.DietRecordDao
 import com.example.weight.data.diet.TrafficLightCount
+import com.example.weight.data.health.HealthActivitySummary
+import com.example.weight.data.health.HealthConnectManager
 import com.example.weight.data.record.DailyWeight
 import com.example.weight.data.record.dailyWeightsBetween
 import com.example.weight.data.record.RecordDao
@@ -53,6 +55,7 @@ data class ReportData(
     val dailyWeights: List<DailyWeight>,
     val weightStats: ReportWeightStats?,
     val caloriesStats: ReportCaloriesStats?,
+    val healthSummary: HealthActivitySummary?,
     val changeVsPrevPeriod: Double?,
     val endBmi: Double?,
 )
@@ -72,6 +75,7 @@ class ReportViewModel(
     private val recordDao: RecordDao,
     private val dietRecordDao: DietRecordDao,
     private val chatRepository: ChatRepository,
+    private val healthConnectManager: HealthConnectManager,
     recommendedIntakeProvider: RecommendedIntakeProvider,
 ) : ViewModel() {
 
@@ -96,12 +100,21 @@ class ReportViewModel(
                 emit(null)
                 val today = LocalDate.now()
                 val (start, end) = type.periodRange(anchor)
+                val reportEnd = minOf(end, System.currentTimeMillis())
+                val totalDays = type.daysOf(anchor, today)
                 // 上一周期首末日，供「较上期」对比；一次性取值，翻页时随之刷新
                 val prevRange = type.periodRange(type.shift(anchor, -1))
                 coroutineScope {
                     // 与主数据流并行，不阻塞本期数据先到先渲染
                     val prevWeights = async {
                         recordDao.dailyWeightsBetween(prevRange.first, prevRange.second).first()
+                    }
+                    val healthSummary = async {
+                        healthConnectManager.readActivitySummary(
+                            start = java.time.Instant.ofEpochMilli(start),
+                            end = java.time.Instant.ofEpochMilli(reportEnd),
+                            rangeDays = totalDays,
+                        )
                     }
                     val startDate = TimeUtils.convertMillisToDate(start)
                     val endDate = TimeUtils.convertMillisToDate(end)
@@ -116,10 +129,11 @@ class ReportViewModel(
                             type = type,
                             anchor = anchor,
                             title = type.titleOf(anchor),
-                            totalDays = type.daysOf(anchor, today),
+                            totalDays = totalDays,
                             dailyWeights = weights,
                             weightStats = ReportAggregator.weightStats(weights),
                             caloriesStats = ReportAggregator.caloriesStats(calories, lights, intake),
+                            healthSummary = healthSummary.await(),
                             changeVsPrevPeriod = ReportAggregator.changeVsPrevPeriod(weights, prevWeights.await()),
                             endBmi = weights.lastOrNull()?.let { ReportAggregator.bmi(it.value, height) },
                         )
@@ -155,6 +169,7 @@ class ReportViewModel(
         _aiState.update { it.copy(isLoading = true, isStreaming = false, response = "", error = null) }
         viewModelScope.launch(Dispatchers.IO) {
             val (start, end) = type.periodRange(anchor)
+            val reportEnd = minOf(end, System.currentTimeMillis())
             val records = recordDao.getRecordWeightBetween(start, end)
             if (records.size < 2) {
                 _aiState.update { it.copy(isLoading = false) }
@@ -163,14 +178,21 @@ class ReportViewModel(
             }
             _aiState.update { it.copy(isShowSheet = true) }
             // 饮食热量与每日体重互不依赖，并行取数
-            val (dailyCalories, weights) = coroutineScope {
+            val (dailyCalories, weights, healthSummary) = coroutineScope {
                 val caloriesDeferred = async {
                     dietRecordDao.getDailyCaloriesBetween(
                         TimeUtils.convertMillisToDate(start), TimeUtils.convertMillisToDate(end),
                     ).first()
                 }
                 val weightsDeferred = async { recordDao.dailyWeightsBetween(start, end).first() }
-                caloriesDeferred.await() to weightsDeferred.await()
+                val healthDeferred = async {
+                    healthConnectManager.readActivitySummary(
+                        start = java.time.Instant.ofEpochMilli(start),
+                        end = java.time.Instant.ofEpochMilli(reportEnd),
+                        rangeDays = type.daysOf(anchor, LocalDate.now()),
+                    )
+                }
+                Triple(caloriesDeferred.await(), weightsDeferred.await(), healthDeferred.await())
             }
             val endBmi = weights.lastOrNull()?.let { ReportAggregator.bmi(it.value, LocalStorageData.height.value) }
             val gender = Gender.entries.find { it.name == LocalStorageData.gender.value }
@@ -185,6 +207,7 @@ class ReportViewModel(
                 age = LocalStorageData.age.value,
                 genderLabel = gender?.displayName ?: "",
                 activityLabel = activityLevel?.displayName ?: "",
+                healthSummary = healthSummary,
             )
             // 流式回包先累积到 StringBuilder，由合帧协程按固定间隔刷新到状态，
             // 避免每个 chunk 一次 StateFlow 更新 + 一次全文重组/Markdown 重解析

@@ -1,6 +1,7 @@
 package com.example.weight.data.chat
 
 import com.example.weight.data.diet.DailyCalories
+import com.example.weight.data.health.HealthActivitySummary
 import com.example.weight.data.record.Record
 import java.time.Instant
 import java.time.ZoneId
@@ -24,6 +25,7 @@ object AnalysisPromptBuilder {
      * @param records 数据库中按所选范围取出的记录列表（时间不限序）
      * @param scopeLabel 界面所选时间范围的展示名，须与取数范围一致，避免 AI 基于错误前提分析
      * @param dailyCalories 所选范围内每日摄入热量合计；空列表表示无饮食记录，不输出热量段
+     * @param healthSummary Health Connect 的周期聚合数据；null 表示不可用，不输出活动与恢复段
      * @param age / genderLabel / activityLabel 个人档案，未设置时传 0 / 空串，对应行不写入
      */
     fun build(
@@ -36,6 +38,7 @@ object AnalysisPromptBuilder {
         age: Int = 0,
         genderLabel: String = "",
         activityLabel: String = "",
+        healthSummary: HealthActivitySummary? = null,
     ): String {
         val recordsString = recordsText(records)
 
@@ -54,6 +57,19 @@ object AnalysisPromptBuilder {
         val caloriesInsight = if (dailyCalories.isEmpty()) "" else
             "若上方提供了【热量摄入】数据，请结合热量摄入与体重变化的关系进行分析" +
                 "（例如摄入持续偏高对应体重上升），帮助用户理解体重波动背后的饮食原因。"
+        val healthSection = healthSummary?.let { summary ->
+            val avgSteps = summary.steps / summary.rangeDays.coerceAtLeast(1)
+            val avgBurned = summary.totalCaloriesBurned / summary.rangeDays.coerceAtLeast(1)
+            val avgSleepMinutes = summary.sleepMinutes / summary.rangeDays.coerceAtLeast(1)
+            """【活动与恢复】（来自 Health Connect 的周期聚合）
+- 日均步数：$avgSteps 步
+- 日均总消耗：$avgBurned kcal（包含基础代谢与活动消耗）
+- 日均睡眠：${avgSleepMinutes / 60}小时${avgSleepMinutes % 60}分钟
+
+"""
+        }.orEmpty()
+        val healthInsight = if (healthSummary == null) "" else
+            "若上方提供了【活动与恢复】数据，请结合步数、总消耗和睡眠与体重趋势进行相关性分析，但不要把相关性描述为确定的因果关系。"
 
         return """
 你是一位专业、温暖且富有同理心的体重管理顾问。请根据用户的体重记录和日志，为TA提供一份简单易懂、具有鼓励性的分析反馈。
@@ -66,11 +82,11 @@ object AnalysisPromptBuilder {
 $profileExtras【打卡数据】
 $recordsString
 
-$caloriesSection【回复要求】
+$caloriesSection$healthSection【回复要求】
 请以亲切的朋友口吻直接与用户对话（称呼“你”），字数控制在300字左右，并严格按以下三个段落结构输出：
 
 1. 阶段总结：用一两句话概括用户在这段时间（$scopeLabel）的体重变化趋势（如：稳步下降、遇到平台期、轻微波动等），并给予情绪上的肯定或安抚。
-2. 数据洞察：结合体重数值的变化和用户的[日志]内容，分析可能的原因。如果日志提到了饮食/运动/情绪，请指出它们与体重变化的关联；如果没有日志，请基于纯数值趋势进行合理推断。$caloriesInsight
+2. 数据洞察：结合体重数值的变化和用户的[日志]内容，分析可能的原因。如果日志提到了饮食/运动/情绪，请指出它们与体重变化的关联；如果没有日志，请基于纯数值趋势进行合理推断。$caloriesInsight$healthInsight
 3. 行动建议：基于现状，给出1到2个具体、微小且容易执行的日常建议，帮助用户向 ${targetWeight}kg 的目标迈进。
 
 【严格限制条件】

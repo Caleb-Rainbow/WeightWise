@@ -55,7 +55,7 @@ val MIGRATION_10_11: Migration = object : Migration(10, 11) {
 }
 
 @Database(
-    version = 11,
+    version = 12,
     entities = [Record::class, DietRecord::class],
     exportSchema = true,
     autoMigrations = [
@@ -68,6 +68,7 @@ val MIGRATION_10_11: Migration = object : Migration(10, 11) {
         AutoMigration(from = 7, to = 8, spec = Migration7To8::class),
         AutoMigration(from = 8, to = 9),
         AutoMigration(from = 9, to = 10),
+        AutoMigration(from = 11, to = 12),
     ],
 )
 abstract class AppDataBase : RoomDatabase() {

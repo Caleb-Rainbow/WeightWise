@@ -53,6 +53,7 @@ import com.example.weight.LocalShowMessageDialog
 import com.example.weight.data.LocalStorageData
 import com.example.weight.data.record.DailyStatMode
 import com.example.weight.data.record.DailyWeight
+import com.example.weight.data.health.HealthActivitySummary
 import com.example.weight.ui.common.AnalysisBottomSheet
 import com.example.weight.ui.common.MyTopBar
 import com.example.weight.ui.common.SectionHeader
@@ -158,6 +159,14 @@ fun ReportScreen(
                                 .fillMaxWidth(),
                             caloriesStats = it,
                             recommendedIntake = recommendedIntake,
+                        )
+                    }
+                    report.healthSummary?.let {
+                        HealthActivityCard(
+                            modifier = Modifier
+                                .padding(top = 12.dp)
+                                .fillMaxWidth(),
+                            summary = it,
                         )
                     }
                     FilledTonalButton(
@@ -572,6 +581,53 @@ private fun CaloriesCard(
                     TrafficLightLegend(TrafficLightColors.Red.resolve(), "放纵一下", caloriesStats.redCount)
                 }
             }
+        }
+    }
+}
+
+/** Health Connect 周期聚合：步数、总能量消耗与睡眠，避免展示来源设备的逐条噪声。 */
+@Composable
+private fun HealthActivityCard(
+    modifier: Modifier,
+    summary: HealthActivitySummary,
+) {
+    val days = summary.rangeDays.coerceAtLeast(1)
+    val avgSteps = summary.steps / days
+    val avgBurned = summary.totalCaloriesBurned / days
+    val avgSleepMinutes = summary.sleepMinutes / days
+    Card(modifier = modifier) {
+        Column(modifier = Modifier.padding(16.dp).fillMaxWidth()) {
+            Text(
+                text = "活动与恢复（Health Connect）",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                ReportStatItem(
+                    modifier = Modifier.weight(1f),
+                    value = String.format(Locale.CHINA, "%,d", avgSteps),
+                    label = "日均步数",
+                )
+                VerticalDivider(Modifier.height(40.dp))
+                ReportStatItem(
+                    modifier = Modifier.weight(1f),
+                    value = String.format(Locale.CHINA, "%,d", avgBurned),
+                    label = "日均总消耗 kcal",
+                )
+                VerticalDivider(Modifier.height(40.dp))
+                ReportStatItem(
+                    modifier = Modifier.weight(1f),
+                    value = "%d时%02d分".format(avgSleepMinutes / 60, avgSleepMinutes % 60),
+                    label = "日均睡眠",
+                )
+            }
+            Text(
+                text = "总消耗包含基础代谢与活动消耗",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 10.dp).align(Alignment.CenterHorizontally),
+            )
         }
     }
 }
