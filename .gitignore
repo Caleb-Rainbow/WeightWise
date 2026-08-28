@@ -20,5 +20,6 @@ local.properties
 /secrets.properties
 /key
 /key.jks
-/docs//.zcode/
+/docs/
 /.zcode/
+/.gstack/

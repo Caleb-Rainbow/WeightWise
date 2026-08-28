@@ -38,11 +38,16 @@ object CalorieCalculator {
     /** 增重建议每日热量盈余（kcal） */
     const val BULK_CALORIES = 300
 
-    /** 建议摄入的安全下限（kcal），长期低于该值容易营养不良 */
+    /** 建议摄入的安全下限（kcal），长期低于该值容易营养不良；决策引擎基准共用同一口径 */
     private const val FEMALE_MIN_INTAKE = 1200
     private const val MALE_MIN_INTAKE = 1500
 
-    private const val KCAL_PER_KG = 7000.0
+    /** 性别对应的安全下限；未知性别按更保守（更低）档 */
+    internal fun minIntake(gender: Gender?): Int =
+        if (gender == Gender.MALE) MALE_MIN_INTAKE else FEMALE_MIN_INTAKE
+
+    /** 每公斤体重的能量当量（kcal）；决策引擎反推 TDEE 与本对象共用同一口径，禁止另起常数 */
+    internal const val KCAL_PER_KG = 7000.0
 
     /**
      * Mifflin-St Jeor 基础代谢。任一档案缺失（性别未知/年龄未设置）或数据非法返回 null。
@@ -80,7 +85,7 @@ object CalorieCalculator {
             targetWeightKg > 0 && targetWeightKg > weightKg + 0.5 -> tdee + BULK_CALORIES
             else -> tdee
         }
-        val minIntake = if (gender == Gender.MALE) MALE_MIN_INTAKE else FEMALE_MIN_INTAKE
+        val minIntake = minIntake(gender)
         return maxOf(adjusted, minIntake.toDouble()).roundToInt()
     }
 

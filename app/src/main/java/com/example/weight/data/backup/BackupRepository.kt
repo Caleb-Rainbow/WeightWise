@@ -194,6 +194,7 @@ class BackupRepository(
         return ParsedBackup(backup, parsed.imageDir?.takeIf { it.exists() })
     }
 
+    @OptIn(ExperimentalSerializationApi::class)
     private fun parseJsonBackup(context: Context, uri: Uri): ParsedBackup {
         val backup = try {
             context.contentResolver.openInputStream(uri)?.use { input ->

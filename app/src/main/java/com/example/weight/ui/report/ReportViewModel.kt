@@ -12,12 +12,15 @@ import com.example.weight.data.chat.MessageContent
 import com.example.weight.data.chat.MessageModel
 import com.example.weight.data.diet.DailyCalories
 import com.example.weight.data.diet.DietRecordDao
+import com.example.weight.data.diet.FrequentFoodAggregator
 import com.example.weight.data.diet.TrafficLightCount
 import com.example.weight.data.health.HealthActivitySummary
 import com.example.weight.data.health.HealthConnectManager
 import com.example.weight.data.record.DailyWeight
-import com.example.weight.data.record.dailyWeightsBetween
 import com.example.weight.data.record.RecordDao
+import com.example.weight.data.record.BEIJING_OFFSET
+import com.example.weight.data.record.dailyWeightsBetween
+import com.example.weight.data.record.dailyWeightsSince
 import com.example.weight.util.ActivityLevel
 import com.example.weight.util.Gender
 import com.example.weight.util.ReportAggregator
@@ -25,8 +28,10 @@ import com.example.weight.util.ReportCaloriesStats
 import com.example.weight.util.ReportType
 import com.example.weight.util.ReportWeightStats
 import com.example.weight.util.TimeUtils
+import com.example.weight.util.WeeklyControlEngine
 import com.example.weight.util.WeightTrendAnalyzer
 import com.example.weight.util.WeightTrendInsight
+import kotlinx.serialization.json.Json
 import java.time.LocalDate
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -80,6 +85,7 @@ class ReportViewModel(
     private val chatRepository: ChatRepository,
     private val healthConnectManager: HealthConnectManager,
     recommendedIntakeProvider: RecommendedIntakeProvider,
+    private val json: Json,
 ) : ViewModel() {
 
     private val _selectedType = MutableStateFlow(ReportType.WEEK)
@@ -91,6 +97,59 @@ class ReportViewModel(
     /** 每日建议摄入：与饮食页同口径（档案 + 最新体重 → TDEE 目标缺口），档案不全或无体重时为 null */
     val recommendedIntake: StateFlow<Int?> = recommendedIntakeProvider.flow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    /**
+     * 每周决策结果（评审 3A：进页实时计算、不缓存；体重口径经 dailyWeightsSince
+     * 与趋势页同源同判）。null 表示首次计算未完成——UI 用固定高度占位防布局跳动。
+     * 显示条件（WEEK 型且锚点=当前周）由 [showWeeklyDecision] 单独给出。
+     */
+    val weeklyDecision: StateFlow<WeeklyControlEngine.WeeklyControlResult?> = run {
+        val profileFlow = combine(
+            LocalStorageData.height,
+            LocalStorageData.age,
+            LocalStorageData.gender,
+            LocalStorageData.activityLevel,
+            combine(LocalStorageData.targetWeight, LocalStorageData.weeklyTargetChangeKg) { t, w -> t to w },
+        ) { height, age, gender, activityLevel, goal ->
+            WeeklyControlEngine.ControlProfile(
+                gender = Gender.entries.find { it.name == gender },
+                age = age,
+                heightCm = height,
+                activityLevel = ActivityLevel.entries.find { it.name == activityLevel },
+            ) to goal
+        }
+        val today = LocalDate.now()
+        val windowStart = today.minusDays(WeeklyControlEngine.WINDOW_DAYS - 1L)
+        val startMillis = windowStart.atStartOfDay(BEIJING_OFFSET).toInstant().toEpochMilli()
+        val indulgentSince = today.minusDays(FrequentFoodAggregator.WINDOW_DAYS - 1L).toString()
+        // getDailyCaloriesBetween 上界为排他语义：传次日以免丢当天；getFoodJsonBetween
+        // 是双端含且 today 上界专门挡未来日期补记，保持传 today 不变
+        combine(
+            profileFlow,
+            recordDao.dailyWeightsSince(startMillis),
+            dietRecordDao.getDailyCaloriesBetween(windowStart.toString(), today.plusDays(1).toString()),
+            dietRecordDao.getFoodJsonBetween(indulgentSince, today.toString()),
+            recommendedIntakeProvider.flow,
+        ) { (profile, goal), weights, calories, foodJson, staticIntake ->
+            WeeklyControlEngine.evaluate(
+                WeeklyControlEngine.WeeklyControlInput(
+                    today = LocalDate.now(),
+                    dailyWeights = weights,
+                    dailyCalories = calories,
+                    targetWeightKg = goal.first,
+                    weeklyTargetChangeKg = goal.second,
+                    profile = profile,
+                    staticRecommendedIntake = staticIntake,
+                    indulgentMeals = WeeklyControlEngine.aggregateIndulgentMeals(foodJson, json),
+                ),
+            )
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+    }
+
+    /** 评审 2A：仅 WEEK 型且锚点=当前周时显示决策卡；翻历史周/切月年报时隐藏 */
+    val showWeeklyDecision: StateFlow<Boolean> = combine(selectedType, anchor) { type, a ->
+        type == ReportType.WEEK && a == ReportType.WEEK.anchorOf(LocalDate.now())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     /**
      * 当前周期的聚合报告。null 表示「周期/类型切换的加载瞬间」，UI 用上一次数据兜底；

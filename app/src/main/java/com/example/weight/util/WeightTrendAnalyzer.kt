@@ -222,7 +222,7 @@ object WeightTrendAnalyzer {
         )
     }
 
-    private fun linearSlopePerDay(samples: List<Pair<Long, Double>>): Double? {
+    internal fun linearSlopePerDay(samples: List<Pair<Long, Double>>): Double? {
         if (samples.size < 2) return null
         val firstTime = samples.first().first
         val xs = samples.map { (it.first - firstTime) / DAY_MS }

@@ -96,6 +96,8 @@ fun ReportScreen(
     val recommendedIntake by viewModel.recommendedIntake.collectAsStateWithLifecycle()
     val showMessageDialog = LocalShowMessageDialog.current
     val targetWeight by LocalStorageData.targetWeight.collectAsStateWithLifecycle()
+    val weeklyDecision by viewModel.weeklyDecision.collectAsStateWithLifecycle()
+    val showDecision by viewModel.showWeeklyDecision.collectAsStateWithLifecycle()
 
     // AI 弹窗独立成组：流式期间每帧只重组这个小组件，而不是整个报告页
     ReportAiSheet(viewModel)
@@ -115,6 +117,17 @@ fun ReportScreen(
                 onPrevious = viewModel::previousPeriod,
                 onNext = viewModel::nextPeriod,
             )
+            // 每周决策条（评审 1A：第一眼是决定；Codex#6：渲染独立于下方报告空态——
+            // 它依据的是过去六周，周一未称重时本周期报告走空态但决策卡仍显示）
+            if (showDecision) {
+                WeeklyDecisionCard(
+                    result = weeklyDecision,
+                    targetWeightKg = targetWeight,
+                    modifier = Modifier
+                        .padding(bottom = 16.dp)
+                        .padding(horizontal = WeightWiseDimens.PageHorizontal),
+                )
+            }
             when {
                 report == null -> ReportLoadingContent()
                 report.dailyWeights.isEmpty() || report.weightStats == null -> ReportEmptyContent()

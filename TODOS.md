@@ -63,6 +63,27 @@
   - **Pros:** 零基建成本（纯 SQL + 小 Composable）；为后续迭代提供事实依据。
   - **Cons:** 自用场景下看几次就够，低频功能。
   - **Context:** 源自 2026-08-21 饮食重设计 CEO 评审（发现 2）。「AI 结果被修改」需编辑功能先落地（编辑行为即修改信号）；起点：`DietRecordDao` 聚合查询。
-  - **Effort:** S（human ~半天 / CC ~30 分钟）
-  - **Priority:** P3
-  - **Depends on:** 饮食重设计编辑功能落地
+- **Effort:** S（human ~半天 / CC ~30 分钟）
+- **Priority:** P3
+- **Depends on:** 饮食重设计编辑功能落地
+- **Note:** 2026-08-28 控制回路工程评审顺延为独立后续 PR：护栏口径（周覆盖率/已记录日均摄入）已由 WeeklyControlEngine 统一提供，此视图改为消费其输出，见 docs/designs/weekly-control-loop-v1.md 交付切片 4。
+
+- [ ] **T-7 周报推送携带每周决策结论**
+  - **What:** 扩展 ReportPushWorker，周一推送摘要行携带本周决策卡结论（保持/微调一件事/数据不足），通知深链直达报告页决策卡。
+  - **Why:** 决策卡目前只在用户主动进报告页时可见；周一主动触达才构成"每周控制回路"的完整闭环。
+  - **Pros:** 决策触达零操作成本；复用现有 EXTRA_OPEN_REPORT 深链与 Worker 排程。
+  - **Cons:** WorkManager 周推送的时区与后台限制是已知真机回归坑；通知文案须覆盖三态降级。
+  - **Context:** 每周控制回路 v1 范围裁决（2026-08-28 /plan-eng-review）将本项从 3 切片后置为独立 PR，避免一次交付面过大。起点：data/report/ReportPushWorker.kt + docs/designs/weekly-control-loop-v1.md 交付切片 4。
+  - **Effort:** S（human ~半天 / CC ~1 小时）
+  - **Priority:** P2
+  - **Depends on:** 每周控制回路 3 切片（引擎+决策卡）落地
+
+- [ ] **T-8 报告窗口时区统一为北京时区**
+  - **What:** ReportPeriod.kt:48 与 TimeUtils.kt:18 的通用日期转换改用与体重归日一致的 UTC+8 常量，消除系统默认时区依赖。
+  - **Why:** 体重按北京时区归日，但报告周期窗口用系统默认时区切界——旅行或修改设备时区会切错报告周期边界，且控制回路的"完整自然周"界定依赖同一口径。
+  - **Pros:** 全 App 时间口径单一化；控制回路周界定不再受设备时区影响。
+  - **Cons:** 需回归全部用日期边界的页面（报告/趋势/饮食历史）；海外用户按北京时区切周在直觉上可议（当前用户群为单人自用，不构成问题）。
+  - **Context:** 2026-08-28 /plan-eng-review Codex 冷读发现的存量不一致（#7）；决策卡已在本 PR 内显式使用 UTC+8 常量规避，本 TODO 收尾存量面。起点：util/ReportPeriod.kt、util/TimeUtils.kt，对照 data/record DAO 的北京时区归组 SQL。
+  - **Effort:** S
+  - **Priority:** P2
+  - **Depends on:** 无
