@@ -445,7 +445,7 @@ class ScaleBleEngine(
                 age = LocalStorageData.age.value,
                 heightCm = LocalStorageData.height.value.toInt(),
             )
-            // 阻抗 + 身体档案 → 全套身体成分；自报体脂兜底；公式全部失效时仍保留原始阻抗备查
+            // 阻抗 + 身体档案（含腰围）→ 全套身体成分；自报体脂兜底；公式全部失效时仍保留原始阻抗备查
             val composition = BodyFatCalculator.resolve(
                 sexMale = profile.sexMale,
                 age = profile.age,
@@ -453,6 +453,7 @@ class ScaleBleEngine(
                 weightKg = rounded,
                 impedanceOhm = impedanceOhm,
                 scaleFatRatio = reported[FAT_KEY],
+                waistCm = LocalStorageData.currentWaistCm.value.takeIf { it > 0 },
             )?.copy(
                 impedance = impedanceOhm?.toInt() ?: 0,
             ) ?: impedanceOhm?.let { BodyComposition(impedance = it.toInt()) }

@@ -214,7 +214,7 @@ object MetricGuide {
             val sex = if (sexMale) "男" else "女"
             Info(
                 name = "体脂率",
-                description = "体内脂肪重量占体重的比例，比 BMI 更准确反映肥胖程度。包含必需脂肪（维持生理功能）与储存脂肪，女性必需脂肪天然更高。",
+                description = "体内脂肪重量占体重的比例，比 BMI 更准确反映肥胖程度。包含必需脂肪（维持生理功能）与储存脂肪，女性必需脂肪天然更高。本 App 由体脂秤阻抗与腰围（已设置时）双路融合估算，绝对值为估算值，建议以长期趋势为准。",
                 rangeText = "正常范围：$sex ${band.first.toInt()}-${band.second.toInt()}%；超过 ${high.toInt()}% 属肥胖",
                 status = when {
                     v < band.first -> Status.LOW

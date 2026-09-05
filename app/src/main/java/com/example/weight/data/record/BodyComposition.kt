@@ -41,6 +41,11 @@ data class BodyComposition(
     val bodyType: String = "",
     /** 身体得分 1-100 */
     val bodyScore: Int = 0,
+    /**
+     * 体脂率估算口径存档：fused_rfm_sun（RFM×Sun 融合）/ sun2003 / scale_reported /
+     * rfm / deurenberg；空串 = 旧版记录（融合上线前），供后续再标定区分历史数据。
+     */
+    val fatMethod: String = "",
 ) {
     val hasAny: Boolean get() = fatRatio > 0 || waterRatio > 0 || muscleRatio > 0 || impedance > 0
 

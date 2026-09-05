@@ -7,6 +7,7 @@ import com.example.weight.data.MIGRATION_10_11
 import com.example.weight.data.createDefaultHttpClient
 import com.example.weight.data.diet.DietRecordDao
 import com.example.weight.data.record.RecordDao
+import com.example.weight.data.scale.BodyCompositionRecalculator
 import com.example.weight.data.scale.ScaleBleEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.serialization.json.Json
@@ -35,6 +36,10 @@ class KoinModule {
         appScope: CoroutineScope,
         recordDao: RecordDao,
     ): ScaleBleEngine = ScaleBleEngine(application, appScope, recordDao)
+
+    @Single
+    fun provideBodyCompositionRecalculator(recordDao: RecordDao) =
+        BodyCompositionRecalculator(recordDao)
 
     @Single
     fun provideDietRecordDao(appDataBase: AppDataBase): DietRecordDao = appDataBase.dietRecordDao()

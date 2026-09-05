@@ -24,10 +24,18 @@ class BodyCompositionJsonTest {
     @Test
     fun `旧JSON缺键字段取默认零值`() {
         // 早期版本只存 fatRatio 的 JSON：新字段反序列化为 0，不抛异常
-        val decoded = BodyCompositionJson.decode("""{"fatRatio":20.0}""")
-        assertEquals(20.0, decoded!!.fatRatio, 0.001)
+        val decoded = BodyCompositionJson.decode("""{"fatRatio":20.0}""")!!
+        assertEquals(20.0, decoded.fatRatio, 0.001)
         assertEquals(0, decoded.impedance)
+        // 融合上线前的旧记录无 fatMethod 键 → 空串
+        assertEquals("", decoded.fatMethod)
         assertTrue(decoded.hasAny)
+    }
+
+    @Test
+    fun `fatMethod口径存档往返`() {
+        val c = BodyComposition(fatRatio = 32.9, fatMethod = "fused_rfm_sun")
+        assertEquals("fused_rfm_sun", BodyCompositionJson.decode(BodyCompositionJson.encode(c))!!.fatMethod)
     }
 
     @Test

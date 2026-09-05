@@ -60,6 +60,7 @@ import com.example.weight.data.backup.ImportPreview
 import com.example.weight.data.chat.ChatModel
 import com.example.weight.data.record.DailyStatMode
 import com.example.weight.data.record.RecordDao
+import com.example.weight.data.scale.BodyCompositionRecalculator
 import com.example.weight.data.widget.WidgetUpdater
 import com.example.weight.ui.common.MyTopBar
 import com.example.weight.ui.common.PageLead
@@ -91,7 +92,9 @@ internal fun DataManagementCard() {
     val showLoading = LocalShowLoadingDialog.current
     val hideLoading = LocalHideLoadingDialog.current
     val backupRepository = koinInject<BackupRepository>()
+    val recalculator = koinInject<BodyCompositionRecalculator>()
     var pendingImport by remember { mutableStateOf<ImportPreview?>(null) }
+    var pendingRecalcCount by remember { mutableStateOf<Int?>(null) }
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/zip")
@@ -182,7 +185,59 @@ internal fun DataManagementCard() {
                 )
             },
         )
+        SettingsRow(
+            label = "重算身体成分",
+            value = "",
+            onClick = {
+                scope.launch {
+                    val count = recalculator.eligibleCount()
+                    if (count == 0) {
+                        snackBarShow("没有可重算的记录（需本机秤测且存有阻抗）")
+                    } else {
+                        pendingRecalcCount = count
+                    }
+                }
+            },
+        )
         SettingsFootnote("备份包含全部记录、设置与饮食照片（带完整性校验）；导入时重复记录自动跳过")
+    }
+
+    // 重算确认弹窗：公式升级后按当前公式与档案重刷历史，覆盖不可撤销
+    pendingRecalcCount?.let { count ->
+        val waist = LocalStorageData.currentWaistCm.value
+        AlertDialog(
+            onDismissRequest = { pendingRecalcCount = null },
+            title = { Text("重算身体成分") },
+            text = {
+                Text(
+                    "将按当前公式（阻抗×腰围双路融合）与当前身体档案重算 $count 条含阻抗测量的历史记录。" +
+                        "历史数值会被覆盖且不可撤销（原始阻抗保留）；无阻抗与 Health Connect 导入的记录不受影响。" +
+                        if (waist <= 0) "\n\n当前未设置腰围，将退回纯阻抗公式（结果与旧口径一致），建议先在目标档案中设置腰围。" else ""
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingRecalcCount = null
+                    scope.launch {
+                        showLoading()
+                        try {
+                            val result = recalculator.recalculate()
+                            snackBarShow(
+                                "已重算 ${result.recalculated} 条身体成分" +
+                                    if (result.skipped > 0) "，跳过 ${result.skipped} 条" else ""
+                            )
+                        } catch (e: Exception) {
+                            snackBarShow("重算失败：${e.message ?: "未知错误"}")
+                        } finally {
+                            hideLoading()
+                        }
+                    }
+                }) { Text("重算") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingRecalcCount = null }) { Text("取消") }
+            },
+        )
     }
 
     // 导入确认弹窗：展示去重后的数量，用户确认才写入

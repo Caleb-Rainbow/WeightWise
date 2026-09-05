@@ -6,8 +6,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * 期望值全部按文献系数手工推导（Sun 2003 / Janssen 2000 / Deurenberg 1991 + 生理常数分解）。
- * 锚点用例 bodyfat_101kg_male 对应本机真机实测（185cm/101.9kg/536Ω/24 岁）。
+ * 期望值全部按文献系数手工推导（Sun 2003 / Janssen 2000 / RFM Woolcott 2018 /
+ * Deurenberg 1991 + 生理常数分解）。
+ * 锚点用例 bodyfat_101kg_male 对应本机真机实测（185cm/101.9kg/536Ω/24 岁/腰围 100cm）。
  */
 class BodyFatCalculatorTest {
 
@@ -70,7 +71,98 @@ class BodyFatCalculatorTest {
         assertEquals("肥胖型", BodyTypeGrid.judge(false, 32.0, 35.0))
     }
 
+    // ---- 双路融合（RFM 腰围法 × Sun 阻抗法）----
+
+    @Test
+    fun `融合锚点_男185cm101kg536Ω24岁腰100`() {
+        val c = BodyFatCalculator.calculate(
+            sexMale = true, age = 24, heightCm = 185, weightKg = 101.9,
+            impedanceOhm = 536.0, waistCm = 100.0,
+        )!!
+        // RFM = 64 − 20×1.85 = 27.0；Sun fat = 43.75
+        // 融合 = 0.65×27.0 + 0.35×43.75 = 32.9
+        assertEquals(32.9, c.fatRatio, 0.1)
+        // FFM = 101.9×(1−0.329) = 68.4
+        assertEquals(68.4, c.ffm, 0.1)
+        // TBW = 0.732×68.4 = 50.07 → 49.1%
+        assertEquals(49.1, c.waterRatio, 0.15)
+        // 骨 = 68.41×0.055 = 3.8；肌肉量 = 68.41−3.76 = 64.65 → 64.7（恰过舍入边界）
+        assertEquals(3.8, c.boneMass, 0.1)
+        assertEquals(64.7, c.muscleMass, 0.1)
+        assertEquals(63.4, c.muscleRatio, 0.15)
+        // SMM 仍按 Janssen 阻抗方程，不受融合影响
+        assertEquals(32.8, c.skeletalMuscleMass, 0.1)
+        assertEquals(32.2, c.skeletalMuscleRatio, 0.15)
+        // 蛋白 = 0.85×(68.4−50.07−3.8) = 12.4 → 12.2%
+        assertEquals(12.2, c.proteinRatio, 0.15)
+        // BMI 29.8 → VFL = 0.12×32.9+0.22×29.8+2.4−7 = 6
+        assertEquals(6, c.visceralFatLevel)
+        // 皮下 = 32.9 − 6×0.3 = 31.1
+        assertEquals(31.1, c.subcutaneousFatRatio, 0.15)
+        // 体脂仍高带 + 骨骼肌率低带 → 虚胖型
+        assertEquals("虚胖型", c.bodyType)
+        // 100 − (32.9−20)×0.8 − 15 − 8 = 67
+        assertEquals(67, c.bodyScore)
+        assertEquals("fused_rfm_sun", c.fatMethod)
+    }
+
+    @Test
+    fun `融合_无腰围退纯Sun`() {
+        val c = BodyFatCalculator.calculate(true, 24, 185, 101.9, 536.0)!!
+        assertEquals(43.8, c.fatRatio, 0.1)
+        assertEquals("sun2003", c.fatMethod)
+    }
+
+    @Test
+    fun `融合_腰围越界视为未设置`() {
+        // 30cm / 250cm 均在 50-200 合理域之外 → 退纯 Sun
+        assertEquals(43.8, BodyFatCalculator.calculate(true, 24, 185, 101.9, 536.0, waistCm = 30.0)!!.fatRatio, 0.1)
+        assertEquals(43.8, BodyFatCalculator.calculate(true, 24, 185, 101.9, 536.0, waistCm = 250.0)!!.fatRatio, 0.1)
+    }
+
+    @Test
+    fun `融合_女性`() {
+        // RFM = 76 − 20×(165/75) = 32.0；H²/R = 27225/500 = 54.45
+        // Sun FFM = −9.53+0.69×54.45+0.17×60 = 38.24 → fat 36.3
+        // 融合 = 0.65×32.0+0.35×36.3 = 33.5
+        val c = BodyFatCalculator.calculate(false, 30, 165, 60.0, 500.0, waistCm = 75.0)!!
+        assertEquals(33.5, c.fatRatio, 0.1)
+        assertEquals(39.9, c.ffm, 0.1)
+        assertEquals("fused_rfm_sun", c.fatMethod)
+    }
+
+    @Test
+    fun `RFM单独路径_无阻抗有腰围`() {
+        // fat = 64 − 20×1.85 = 27.0；FFM = 101.9×0.73 = 74.4；阻抗派生指标为 0
+        val c = BodyFatCalculator.resolve(true, 24, 185, 101.9, null, scaleFatRatio = null, waistCm = 100.0)!!
+        assertEquals(27.0, c.fatRatio, 0.1)
+        assertEquals(74.4, c.ffm, 0.1)
+        assertEquals(0.0, c.skeletalMuscleMass, 0.001)
+        assertEquals(0, c.impedance)
+        assertEquals("rfm", c.fatMethod)
+        // fat 27 高带 + SMM 未知 → 肥胖型
+        assertEquals("肥胖型", c.bodyType)
+    }
+
+    @Test
+    fun `口径存档_自报与回退路径`() {
+        assertEquals(
+            "scale_reported",
+            BodyFatCalculator.resolve(true, 24, 185, 101.9, null, scaleFatRatio = 43.8)!!.fatMethod,
+        )
+        // 有腰围时 RFM 优先于 Deurenberg（腰围比 BMI 法更准）
+        assertEquals(
+            "rfm",
+            BodyFatCalculator.resolve(true, 30, 170, 70.0, null, scaleFatRatio = null, waistCm = 90.0)!!.fatMethod,
+        )
+        assertEquals(
+            "deurenberg",
+            BodyFatCalculator.resolve(true, 30, 170, 70.0, null, scaleFatRatio = null)!!.fatMethod,
+        )
+    }
+
     // ---- resolve 统一入口：阻抗 / 秤自报体脂 / 双缺失回退 ----
+
 
     @Test
     fun `resolve_阻抗路径与calculate等价`() {
