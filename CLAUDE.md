@@ -62,7 +62,7 @@ Uses **Navigation3** (`androidx.navigation3`), not traditional Navigation Compos
 ## Key Conventions
 
 - **Compose UI only** — no XML layouts, no View system.
-- **Material3 with Material Expressive** theme. WeightWise 3.0「东方数据刊物」规则以 `DESIGN.md` 为准；color schemes live in `ui/theme/WeightWiseSchemes.kt`, typography and shapes are wired in `ui/theme/Theme.kt`.
+- **Material3 stable** theme (`MaterialTheme` + custom shapes/typography; compose BOM `2026.09.00` → material3 1.4.0, where the Expressive APIs `MaterialExpressiveTheme`/`MotionScheme`/`ContainedLoadingIndicator`/`rememberBottomSheetState` are internal or removed — do not use them on the stable BOM). WeightWise 3.0「东方数据刊物」规则以 `DESIGN.md` 为准；color schemes live in `ui/theme/WeightWiseSchemes.kt`, typography and shapes are wired in `ui/theme/Theme.kt`.
 
 ## Design System
 

@@ -1,30 +1,30 @@
 [versions]
-agp = "9.3.2"
+agp = "9.3.3"
 junitVersion = "4.13.2"
 kotlin = "2.4.10"
 coreKtx = "1.19.0"
 lifecycleRuntimeKtx = "2.11.0"
 activityCompose = "1.13.0"
-composeBom = "2026.08.01"
+composeBom = "2026.09.00"
 navigation3 = "1.1.7"
 
 koin = "4.2.2"
 koin-annotations = "4.2.2"
-koin-plugin = "1.1.0"
+koin-plugin = "1.2.1"
 ksp = "2.3.11"
 kotlinx-serialization = "1.11.0"
 paging = "3.5.1"
-room = "2.8.4"
+room = "2.8.5"
 
 charts = "1.0.0"
-vico = "3.3.0"
+vico = "3.3.1"
 mmkv = "2.3.0"
-uiTooling = "1.12.0"
+uiTooling = "1.12.1"
 junit = "1.3.0"
 espressoCore = "3.7.0"
 uiautomator = "2.4.0"
-benchmarkMacroJunit4 = "1.5.0-rc02"
-baselineprofile = "1.5.0-rc02"
+benchmarkMacroJunit4 = "1.5.0"
+baselineprofile = "1.5.0"
 profileinstaller = "1.4.1"
 
 ktor = "3.5.2"
@@ -34,11 +34,11 @@ exifinterface = "1.4.2"
 healthConnect = "1.1.0"
 
 secretsGradlePlugin = "2.0.1"
-markdownEditor = "0.44.0"
+markdownEditor = "0.45.0"
 
 # 测试专用（runtime 不引入）：协程测试 + Robolectric（DAO/VM 层测试）
 kotlinxCoroutines = "1.11.0"
-robolectric = "4.16.1"
+robolectric = "4.17"
 
 [libraries]
 androidx-compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
@@ -46,7 +46,7 @@ androidx-compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
-androidx-compose-bom = { group = "androidx.compose", name = "compose-bom-alpha", version.ref = "composeBom" }
+androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
 androidx-ui = { group = "androidx.compose.ui", name = "ui" }
 androidx-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
 androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }

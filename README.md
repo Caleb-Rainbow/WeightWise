@@ -68,7 +68,7 @@
 | 类别 | 技术 |
 |------|------|
 | 语言 | Kotlin |
-| UI 框架 | Jetpack Compose + Material3 (Material Expressive) |
+| UI 框架 | Jetpack Compose + Material3（稳定版 BOM） |
 | 导航 | Navigation3 (`androidx.navigation3`) |
 | 依赖注入 | Koin 4.2 + Koin Annotations (KSP) |
 | 本地存储 | Room（自动迁移）+ MMKV（偏好设置） |

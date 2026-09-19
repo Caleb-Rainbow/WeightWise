@@ -13,18 +13,16 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudOff
-import androidx.compose.material3.ContainedLoadingIndicator
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberBottomSheetState
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -51,7 +49,7 @@ import com.mikepenz.markdown.model.rememberMarkdownState
  * @param errorMessage 失败原因，非 null 时展示错误态
  * @param onRetry 错误态下点击"重新生成"的回调
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AnalysisBottomSheet(
     showSheet: Boolean,
@@ -62,10 +60,7 @@ fun AnalysisBottomSheet(
     errorMessage: String? = null,
     onRetry: () -> Unit = {}
 ) {
-    val sheetState = rememberBottomSheetState(
-        initialValue = SheetValue.Hidden,
-        enabledValues = setOf(SheetValue.Hidden, SheetValue.PartiallyExpanded, SheetValue.Expanded),
-    )
+    val sheetState = rememberModalBottomSheetState()
 
     if (showSheet) {
         ModalBottomSheet(
@@ -100,7 +95,7 @@ fun AnalysisBottomSheet(
                 when {
                     isLoading -> {
                         // 等待流式数据返回时的加载状态
-                        ContainedLoadingIndicator(modifier = Modifier.padding(vertical = 48.dp))
+                        CircularProgressIndicator(modifier = Modifier.padding(vertical = 48.dp))
                         Text(
                             "正在为您生成分析报告...",
                             style = MaterialTheme.typography.bodyMedium,

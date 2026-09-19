@@ -17,9 +17,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Card
-import androidx.compose.material3.ContainedLoadingIndicator
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -408,19 +407,19 @@ fun ProvideSnackBarHost(
  *
  * @param onDismissRequest 当对话框被关闭时调用的回调函数。
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoadingDialog(onDismissRequest: () -> Unit) {
     BasicAlertDialog(modifier = Modifier.size(80.dp), onDismissRequest = onDismissRequest) {
         Card {
             Box(modifier = Modifier.fillMaxSize()) {
-                ContainedLoadingIndicator(
+                CircularProgressIndicator(
                     modifier = Modifier
                         .size(80.dp)
                         .padding(15.dp)
                         .align(
                             Alignment.Center
-                        ), indicatorColor = MaterialTheme.colorScheme.primary
+                        ), color = MaterialTheme.colorScheme.primary
                 )
             }
         }
