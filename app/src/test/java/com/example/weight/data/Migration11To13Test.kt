@@ -5,6 +5,7 @@ import android.database.sqlite.SQLiteDatabase
 import androidx.room.Room
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -13,10 +14,10 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
-/** 11→12 自动迁移回归：新增 Health Connect 来源列与索引，同时保留既有数据。 */
+/** 11 -> 12 -> 13 自动迁移链回归：Health Connect 来源列与索引在 13 中移除，同时保留既有数据。 */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], application = android.app.Application::class)
-class Migration11To12Test {
+class Migration11To13Test {
 
     private lateinit var context: Context
 
@@ -33,26 +34,35 @@ class Migration11To12Test {
     }
 
     @Test
-    fun `迁移保留数据并为两个实体补来源列和索引`() {
+    fun `迁移保留数据并移除 Health Connect 来源列和索引`() {
         val room = Room.databaseBuilder(context, AppDataBase::class.java, DB_NAME)
             .allowMainThreadQueries()
             .build()
         try {
-                val db = room.openHelper.writableDatabase
-                db.query("SELECT weight, healthConnectId, healthConnectOrigin FROM Record").use {
-                    assertTrue(it.moveToFirst())
-                    assertEquals(70.5, it.getDouble(0), 0.0)
-                    assertEquals("", it.getString(1))
-                    assertEquals("", it.getString(2))
-                }
-                db.query("SELECT estimatedCalories, healthConnectId, healthConnectOrigin FROM DietRecord").use {
-                    assertTrue(it.moveToFirst())
-                    assertEquals(520, it.getInt(0))
-                    assertEquals("", it.getString(1))
-                    assertEquals("", it.getString(2))
-                }
-                assertTrue(indexNames(db, "Record").contains("index_Record_healthConnectId"))
-                assertTrue(indexNames(db, "DietRecord").contains("index_DietRecord_healthConnectId"))
+            val db = room.openHelper.writableDatabase
+            db.query("SELECT weight FROM Record").use {
+                assertTrue(it.moveToFirst())
+                assertEquals(70.5, it.getDouble(0), 0.0)
+            }
+            db.query("SELECT estimatedCalories FROM DietRecord").use {
+                assertTrue(it.moveToFirst())
+                assertEquals(520, it.getInt(0))
+            }
+            assertFalse("Record 表不应再有 healthConnectId 列", columnNames(db, "Record").contains("healthConnectId"))
+            assertFalse("Record 表不应再有 healthConnectOrigin 列", columnNames(db, "Record").contains("healthConnectOrigin"))
+            assertFalse("DietRecord 表不应再有 healthConnectId 列", columnNames(db, "DietRecord").contains("healthConnectId"))
+            assertFalse("DietRecord 表不应再有 healthConnectOrigin 列", columnNames(db, "DietRecord").contains("healthConnectOrigin"))
+            assertFalse(
+                "Record 的 healthConnectId 索引应随列移除",
+                indexNames(db, "Record").contains("index_Record_healthConnectId"),
+            )
+            assertFalse(
+                "DietRecord 的 healthConnectId 索引应随列移除",
+                indexNames(db, "DietRecord").contains("index_DietRecord_healthConnectId"),
+            )
+            // 与 HC 无关的索引须保留
+            assertTrue(indexNames(db, "Record").contains("index_Record_timestamp"))
+            assertTrue(indexNames(db, "DietRecord").contains("index_DietRecord_timestamp"))
         } finally {
             room.close()
         }
@@ -90,6 +100,14 @@ class Migration11To12Test {
         }
     }
 
+    private fun columnNames(db: androidx.sqlite.db.SupportSQLiteDatabase, table: String): Set<String> =
+        db.query("PRAGMA table_info(`$table`)").use { cursor ->
+            buildSet {
+                val nameColumn = cursor.getColumnIndexOrThrow("name")
+                while (cursor.moveToNext()) add(cursor.getString(nameColumn))
+            }
+        }
+
     private fun indexNames(db: androidx.sqlite.db.SupportSQLiteDatabase, table: String): Set<String> =
         db.query("PRAGMA index_list(`$table`)").use { cursor ->
             buildSet {
@@ -99,6 +117,6 @@ class Migration11To12Test {
         }
 
     private companion object {
-        const val DB_NAME = "migration-11-12-test.db"
+        const val DB_NAME = "migration-11-13-test.db"
     }
 }

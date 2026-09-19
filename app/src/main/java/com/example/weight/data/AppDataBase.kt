@@ -2,6 +2,7 @@ package com.example.weight.data
 
 import androidx.room.AutoMigration
 import androidx.room.Database
+import androidx.room.DeleteColumn
 import androidx.room.DeleteTable
 import androidx.room.RoomDatabase
 import androidx.room.migration.AutoMigrationSpec
@@ -21,6 +22,15 @@ import com.example.weight.data.record.Record
 @DeleteTable(tableName = "Journey")
 @DeleteTable(tableName = "Phase")
 class Migration7To8 : AutoMigrationSpec
+
+/**
+ * 12 -> 13：移除 Health Connect 同步功能，删除两表的来源记录 id 与来源包名列（含对应索引）。
+ */
+@DeleteColumn(tableName = "Record", columnName = "healthConnectId")
+@DeleteColumn(tableName = "Record", columnName = "healthConnectOrigin")
+@DeleteColumn(tableName = "DietRecord", columnName = "healthConnectId")
+@DeleteColumn(tableName = "DietRecord", columnName = "healthConnectOrigin")
+class Migration12To13 : AutoMigrationSpec
 
 /**
  * 8 -> 9：Record 补 timestamp 索引（时间窗查询/排序走索引），
@@ -55,7 +65,7 @@ val MIGRATION_10_11: Migration = object : Migration(10, 11) {
 }
 
 @Database(
-    version = 12,
+    version = 13,
     entities = [Record::class, DietRecord::class],
     exportSchema = true,
     autoMigrations = [
@@ -69,6 +79,7 @@ val MIGRATION_10_11: Migration = object : Migration(10, 11) {
         AutoMigration(from = 8, to = 9),
         AutoMigration(from = 9, to = 10),
         AutoMigration(from = 11, to = 12),
+        AutoMigration(from = 12, to = 13, spec = Migration12To13::class),
     ],
 )
 abstract class AppDataBase : RoomDatabase() {

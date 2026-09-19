@@ -22,7 +22,6 @@ class BodyCompositionRecalculatorTest {
             fatRatio = 43.8, waterRatio = 41.2, muscleRatio = 53.2,
             impedance = 536, ffm = 57.3,
         ),
-        healthConnectOrigin: String = "",
     ) = Record(
         weight = weight,
         log = "",
@@ -31,7 +30,6 @@ class BodyCompositionRecalculatorTest {
         fatRatio = composition?.fatRatio ?: 0.0,
         muscleRatio = composition?.muscleRatio ?: 0.0,
         waterRatio = composition?.waterRatio ?: 0.0,
-        healthConnectOrigin = healthConnectOrigin,
     )
 
     @Test
@@ -68,19 +66,10 @@ class BodyCompositionRecalculatorTest {
 
     @Test
     fun `重算_无阻抗记录跳过`() {
-        // 秤自报/手动/HC 合并路径的历史记录：impedance=0，重算无原始输入
+        // 秤自报/手动的历史记录：impedance=0，重算无原始输入
         val record = oldRecord(
             composition = BodyComposition(fatRatio = 43.8, fatMethod = "scale_reported"),
         )
-        assertNull(
-            BodyCompositionRecalculator.recalculateRecord(record, true, 24, 185, 100.0),
-        )
-        assertFalse(BodyCompositionRecalculator.isEligible(record))
-    }
-
-    @Test
-    fun `重算_HC外部来源整条导入记录跳过`() {
-        val record = oldRecord(healthConnectOrigin = "com.external.scale")
         assertNull(
             BodyCompositionRecalculator.recalculateRecord(record, true, 24, 185, 100.0),
         )

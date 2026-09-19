@@ -96,24 +96,6 @@ interface RecordDao {
     @Query("SELECT timestamp, weight FROM Record")
     suspend fun getDedupKeys(): List<RecordDedupKey>
 
-    /** Health Connect 只导出本地产生的记录，外部来源记录不会回写形成回环 */
-    @Query("SELECT * FROM Record WHERE healthConnectOrigin = '' ORDER BY timestamp ASC")
-    suspend fun getLocalRecordsForHealthConnect(): List<Record>
-
-    @Query("SELECT * FROM Record WHERE healthConnectId = :recordId LIMIT 1")
-    suspend fun getByHealthConnectId(recordId: String): Record?
-
-    /** 移除曾从测试构建导入的污染数据；仅按明确来源包名删除。 */
-    @Query("DELETE FROM Record WHERE healthConnectOrigin = :originPackage")
-    suspend fun deleteByHealthConnectOrigin(originPackage: String): Int
-
-    /** 首次导入时兼容已经手动录入的同一测量，避免连接后生成重复点 */
-    @Query(
-        "SELECT * FROM Record WHERE ABS(timestamp - :timestamp) <= :toleranceMillis " +
-            "ORDER BY ABS(timestamp - :timestamp) ASC LIMIT 1"
-    )
-    suspend fun findNearest(timestamp: Long, toleranceMillis: Long): Record?
-
     /** 全部打卡日（北京时间 yyyy-MM-dd，去重升序），供连续打卡计算 */
     @Query(
         "SELECT DISTINCT DATE(timestamp / 1000, 'unixepoch', '$BEIJING_TZ_SQL') AS recordDay " +

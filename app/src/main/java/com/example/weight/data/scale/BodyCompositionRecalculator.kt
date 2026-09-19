@@ -11,8 +11,7 @@ import com.example.weight.util.Gender
  * 与当前身体档案（性别/年龄/身高/腰围）重刷，供公式升级后用户主动触发，不做自动迁移。
  *
  * 规则：只重算 JSON 里存有原始阻抗（impedance > 0）的本机记录——原始阻抗是重算的
- * 唯一输入，无阻抗记录（手动/自报/HC 合并）与 Health Connect 整条导入的外部来源
- * 记录跳过保持原样。写回沿用 [Record.create] 的 JSON+三列双写约定。
+ * 唯一输入，无阻抗记录（手动/自报）跳过保持原样。写回沿用 [Record.create] 的 JSON+三列双写约定。
  *
  * 重算不可撤销（旧口径数值被覆盖），但原始阻抗保留在 JSON 中，公式再变仍可继续重算。
  */
@@ -55,7 +54,6 @@ class BodyCompositionRecalculator(private val recordDao: RecordDao) {
 
         /** 本机产生且 JSON 存有原始阻抗的记录才可重算；解析失败视为不可 */
         fun isEligible(record: Record): Boolean {
-            if (record.healthConnectOrigin.isNotEmpty()) return false
             if (record.bodyComposition.isBlank()) return false
             val impedance = BodyCompositionJson.decode(record.bodyComposition)?.impedance ?: 0
             return impedance > 0
@@ -73,7 +71,6 @@ class BodyCompositionRecalculator(private val recordDao: RecordDao) {
             heightCm: Int,
             waistCm: Double?,
         ): Record? {
-            if (record.healthConnectOrigin.isNotEmpty()) return null
             val old = BodyCompositionJson.decode(record.bodyComposition) ?: return null
             if (old.impedance <= 0) return null
             val composition = BodyFatCalculator.resolve(

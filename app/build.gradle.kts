@@ -32,14 +32,10 @@ extensions.configure<ApplicationExtension>("android") {
             // 在原始 applicationId 后追加后缀，例如 .debug
             applicationIdSuffix = ".debug"
 
-            // Debug 数据是合成测试数据，禁止接入系统级 Health Connect，避免污染正式包。
-            buildConfigField("boolean", "HEALTH_CONNECT_RUNTIME_ENABLED", "false")
-
             // 可选：为 debug 版应用名称添加后缀，方便在手机桌面区分
             resValue("string", "app_name", "体重记录-Debug")
         }
         release {
-            buildConfigField("boolean", "HEALTH_CONNECT_RUNTIME_ENABLED", "true")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -113,8 +109,6 @@ dependencies {
     implementation(libs.androidx.glance.material3)
     //exif：TakePicture 全尺寸 JPEG 的方向标记读取（BitmapFactory 不读 EXIF）
     implementation(libs.androidx.exifinterface)
-    // Health Connect：体重/体成分/饮食双向同步与活动、睡眠摘要
-    implementation(libs.androidx.health.connect.client)
     //koin
     implementation(libs.koin.android)
     implementation(libs.koin.androidx.compose)

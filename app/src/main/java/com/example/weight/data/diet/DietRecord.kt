@@ -16,7 +16,7 @@ import kotlinx.serialization.Serializable
 // timestamp 索引供分页排序；mealType 无任何查询使用，不给它付写入维护成本
 @Entity(
     tableName = "DietRecord",
-    indices = [Index("date"), Index("timestamp"), Index("healthConnectId")],
+    indices = [Index("date"), Index("timestamp")],
 )
 data class DietRecord(
     @PrimaryKey(autoGenerate = true)
@@ -33,12 +33,6 @@ data class DietRecord(
     val estimatedCalories: Int = 0,
     @ColumnInfo(defaultValue = "")
     val trafficLight: String = "",
-    /** 从 Health Connect 导入时保存其 NutritionRecord id；本地原生记录为空 */
-    @ColumnInfo(defaultValue = "")
-    val healthConnectId: String = "",
-    /** Health Connect 数据来源包名；非空记录不会再次导出 */
-    @ColumnInfo(defaultValue = "")
-    val healthConnectOrigin: String = "",
 )
 
 /**
