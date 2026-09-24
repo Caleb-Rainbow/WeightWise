@@ -315,14 +315,22 @@ fun BMIIndexChart(
             }
         }
         if (rowWidthPx > 0) {
+            // 原始 BMI 未取整（如 27.905），先夹取到刻度范围内；区间之间 0.1 的显示缝隙
+            // （如 27.9~28.0）归入左侧区段，否则缝隙值匹配不到任何段，指针会停在起点
+            val clampedBMI = currentBMI.coerceIn(minBMI, maxBMI)
             var arrowXOffsetDp: Dp = 0.dp
             var accumulatedWidthPx = 0f
             for ((index, bmiEnum) in bmiRanges.withIndex()) {
                 val currentItemCoords = itemCoordinates[index]
                 if (currentItemCoords == null) continue
                 val rangeWidthPx = currentItemCoords.size.width.toFloat()
-                if (currentBMI >= bmiEnum.start && currentBMI <= bmiEnum.end) {
-                    val progressInSection = (currentBMI - bmiEnum.start) / (bmiEnum.end - bmiEnum.start)
+                // 匹配规则与 fromBMIValue 一致：本段覆盖 [start, 下一档 start)，末档覆盖到自身 end
+                val nextStart = bmiRanges.getOrNull(index + 1)?.start
+                val effectiveEnd = nextStart ?: bmiEnum.end
+                val isMatch = if (nextStart != null) clampedBMI < nextStart else clampedBMI <= effectiveEnd
+                if (isMatch) {
+                    val progressInSection = ((clampedBMI - bmiEnum.start) / (effectiveEnd - bmiEnum.start))
+                        .coerceIn(0.0, 1.0)
                     val offsetInCurrentRangePx = rangeWidthPx * progressInSection
                     arrowXOffsetDp = with(density) { (accumulatedWidthPx + offsetInCurrentRangePx).toFloat().toDp() }
                     break
@@ -363,11 +371,14 @@ enum class BMI(val start: Double, val end: Double, val label: String, val advice
     OBESE(start = 28.0, end = 38.0, label = "过高", advice = "超出健康范围较多，建议系统管理体重");
 
     companion object {
+        /**
+         * 按中国成人 BMI 分级边界（18.5/24/28）连续分段，取「start 不超过 bmi 的最后一档」。
+         * 实际传入的是未取整的原始值（体重/身高²，如 27.905 显示为 27.9），
+         * 若按枚举里 0.1 精度的 end 硬匹配，缝隙值（27.9~28.0 之间）与边界值（24.0/28.0）都会落空返回 null。
+         */
         fun fromBMIValue(bmi: Double): BMI? {
-            return entries.find {
-                if (it == LOW) bmi >= it.start && bmi <= it.end
-                else bmi > it.start && bmi <= it.end
-            }
+            if (bmi < LOW.start) return null
+            return entries.lastOrNull { bmi >= it.start }
         }
     }
 }
