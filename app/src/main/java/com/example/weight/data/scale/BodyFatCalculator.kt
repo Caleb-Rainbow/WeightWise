@@ -247,7 +247,8 @@ object BodyTypeGrid {
     private fun fatHigh(sexMale: Boolean, fat: Double) = fat > if (sexMale) 20.0 else 28.0
     private fun fatLow(sexMale: Boolean, fat: Double) = fat < if (sexMale) 10.0 else 18.0
     private fun smmHigh(sexMale: Boolean, smm: Double) = smm > if (sexMale) 50.0 else 40.0
-    private fun smmLow(sexMale: Boolean, smm: Double) = smm in 1.0..if (sexMale) 38.0 else 30.0
+    // 标准带下界本身（男 38.0/女 30.0）属标准带，开区间：闭区间会把恰好在下界的值误判成"肌肉偏低"
+    private fun smmLow(sexMale: Boolean, smm: Double) = smm > 0 && smm < if (sexMale) 38.0 else 30.0
 
     /** 骨骼肌率带判定：低带；回退路径（smmRatio=0 无数据）时按标准带处理避免误判 */
     fun judge(sexMale: Boolean, fat: Double, skeletalMuscleRatio: Double): String {

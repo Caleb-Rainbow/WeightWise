@@ -44,7 +44,8 @@ class MetricGuideTest {
     @Test
     fun `身体得分分段`() {
         assertEquals(MetricGuide.Status.LOW, MetricGuide.info("bodyScore", 58.0, true)!!.status)
-        assertEquals(MetricGuide.Status.HIGH, MetricGuide.info("bodyScore", 75.0, true)!!.status)
+        // 60-79 与刻度条标准段 [60,100] 同口径：徽章不再标"偏高"
+        assertEquals(MetricGuide.Status.NORMAL, MetricGuide.info("bodyScore", 75.0, true)!!.status)
         assertEquals(MetricGuide.Status.NORMAL, MetricGuide.info("bodyScore", 85.0, true)!!.status)
     }
 

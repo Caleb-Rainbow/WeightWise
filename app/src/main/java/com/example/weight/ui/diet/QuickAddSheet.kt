@@ -39,6 +39,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.weight.LocalSnackBarShow
 import com.example.weight.data.diet.MealType
@@ -62,6 +64,10 @@ fun QuickAddSheet(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackBarShow = LocalSnackBarShow.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    // 打开弹层即刷新「今天」口径：宿主 VM 常驻，跨午夜后打开快速加餐不能按昨天算余量
+    LaunchedEffect(Unit) { viewModel.refreshTodayDate() }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.refreshTodayDate() }
 
     // 选中项热量微调复用食物编辑弹窗
     var editingIndex by remember { mutableStateOf(-1) }

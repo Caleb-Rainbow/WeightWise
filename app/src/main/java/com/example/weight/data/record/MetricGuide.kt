@@ -184,9 +184,10 @@ object MetricGuide {
                 name = "身体得分",
                 description = "综合体脂率、骨骼肌率、水分率与内脏脂肪等级的透明扣分制评分：100 分起评，体脂偏离理想带每百分点扣 0.8，骨骼肌率低扣 15，水分率偏离扣 8，内脏脂肪超 9 级每级扣 2。",
                 rangeText = "80 分及以上为优秀；60-79 为良好；60 以下建议调整体成分",
+                // 徽章口径与刻度条一致：≥60 即合格（标准），优秀/良好的细分由 rangeText 表达；
+                // 60-79 曾标 HIGH，会出现"偏高"徽章与绿色标准段同屏打架
                 status = when {
-                    v >= 80 -> Status.NORMAL
-                    v >= 60 -> Status.HIGH
+                    v >= 60 -> Status.NORMAL
                     else -> Status.LOW
                 },
                 bar = bar(min = 0.0, max = 100.0, low = 60.0, normal = 100.0, high = null, value = v),

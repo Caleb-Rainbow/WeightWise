@@ -13,12 +13,14 @@ import com.example.weight.data.diet.MealTypeInference
 import com.example.weight.data.diet.RecognizedFoodItem
 import com.example.weight.util.TimeUtils
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
@@ -70,11 +72,28 @@ class QuickAddViewModel(
                 _state.update { it.copy(recommendedCalories = recommended) }
             }
         }
+        observeTodayCalories()
+    }
+
+    /**
+     * 「今日已摄入」随 [today] 滑动订阅：宿主 MainScreen 常驻返回栈、VM 进程存活期间不重建，
+     * 若在 init 时固化日期，跨午夜后会一直按昨天的摄入算剩余热量
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun observeTodayCalories() {
         viewModelScope.launch {
-            dietRecordDao.getDailyCaloriesFlow(TimeUtils.getCurrentDate()).collect { total ->
+            today.flatMapLatest { date ->
+                dietRecordDao.getDailyCaloriesFlow(date)
+            }.collect { total ->
                 _state.update { it.copy(todayTotalCalories = total) }
             }
         }
+    }
+
+    /** 跨午夜后回到页面时刷新「今天」口径（与 DietRecordViewModel.refreshTodayDate 同模式），由 UI 在 ON_RESUME 调用 */
+    fun refreshTodayDate() {
+        val now = TimeUtils.getCurrentDate()
+        if (today.value != now) today.value = now
     }
 
     fun toggleFood(item: RecognizedFoodItem) {

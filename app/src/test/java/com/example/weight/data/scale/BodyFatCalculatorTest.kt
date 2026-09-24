@@ -71,6 +71,15 @@ class BodyFatCalculatorTest {
         assertEquals("肥胖型", BodyTypeGrid.judge(false, 32.0, 35.0))
     }
 
+    @Test
+    fun `体型判定肌肉维度标准带下界归属`() {
+        // 注释口径"男 SMM% <38 低 / 38-50 标准"：恰为 38.0/30.0 属标准带，不能误判低带变"苗条型"
+        assertEquals("标准型", BodyTypeGrid.judge(true, 15.0, 38.0))
+        assertEquals("标准型", BodyTypeGrid.judge(false, 26.0, 30.0))
+        // 略低于下界才是低肌带
+        assertEquals("苗条型", BodyTypeGrid.judge(true, 15.0, 37.9))
+    }
+
     // ---- 双路融合（RFM 腰围法 × Sun 阻抗法）----
 
     @Test

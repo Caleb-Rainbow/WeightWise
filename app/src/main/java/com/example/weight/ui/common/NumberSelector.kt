@@ -60,8 +60,12 @@ fun NumberSelector(
     val scope = rememberCoroutineScope()
     LaunchedEffect(initialWeight) {
         initialWeight?.let {
+            // 原始值先归约到 0.1 精度再拆整数/小数：直接对小数部分四舍五入时，
+            // ≥0.95 会得 10 越界落回 .0 页（体脂秤的 65.97 被静默改成 65.0），
+            // 且整数/小数各自取整会进位不一致（65.97 应进位到 66.0 而非落在 65.9）
+            val rounded = (it * 10).roundToInt() / 10.0
             // 回填值可能超出列表范围（如历史数据），收敛到合法页码避免崩溃
-            val initialInteger = it.toInt().coerceIn(integerList.first(), integerList.last())
+            val initialInteger = rounded.toInt().coerceIn(integerList.first(), integerList.last())
             scope.launch {
                 integerPagerState.animateScrollToPage(
                     initialInteger - integerList[0],
@@ -72,7 +76,7 @@ fun NumberSelector(
                 // 浮点误差会让 0.1*10 变成 0.9999...，必须四舍五入而不是 toInt 截断，
                 // 否则 0.1/0.3/0.7 等小数回填时会偏小一格
                 if (showDecimal) decimalPagerState.animateScrollToPage(
-                    decimalList.indexOf((it % 1 * 10).roundToInt()).coerceAtLeast(0),
+                    decimalList.indexOf((rounded % 1 * 10).roundToInt()).coerceAtLeast(0),
                     animationSpec = spring(stiffness = Spring.StiffnessVeryLow)
                 )
             }
@@ -114,7 +118,8 @@ private fun CustomVerticalPager(pagerState: PagerState, list: List<Int>, onChang
 
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.currentPage }.collect { page ->
-            vibrator.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK))
+            // 无振动器的设备（部分平板/TV）getService 返回 null，判空避免首翻即 NPE
+            vibrator?.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK))
             onChange(list[page])
         }
     }
