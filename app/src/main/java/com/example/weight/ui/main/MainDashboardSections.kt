@@ -264,7 +264,14 @@ internal fun GoalProgressContent(
         val currentWeight = it.weight
         if (targetWeight > 0) {
             val losing = targetWeight < startWeight
-            val goalReached = if (losing) currentWeight <= targetWeight else currentWeight >= targetWeight
+            // 维持体重（起始=目标）：贴住目标（±0.05 显示精度）才算达成，与 progress 的 0/1 口径一致；
+            // 否则会同屏出现"目标进度 100%"+"还差 X kg"的矛盾
+            val maintaining = (targetWeight - startWeight).absoluteValue < 1e-9
+            val goalReached = when {
+                maintaining -> (currentWeight - targetWeight).absoluteValue <= 0.05
+                losing -> currentWeight <= targetWeight
+                else -> currentWeight >= targetWeight
+            }
 
             // 核心逻辑：计算从起始到目标的进度百分比（算法与桌面小组件共用）
             val progress = remember(startWeight, currentWeight, targetWeight) {
@@ -315,7 +322,8 @@ internal fun GoalProgressContent(
                                 val changedWeight = (currentWeight - startWeight).absoluteValue
                                 when {
                                     changedWeight < 0.05 -> "稳住现在的节奏"
-                                    losing -> "已减轻 ${String.format(Locale.CHINA, "%.1f", changedWeight)} kg"
+                                    // 方向按实际增减判定：维持目标下减轻也说"已减轻"，不能跟 losing 走
+                                    currentWeight < startWeight -> "已减轻 ${String.format(Locale.CHINA, "%.1f", changedWeight)} kg"
                                     else -> "已增加 ${String.format(Locale.CHINA, "%.1f", changedWeight)} kg"
                                 }
                             } else {

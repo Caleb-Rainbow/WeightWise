@@ -48,6 +48,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.weight.LocalShowMessageDialog
 import com.example.weight.data.LocalStorageData
@@ -97,6 +99,9 @@ fun ReportScreen(
     val targetWeight by LocalStorageData.targetWeight.collectAsStateWithLifecycle()
     val weeklyDecision by viewModel.weeklyDecision.collectAsStateWithLifecycle()
     val showDecision by viewModel.showWeeklyDecision.collectAsStateWithLifecycle()
+
+    // 跨午夜后回到页面时刷新「今天」口径（周决策窗口随之滑动）
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.refreshTodayDate() }
 
     // AI 弹窗独立成组：流式期间每帧只重组这个小组件，而不是整个报告页
     ReportAiSheet(viewModel)

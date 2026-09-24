@@ -23,8 +23,11 @@ class GoalProgressCalculatorTest {
     }
 
     @Test
-    fun `起始与目标相同无法衡量`() {
-        assertEquals(1.0f, GoalProgressCalculator.progress(70.0, 69.0, 70.0))
+    fun `维持体重只有贴住目标才算达标`() {
+        // 起始=目标（维持）：±0.05 显示精度内 1.0；偏离目标（无论低于/高于）都是 0.0
+        assertEquals(1.0f, GoalProgressCalculator.progress(70.0, 70.0, 70.0))
+        assertEquals(1.0f, GoalProgressCalculator.progress(70.0, 69.96, 70.0))
+        assertEquals(0.0f, GoalProgressCalculator.progress(70.0, 69.0, 70.0))
         assertEquals(0.0f, GoalProgressCalculator.progress(70.0, 71.0, 70.0))
     }
 

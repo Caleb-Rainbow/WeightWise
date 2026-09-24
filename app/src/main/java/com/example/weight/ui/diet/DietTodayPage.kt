@@ -128,6 +128,7 @@ import org.koin.compose.koinInject
 @Composable
 internal fun TodayTabPage(
     state: TodayTabState,
+    today: LocalDate,
     onEditRecord: (DietRecord) -> Unit,
     onGoAdd: () -> Unit,
     goSetting: () -> Unit,
@@ -150,6 +151,7 @@ internal fun TodayTabPage(
                 recommendedCalories = state.recommendedCalories,
                 macros = state.macros,
                 isEmpty = state.records.isEmpty(),
+                today = today,
                 goSetting = goSetting,
             )
         }
@@ -262,6 +264,7 @@ internal fun IntakeHero(
     recommendedCalories: Int?,
     macros: DailyMacros?,
     isEmpty: Boolean,
+    today: LocalDate,
     goSetting: () -> Unit,
 ) {
     Surface(
@@ -276,7 +279,6 @@ internal fun IntakeHero(
                 val remaining = recommendedCalories - totalCalories
                 val over = status == IntakeStatus.OVER
                 val usedPercent = ((totalCalories.toDouble() / recommendedCalories) * 100).roundToInt()
-                val today = remember { LocalDate.now() }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),

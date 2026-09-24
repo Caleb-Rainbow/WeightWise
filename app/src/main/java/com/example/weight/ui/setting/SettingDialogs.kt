@@ -71,6 +71,8 @@ import com.example.weight.util.ActivityLevel
 import com.example.weight.util.CalorieCalculator
 import com.example.weight.util.Gender
 import com.example.weight.util.TimeUtils
+import java.text.DecimalFormat
+import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -85,6 +87,7 @@ import org.koin.compose.koinInject
 /**
  * 数字编辑弹窗：滚轮选择（复用 NumberSelector，与记体重弹窗同交互）。
  * 传入 resetValue 时展示「恢复默认」，点击回填该值（如 0 = 跟随默认/清除手动值）。
+ * 传入 valueRange 时确认值收敛到该范围；滚轮停在范围外会明示实际保存值，避免静默 clamp 所见非所得。
  */
 @Composable
 internal fun NumberEditDialog(
@@ -96,8 +99,10 @@ internal fun NumberEditDialog(
     onDismiss: () -> Unit,
     showDecimal: Boolean = true,
     resetValue: Double? = null,
+    valueRange: ClosedFloatingPointRange<Double>? = null,
 ) {
     var selected by remember { mutableStateOf(initialValue) }
+    val confirmedValue = valueRange?.let { selected.coerceIn(it.start, it.endInclusive) } ?: selected
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
@@ -114,11 +119,20 @@ internal fun NumberEditDialog(
                     unit = unit,
                     showDecimal = showDecimal,
                 )
+                // 滚轮组合超出可选范围时提前告知，确认时保存该收敛值
+                if (valueRange != null && (confirmedValue - selected).absoluteValue > 1e-9) {
+                    Text(
+                        text = "超出可选范围，将保存为 ${DecimalFormat("0.#").format(confirmedValue)} $unit",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
             }
         },
         confirmButton = {
             Button(onClick = {
-                onConfirm(selected)
+                onConfirm(confirmedValue)
                 onDismiss()
             }) { Text("确定") }
         },

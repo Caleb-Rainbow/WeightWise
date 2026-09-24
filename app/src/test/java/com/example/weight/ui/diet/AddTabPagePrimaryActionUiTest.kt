@@ -16,6 +16,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.time.LocalDate
 
 /**
  * 回归:常用食物+备注组合(dietPrimaryAction=SAVE_THIS_MEAL)下点击「改用文本识别」后,
@@ -44,6 +45,7 @@ class AddTabPagePrimaryActionUiTest {
                         ),
                         isAnalyzing = isAnalyzing,
                     ),
+                    today = LocalDate.now(),
                     todayTotalCalories = 400,
                     recommendedCalories = 1800,
                     noteState = remember { mutableStateOf("还喝了杯牛奶") },

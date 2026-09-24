@@ -93,6 +93,22 @@ class WeeklyReportTextBuilderTest {
     }
 
     @Test
+    fun `增重周用增字方向`() {
+        // 上周净增 0.8、上上周净增 2.0：少增了 1.2，而不是"多降"
+        val lessGain = WeeklyReportTextBuilder.build(
+            listOf(day("2026-08-10", 70.0), day("2026-08-16", 70.8)),
+            listOf(day("2026-08-03", 69.0), day("2026-08-09", 71.0)),
+        )!!
+        assertEquals("上周打卡 2 天，体重 +0.8kg，比前一周少增 1.2kg", lessGain)
+        // 上周净增 2.0、上上周净增 0.8：多增了 1.2
+        val moreGain = WeeklyReportTextBuilder.build(
+            listOf(day("2026-08-10", 69.0), day("2026-08-16", 71.0)),
+            listOf(day("2026-08-03", 70.0), day("2026-08-09", 70.8)),
+        )!!
+        assertEquals("上周打卡 2 天，体重 +2kg，比前一周多增 1.2kg", moreGain)
+    }
+
+    @Test
     fun `与前一周持平不附加对比`() {
         val text = WeeklyReportTextBuilder.build(
             listOf(day("2026-08-10", 80.0), day("2026-08-16", 79.5)),

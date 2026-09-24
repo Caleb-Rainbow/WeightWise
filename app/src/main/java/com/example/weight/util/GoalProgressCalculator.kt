@@ -9,13 +9,14 @@ import kotlin.math.abs
 object GoalProgressCalculator {
 
     /**
-     * @return 0.0~1.0 的进度；起始与目标相同无法衡量进度时，
-     *         已达标返回 1，否则 0（与界面进度条语义一致）
+     * @return 0.0~1.0 的进度；起始与目标相同（维持体重）无法衡量进度时，
+     *         落在目标 ±0.05kg（显示精度内）视为达标 1.0，否则 0.0——
+     *         不能按"低于目标即 1.0"的减重口径：低于/高于维持目标都算偏离
      */
     fun progress(startWeight: Double, currentWeight: Double, targetWeight: Double): Float {
         val totalRange = startWeight - targetWeight
         if (abs(totalRange) < 1e-9) {
-            return if (currentWeight <= targetWeight) 1.0f else 0.0f
+            return if (abs(currentWeight - targetWeight) <= 0.05) 1.0f else 0.0f
         }
         val traveled = startWeight - currentWeight
         return (traveled / totalRange).toFloat().coerceIn(0.0f, 1.0f)

@@ -99,6 +99,16 @@ class ReportViewModel(
      * 与趋势页同源同判）。null 表示首次计算未完成——UI 用固定高度占位防布局跳动。
      * 显示条件（WEEK 型且锚点=当前周）由 [showWeeklyDecision] 单独给出。
      */
+    /** 「今天」口径：跨午夜后由 UI 在 ON_RESUME 时调用 [refreshTodayDate] 刷新（周决策窗口随之滑动） */
+    private val _today = MutableStateFlow(TimeUtils.beijingToday())
+
+    /** 跨午夜后回到页面时刷新「今天」口径；报表页常驻返回栈，VM 不重建 */
+    fun refreshTodayDate() {
+        val now = TimeUtils.beijingToday()
+        if (_today.value != now) _today.value = now
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
     val weeklyDecision: StateFlow<WeeklyControlEngine.WeeklyControlResult?> = run {
         val profileFlow = combine(
             LocalStorageData.height,
@@ -114,33 +124,35 @@ class ReportViewModel(
                 activityLevel = ActivityLevel.entries.find { it.name == activityLevel },
             ) to goal
         }
-        // 窗口锚「今天」与 +8 归日的体重数据同口径；饮食日字符串是系统时区写的，
+        // 「今天」随 [_today] 滑动（跨午夜由 ON_RESUME 触发），窗口/饮食查询随 flatMapLatest 重建。
+        // 窗口锚与 +8 归日的体重数据同口径；饮食日字符串是系统时区写的，
         // 两个口径仅在非 +8 时区设备差一天，与既有跨源设计一致
-        val today = TimeUtils.beijingToday()
-        val windowStart = today.minusDays(WeeklyControlEngine.WINDOW_DAYS - 1L)
-        val startMillis = windowStart.atStartOfDay(BEIJING_OFFSET).toInstant().toEpochMilli()
-        val indulgentSince = today.minusDays(FrequentFoodAggregator.WINDOW_DAYS - 1L).toString()
-        // getDailyCaloriesBetween 上界为排他语义：传次日以免丢当天；getFoodJsonBetween
-        // 是双端含且 today 上界专门挡未来日期补记，保持传 today 不变
-        combine(
-            profileFlow,
-            recordDao.dailyWeightsSince(startMillis),
-            dietRecordDao.getDailyCaloriesBetween(windowStart.toString(), today.plusDays(1).toString()),
-            dietRecordDao.getFoodJsonBetween(indulgentSince, today.toString()),
-            recommendedIntakeProvider.flow,
-        ) { (profile, goal), weights, calories, foodJson, staticIntake ->
-            WeeklyControlEngine.evaluate(
-                WeeklyControlEngine.WeeklyControlInput(
-                    today = today,
-                    dailyWeights = weights,
-                    dailyCalories = calories,
-                    targetWeightKg = goal.first,
-                    weeklyTargetChangeKg = goal.second,
-                    profile = profile,
-                    staticRecommendedIntake = staticIntake,
-                    indulgentMeals = WeeklyControlEngine.aggregateIndulgentMeals(foodJson, json),
-                ),
-            )
+        _today.flatMapLatest { today ->
+            val windowStart = today.minusDays(WeeklyControlEngine.WINDOW_DAYS - 1L)
+            val startMillis = windowStart.atStartOfDay(BEIJING_OFFSET).toInstant().toEpochMilli()
+            val indulgentSince = today.minusDays(FrequentFoodAggregator.WINDOW_DAYS - 1L).toString()
+            // getDailyCaloriesBetween 上界为排他语义：传次日以免丢当天；getFoodJsonBetween
+            // 是双端含且 today 上界专门挡未来日期补记，保持传 today 不变
+            combine(
+                profileFlow,
+                recordDao.dailyWeightsSince(startMillis),
+                dietRecordDao.getDailyCaloriesBetween(windowStart.toString(), today.plusDays(1).toString()),
+                dietRecordDao.getFoodJsonBetween(indulgentSince, today.toString()),
+                recommendedIntakeProvider.flow,
+            ) { (profile, goal), weights, calories, foodJson, staticIntake ->
+                WeeklyControlEngine.evaluate(
+                    WeeklyControlEngine.WeeklyControlInput(
+                        today = today,
+                        dailyWeights = weights,
+                        dailyCalories = calories,
+                        targetWeightKg = goal.first,
+                        weeklyTargetChangeKg = goal.second,
+                        profile = profile,
+                        staticRecommendedIntake = staticIntake,
+                        indulgentMeals = WeeklyControlEngine.aggregateIndulgentMeals(foodJson, json),
+                    ),
+                )
+            }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
     }
 

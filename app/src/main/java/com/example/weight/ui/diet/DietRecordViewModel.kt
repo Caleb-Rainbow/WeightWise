@@ -159,6 +159,9 @@ class DietRecordViewModel(
     /** 「今天」的口径：跨午夜后由 UI 在 ON_RESUME 时调用 [refreshTodayDate] 刷新 */
     private val _todayDate = MutableStateFlow(TimeUtils.getCurrentDate())
 
+    /** 「今天」暴露给页面做相对日期文案（今天/昨天/标题日期），跨午夜随 ON_RESUME 滑动 */
+    val todayDate: StateFlow<String> = _todayDate.asStateFlow()
+
     /** 分析时压缩出的位图缓存，保存路径复用避免二次解码降采样 */
     private var cachedAnalysisBitmap: Bitmap? = null
 

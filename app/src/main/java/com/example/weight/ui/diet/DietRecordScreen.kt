@@ -149,6 +149,9 @@ fun DietRecordScreen(
     val todayState by viewModel.todayTab.collectAsStateWithLifecycle()
     val historyState by viewModel.historyTab.collectAsStateWithLifecycle()
     val editing by viewModel.editing.collectAsStateWithLifecycle()
+    // 页面相对日期文案(今天/昨天/标题日期)统一用 VM 的「今天」:跨午夜随 ON_RESUME 滑动
+    val todayDateStr by viewModel.todayDate.collectAsStateWithLifecycle()
+    val today = remember(todayDateStr) { LocalDate.parse(todayDateStr) }
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -296,6 +299,7 @@ fun DietRecordScreen(
         if (showAddPage) {
             AddTabPage(
                 state = addState,
+                today = today,
                 todayTotalCalories = todayState.totalCalories,
                 recommendedCalories = todayState.recommendedCalories,
                 noteState = noteState,
@@ -337,12 +341,14 @@ fun DietRecordScreen(
                     when (page) {
                         TAB_TODAY -> TodayTabPage(
                             state = todayState,
+                            today = today,
                             onEditRecord = viewModel::openEditor,
                             onGoAdd = { showAddPage = true },
                             goSetting = goSetting,
                         )
                         TAB_HISTORY -> HistoryTabPage(
                             state = historyState,
+                            today = today,
                             onRangeSelected = viewModel::setHistoryRange,
                             onEditRecord = viewModel::openEditor,
                             onGoAdd = { showAddPage = true },

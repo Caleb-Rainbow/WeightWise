@@ -262,11 +262,11 @@ internal fun DietRecordRow(
 @Composable
 internal fun HistoryTabPage(
     state: HistoryTabState,
+    today: LocalDate,
     onRangeSelected: (Int) -> Unit,
     onEditRecord: (DietRecord) -> Unit,
     onGoAdd: () -> Unit,
 ) {
-    val today = remember { LocalDate.now() }
     val mealTypeByName = remember { MealType.entries.associateBy { it.name } }
     val recordedDays = remember(state.days) { state.days.filter { it.records.isNotEmpty() } }
     LazyColumn(

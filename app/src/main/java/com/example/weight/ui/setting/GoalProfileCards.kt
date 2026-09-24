@@ -190,8 +190,10 @@ internal fun GoalCard() {
             initialValue = weeklyTargetChangeKg,
             integerRange = 0..1,
             unit = "kg/周",
+            // 滚轮组合可达 0.0~1.9，但合法区间是 0.1~1.0：超范围时弹窗明示收敛值，不再静默 clamp
+            valueRange = 0.1..1.0,
             onConfirm = { value ->
-                LocalStorageData.weeklyTargetChangeKg.update { value.coerceIn(0.1, 1.0) }
+                LocalStorageData.weeklyTargetChangeKg.update { value }
             },
             onDismiss = { editingWeeklyRate = false },
         )

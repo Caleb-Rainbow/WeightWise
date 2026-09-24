@@ -12,8 +12,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,9 +26,8 @@ import java.text.DecimalFormat
 @Composable
 fun BMIContent(modifier: Modifier, record: DailyWeight?, bmi: Double) {
 
-    val bmiLeave by remember(bmi) {
-        mutableStateOf(BMI.fromBMIValue(bmi))
-    }
+    // 从不写入的派生值：普通 remember 即可（MainScreen 同类计算已注明该反模式）
+    val bmiLeave = remember(bmi) { BMI.fromBMIValue(bmi) }
     val bmiFormat = remember { DecimalFormat("0.0") }
     Surface(
         modifier = modifier.fillMaxWidth(),

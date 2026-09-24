@@ -129,6 +129,7 @@ import org.koin.compose.koinInject
 @Composable
 internal fun AddTabPage(
     state: AddTabState,
+    today: LocalDate,
     todayTotalCalories: Int,
     recommendedCalories: Int?,
     noteState: MutableState<String>,
@@ -156,9 +157,9 @@ internal fun AddTabPage(
         hasFoods = state.recognizedFoods.isNotEmpty(),
         hasResult = state.aiResponse != null,
     )
-    // 额度相关文案(等待期迷你行/保存前预览)是今天口径,补记别的日期时换文案
-    val today = remember { LocalDate.now() }
-    val isAddToday = state.date == TimeUtils.getCurrentDate()
+    // 额度相关文案(等待期迷你行/保存前预览)是今天口径,补记别的日期时换文案;
+    // today 由屏幕层从 VM 取(跨午夜随 ON_RESUME 滑动),不再 remember 固化
+    val isAddToday = state.date == today.toString()
     val addDateLabel: String? = if (isAddToday) null else TimeUtils.humanizeDate(today, state.date)
     LazyColumn(
         state = listState,

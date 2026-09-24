@@ -117,7 +117,13 @@ internal object WeeklyReportTextBuilder {
         val prevNet = prevWeekWeights.last().value - prevWeekWeights.first().value
         val vs = netChange - prevNet
         if (kotlin.math.abs(vs) < 0.05) return base
-        val vsText = if (vs < 0) "比前一周多降 ${plainFormat.format(-vs)}kg" else "比前一周少降 ${plainFormat.format(vs)}kg"
+        // 措辞随本周方向：减重说多降/少降，增重说多增/少增——
+        // 增重周若仍说"多降"，上周 +0.8kg 会推送"比前一周多降 1.2kg"这类反向文案
+        val vsText = if (netChange > 0) {
+            if (vs < 0) "比前一周少增 ${plainFormat.format(-vs)}kg" else "比前一周多增 ${plainFormat.format(vs)}kg"
+        } else {
+            if (vs < 0) "比前一周多降 ${plainFormat.format(-vs)}kg" else "比前一周少降 ${plainFormat.format(vs)}kg"
+        }
         return "$base，$vsText"
     }
 }
