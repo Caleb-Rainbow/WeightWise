@@ -17,6 +17,17 @@ import java.util.Locale
 object TimeUtils {
     private val zone: ZoneId get() = ZoneId.systemDefault()
 
+    /**
+     * 体重数据归日的固定北京时区（与 data.record.BEIJING_OFFSET 同源同口径）。
+     * 打卡 streak、周报/月报窗口等要和 +8 归日的 recordDay 比对或切窗的「今天」
+     * 必须用 [beijingToday] 取值：直接 LocalDate.now() 在非 +8 时区设备上会错位一天
+     * （如 UTC 设备在北京 0-8 点间：称重已归"明天"，系统今天还是"昨天"→ 刚称完重打卡却显示 0 天）。
+     * 展示类格式化仍走系统时区（用户本地墙钟时间）。
+     */
+    val BEIJING_ZONE: ZoneId = ZoneOffset.ofHours(8)
+
+    fun beijingToday(): LocalDate = LocalDate.now(BEIJING_ZONE)
+
     private val format1 = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.CHINA)
     private val format2 = DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.CHINA)
     private val format3 = DateTimeFormatter.ofPattern("HH:mm", Locale.CHINA)

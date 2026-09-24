@@ -10,7 +10,8 @@ import java.time.temporal.TemporalAdjusters
  * 报告周期模型：周报（自然周，周一起）、月报（自然月）、年报（自然年）。
  * 周期用「锚点日期」（周期第一天的 LocalDate）表示，翻页即对锚点做周期平移，
  * 与首页「近7天」式滚动窗口形成差异化。纯函数便于单测；
- * 时区沿用 ZoneId.systemDefault()，与 TimeUtils/图表取数口径一致。
+ * 时区默认取 [TimeUtils.BEIJING_ZONE]：周期窗口查的是 +8 归日的体重数据，
+ * 用 systemDefault 会在非 +8 时区设备上把窗口边界错开最多 8 小时。
  */
 enum class ReportType(val label: String) {
     WEEK("周报"), MONTH("月报"), YEAR("年报");
@@ -45,7 +46,7 @@ enum class ReportType(val label: String) {
     }
 
     /** 周期起止毫秒：起始含、结束排他（周期结束次日的零点），供 DAO between 查询 */
-    fun periodRange(anchor: LocalDate, zone: ZoneId = ZoneId.systemDefault()): Pair<Long, Long> {
+    fun periodRange(anchor: LocalDate, zone: ZoneId = TimeUtils.BEIJING_ZONE): Pair<Long, Long> {
         val start = anchor.atStartOfDay(zone).toInstant().toEpochMilli()
         val end = shift(anchor, 1).atStartOfDay(zone).toInstant().toEpochMilli()
         return start to end

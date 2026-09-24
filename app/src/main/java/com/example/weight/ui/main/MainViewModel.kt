@@ -31,7 +31,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.koin.core.annotation.KoinViewModel
-import java.time.LocalDate
 
 data class UiState(
     val selectedRecord: DailyWeight? = null,
@@ -74,11 +73,12 @@ class MainViewModel(
     }
 
     /** 连续打卡信息：打卡日来自数据库 Flow，记录增删后自动重算。
+     *  recordDay 是 +8 归日，「今天」同口径取 [TimeUtils.beijingToday]，非 +8 时区不错位。
      *  distinctUntilChanged 过滤同日改体重等「天数列表内容未变」的表级失效重发，
      *  省掉全表 DISTINCT 扫描与 O(n log n) 重算 */
     val streakInfo: StateFlow<StreakInfo> = recordDao.getRecordDaysFlow()
         .distinctUntilChanged()
-        .map { RecordStreakCalculator.calculate(it, LocalDate.now()) }
+        .map { RecordStreakCalculator.calculate(it, TimeUtils.beijingToday()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), StreakInfo(0, 0, false))
 
     /** 里程碑达成的一次性庆祝事件，UI 收到后弹 SnackBar */

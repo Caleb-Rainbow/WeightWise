@@ -16,7 +16,7 @@ import com.example.weight.R
 import com.example.weight.data.LocalStorageData
 import com.example.weight.data.record.RecordDao
 import com.example.weight.util.RecordStreakCalculator
-import java.time.LocalDate
+import com.example.weight.util.TimeUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -75,7 +75,8 @@ class ReminderWorker(
     private suspend fun readStreakText(): String = runCatching {
         val dao = GlobalContext.get().get<RecordDao>()
         val days = dao.getRecordDaysFlow().first()
-        val streak = RecordStreakCalculator.calculate(days, LocalDate.now()).currentStreak
+        // recordDay 是 +8 归日，「今天」必须同口径，否则非 +8 时区设备刚称完重 streak 就显示 0
+        val streak = RecordStreakCalculator.calculate(days, TimeUtils.beijingToday()).currentStreak
         if (streak >= 2) "已连续打卡 $streak 天，别断档哦" else "每天称一称，看见变化的发生"
     }.getOrDefault("每天称一称，看见变化的发生")
 

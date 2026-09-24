@@ -18,6 +18,7 @@ import com.example.weight.data.record.DailyWeight
 import com.example.weight.data.record.dailyWeightsBetween
 import com.example.weight.data.record.RecordDao
 import com.example.weight.util.ReportType
+import com.example.weight.util.TimeUtils
 import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -60,8 +61,8 @@ class ReportPushWorker(
             return // 没有通知权限就静默跳过，但保持续排，避免用户补授权后彻底失效
         }
 
-        // 上周与上上周两次窗口查询互不依赖，并行执行
-        val lastMonday = ReportType.WEEK.anchorOf(LocalDate.now()).minusWeeks(1)
+        // 上周与上上周两次窗口查询互不依赖，并行执行；周报窗口查 +8 归日数据，「今天」同口径
+        val lastMonday = ReportType.WEEK.anchorOf(TimeUtils.beijingToday()).minusWeeks(1)
         val (lastWeek, prevWeek) = coroutineScope {
             val lastDeferred = async { readWeekWeights(lastMonday) }
             val prevDeferred = async { readWeekWeights(lastMonday.minusWeeks(1)) }

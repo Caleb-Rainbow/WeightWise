@@ -7,13 +7,13 @@ import com.example.weight.data.record.Record
 import com.example.weight.data.record.RecordDao
 import com.example.weight.util.GoalProgressCalculator
 import com.example.weight.util.RecordStreakCalculator
+import com.example.weight.util.TimeUtils
 import com.example.weight.util.TimeUtils.getStartTimeForLastDays
 import com.example.weight.util.WeightPredictor
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 import org.koin.core.annotation.Single
-import java.time.LocalDate
 
 /** 桌面小组件展示数据。currentWeight 为 null 表示无任何记录（空状态） */
 data class WeightWidgetData(
@@ -77,7 +77,8 @@ class WidgetRepository(private val recordDao: RecordDao) {
             bmi = if (currentWeight != null && height > 0.0) {
                 currentWeight / (height / 100.0).let { it * it }
             } else null,
-            currentStreak = RecordStreakCalculator.calculate(recordDaysDeferred.await(), LocalDate.now()).currentStreak,
+            // recordDay 是 +8 归日，「今天」同口径取 beijingToday，非 +8 时区不错位
+            currentStreak = RecordStreakCalculator.calculate(recordDaysDeferred.await(), TimeUtils.beijingToday()).currentStreak,
             estimatedDays = if (currentWeight != null && targetWeight > 0) {
                 WeightPredictor.estimateDaysToTarget(
                     dailyWeights = allDays,

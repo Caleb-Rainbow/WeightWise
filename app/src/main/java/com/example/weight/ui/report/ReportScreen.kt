@@ -65,13 +65,13 @@ import com.example.weight.util.ReportCaloriesStats
 import com.example.weight.util.ReportType
 import com.example.weight.util.ReportWeightStats
 import com.example.weight.util.FluctuationDirection
+import com.example.weight.util.TimeUtils
 import com.example.weight.util.TrendConfidence
 import com.example.weight.util.WeightTrendInsight
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModelProducer
 import com.patrykandpatrick.vico.compose.cartesian.data.lineModel
 import com.patrykandpatrick.vico.compose.common.vicoTheme
 import org.koin.androidx.compose.koinViewModel
-import java.time.LocalDate
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -112,7 +112,7 @@ fun ReportScreen(
             PeriodNavigator(
                 title = report?.takeIf { it.type == selectedType && it.anchor == anchor }?.title
                     ?: selectedType.titleOf(anchor),
-                canGoNext = selectedType.canGoNext(anchor, LocalDate.now()),
+                canGoNext = selectedType.canGoNext(anchor, TimeUtils.beijingToday()),
                 onPrevious = viewModel::previousPeriod,
                 onNext = viewModel::nextPeriod,
             )

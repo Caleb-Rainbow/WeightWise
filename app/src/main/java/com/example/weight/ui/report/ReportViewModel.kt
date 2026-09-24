@@ -87,7 +87,7 @@ class ReportViewModel(
     private val _selectedType = MutableStateFlow(ReportType.WEEK)
     val selectedType = _selectedType.asStateFlow()
 
-    private val _anchor = MutableStateFlow(ReportType.WEEK.anchorOf(LocalDate.now()))
+    private val _anchor = MutableStateFlow(ReportType.WEEK.anchorOf(TimeUtils.beijingToday()))
     val anchor = _anchor.asStateFlow()
 
     /** 每日建议摄入：与饮食页同口径（档案 + 最新体重 → TDEE 目标缺口），档案不全或无体重时为 null */
@@ -114,7 +114,9 @@ class ReportViewModel(
                 activityLevel = ActivityLevel.entries.find { it.name == activityLevel },
             ) to goal
         }
-        val today = LocalDate.now()
+        // 窗口锚「今天」与 +8 归日的体重数据同口径；饮食日字符串是系统时区写的，
+        // 两个口径仅在非 +8 时区设备差一天，与既有跨源设计一致
+        val today = TimeUtils.beijingToday()
         val windowStart = today.minusDays(WeeklyControlEngine.WINDOW_DAYS - 1L)
         val startMillis = windowStart.atStartOfDay(BEIJING_OFFSET).toInstant().toEpochMilli()
         val indulgentSince = today.minusDays(FrequentFoodAggregator.WINDOW_DAYS - 1L).toString()
@@ -129,7 +131,7 @@ class ReportViewModel(
         ) { (profile, goal), weights, calories, foodJson, staticIntake ->
             WeeklyControlEngine.evaluate(
                 WeeklyControlEngine.WeeklyControlInput(
-                    today = LocalDate.now(),
+                    today = today,
                     dailyWeights = weights,
                     dailyCalories = calories,
                     targetWeightKg = goal.first,
@@ -144,7 +146,7 @@ class ReportViewModel(
 
     /** 评审 2A：仅 WEEK 型且锚点=当前周时显示决策卡；翻历史周/切月年报时隐藏 */
     val showWeeklyDecision: StateFlow<Boolean> = combine(selectedType, anchor) { type, a ->
-        type == ReportType.WEEK && a == ReportType.WEEK.anchorOf(LocalDate.now())
+        type == ReportType.WEEK && a == ReportType.WEEK.anchorOf(TimeUtils.beijingToday())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     /**
@@ -156,7 +158,8 @@ class ReportViewModel(
         .flatMapLatest { (type, anchor) ->
             flow {
                 emit(null)
-                val today = LocalDate.now()
+                // 周期窗口查 +8 归日数据，「今天」同口径
+                val today = TimeUtils.beijingToday()
                 val (start, end) = type.periodRange(anchor)
                 val totalDays = type.daysOf(anchor, today)
                 // 上一周期首末日，供「较上期」对比；一次性取值，翻页时随之刷新
@@ -203,7 +206,7 @@ class ReportViewModel(
     fun selectType(type: ReportType) {
         if (type == _selectedType.value) return
         _selectedType.value = type
-        _anchor.value = type.anchorOf(LocalDate.now())
+        _anchor.value = type.anchorOf(TimeUtils.beijingToday())
     }
 
     fun previousPeriod() {
@@ -213,7 +216,7 @@ class ReportViewModel(
     fun nextPeriod() {
         val type = _selectedType.value
         _anchor.update {
-            if (type.canGoNext(it, LocalDate.now())) type.shift(it, 1) else it
+            if (type.canGoNext(it, TimeUtils.beijingToday())) type.shift(it, 1) else it
         }
     }
 
@@ -245,7 +248,7 @@ class ReportViewModel(
             val activityLevel = ActivityLevel.entries.find { it.name == LocalStorageData.activityLevel.value }
             val trendInsight = WeightTrendAnalyzer.analyze(
                 dailyWeights = weights,
-                totalDays = type.daysOf(anchor, LocalDate.now()),
+                totalDays = type.daysOf(anchor, TimeUtils.beijingToday()),
                 targetWeight = LocalStorageData.targetWeight.value,
             )
             val prompt = AnalysisPromptBuilder.build(
