@@ -126,14 +126,9 @@ dependencies {
     implementation(libs.vico.compose.m3)
     //mmkv
     implementation(libs.mmkv)
-    //ktor
-    implementation(libs.ktor.client.core)
-    implementation(libs.ktor.client.okhttp)
-    implementation(libs.ktor.client.content.negotiation)
-    implementation(libs.ktor.serialization.kotlinx.json)
-    implementation(libs.ktor.client.logging)
-    //okhttp：版本检查更新直连（检查接口 + APK 下载，见 data/update）
+    //okhttp：唯一网络栈（AI 聊天 SSE 流式 + 检查更新 + APK 下载）
     implementation(libs.okhttp)
+    implementation(libs.okhttp.logging)
     //markdown
     implementation(libs.markdown.editor)
     implementation(libs.markdown.m3)

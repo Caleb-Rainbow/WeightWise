@@ -72,7 +72,7 @@
 | 导航 | Navigation3 (`androidx.navigation3`) |
 | 依赖注入 | Koin 4.2 + Koin Annotations (KSP) |
 | 本地存储 | Room（自动迁移）+ MMKV（偏好设置） |
-| 网络 | Ktor + OkHttp（SSE 流式请求） |
+| 网络 | OkHttp（SSE 流式请求） |
 | 图表 | Vico 3.x |
 | 分页 | Paging 3 |
 | 序列化 | kotlinx.serialization |

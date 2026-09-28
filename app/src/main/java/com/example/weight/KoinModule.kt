@@ -1,10 +1,10 @@
 package com.example.weight
 
 import android.app.Application
+import android.util.Log
 import androidx.room.Room
 import com.example.weight.data.AppDataBase
 import com.example.weight.data.MIGRATION_10_11
-import com.example.weight.data.createDefaultHttpClient
 import com.example.weight.data.diet.DietRecordDao
 import com.example.weight.data.record.RecordDao
 import com.example.weight.data.scale.BodyCompositionRecalculator
@@ -15,6 +15,7 @@ import com.example.weight.ui.update.UpdateManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
 import org.koin.core.annotation.ComponentScan
 import org.koin.core.annotation.KoinApplication
 import org.koin.core.annotation.Module
@@ -54,7 +55,23 @@ class KoinModule {
         (application as App).appScope
 
     @Single
-    fun provideHttpClient(json: Json) = createDefaultHttpClient(json)
+    fun provideChatOkHttpClient(): OkHttpClient {
+        // LLM 长响应需要整体放宽；连接/读超时收紧，弱网下快速失败而不是挂满 5 分钟。
+        // callTimeout 管整体请求，readTimeout 管两个 SSE chunk 之间的最大间隔
+        return OkHttpClient.Builder()
+            .callTimeout(5, TimeUnit.MINUTES)
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(2, TimeUnit.MINUTES)
+            .apply {
+                if (BuildConfig.DEBUG) {
+                    // BASIC 只打方法/URL/状态行，不含请求头（API key）与响应体（流式 chunk）
+                    addInterceptor(HttpLoggingInterceptor { message ->
+                        Log.d("WW-Http", message)
+                    }.apply { level = HttpLoggingInterceptor.Level.BASIC })
+                }
+            }
+            .build()
+    }
 
     @Single
     fun provideUpdateRemoteDataSource(json: Json): UpdateRemoteDataSource {

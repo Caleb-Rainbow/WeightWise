@@ -49,7 +49,7 @@ Uses **Navigation3** (`androidx.navigation3`), not traditional Navigation Compos
 
 - **Room** (version 10 database): `Record` (weight + bodyComposition JSON), `DietRecord` entities. Auto-migrations enabled, destructive migration disabled; migration 7→8 (`Migration7To8`) deleted the removed exercise-plan/journey tables.
 - **MMKV**: User preferences (height, age, gender, activity level, target/start weight, reminder and weekly-report-push settings, Doubao model id, theme id, appearance mode). All values exposed as `StateFlow` via MMKV-KTX.
-- **Ktor + OkHttp**: Network calls to the Doubao (Volcengine Ark) API, OpenAI-compatible protocol. SSE streaming for AI responses. API key via `BuildConfig.DOUBAO_KEY` from `secrets.properties` (git-ignored).
+- **OkHttp**: Network calls to the Doubao (Volcengine Ark) API, OpenAI-compatible protocol. SSE streaming for AI responses. API key via `BuildConfig.DOUBAO_KEY` from `secrets.properties` (git-ignored).
 
 ### Bluetooth Scale (icomon)
 
