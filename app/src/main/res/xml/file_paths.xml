@@ -9,4 +9,8 @@
     <cache-path
         name="camera_capture"
         path="camera_capture/" />
+    <!-- 应用内更新：下载的 APK 安装包（ApkInstaller 写入，升级安装完成后整体清理） -->
+    <external-cache-path
+        name="apk_update"
+        path="update/" />
 </paths>

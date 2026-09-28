@@ -20,8 +20,8 @@ extensions.configure<ApplicationExtension>("android") {
         applicationId = "com.example.weight"
         minSdk = 29
         targetSdk = 37
-        versionCode = 19
-        versionName = "1.9.0"
+        versionCode = 20
+        versionName = "2.0.0"
         ndk.abiFilters.add("arm64-v8a")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -132,6 +132,8 @@ dependencies {
     implementation(libs.ktor.client.content.negotiation)
     implementation(libs.ktor.serialization.kotlinx.json)
     implementation(libs.ktor.client.logging)
+    //okhttp：版本检查更新直连（检查接口 + APK 下载，见 data/update）
+    implementation(libs.okhttp)
     //markdown
     implementation(libs.markdown.editor)
     implementation(libs.markdown.m3)

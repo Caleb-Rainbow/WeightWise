@@ -3,6 +3,8 @@
     xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.VIBRATE"/>
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- 应用内更新：下载 APK 后经 FileProvider 调起系统安装器（首次安装时系统引导授权"安装未知应用"） -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
     <!-- 体脂秤 BLE：扫描结果在 Android 12+ 依赖 NEARBY_BLUETOOTH_DEVICES，11 及以下依赖精确定位 -->
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
         android:usesPermissionFlags="neverForLocation"

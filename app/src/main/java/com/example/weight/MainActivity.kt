@@ -46,6 +46,7 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import com.example.weight.data.LocalStorageData
+import com.example.weight.data.update.ApkInstaller
 import com.example.weight.ui.common.navPopTransitionSpec
 import com.example.weight.ui.common.navTransitionSpec
 import com.example.weight.ui.common.prependNavTransitionSpec
@@ -59,9 +60,12 @@ import com.example.weight.ui.theme.AppTheme
 import com.example.weight.ui.theme.AppearanceMode
 import com.example.weight.ui.theme.ThemePreset
 import com.example.weight.ui.trend.BodyTrendScreen
+import com.example.weight.ui.update.UpdateDialog
+import com.example.weight.ui.update.UpdateManager
 import com.patrykandpatrick.vico.compose.common.ProvideVicoTheme
 import com.patrykandpatrick.vico.compose.m3.common.rememberM3VicoTheme
 import kotlinx.coroutines.launch
+import org.koin.compose.koinInject
 import kotlinx.serialization.Serializable
 
 class MainActivity : ComponentActivity() {
@@ -81,6 +85,13 @@ class MainActivity : ComponentActivity() {
         openAddDialogRequest = intent.consumeBooleanExtra(EXTRA_OPEN_ADD_DIALOG)
         openReportRequest = intent.consumeBooleanExtra(EXTRA_OPEN_REPORT)
         setContent {
+            val updateManager: UpdateManager = koinInject()
+            // 启动自动检查更新：先清理上次升级/下载残留的安装包，再静默检查
+            // （Debug 构建不接更新后台，避免开发时弹更新窗/误装 release 包）
+            LaunchedEffect(Unit) {
+                ApkInstaller.cleanCache(this@MainActivity)
+                if (!BuildConfig.DEBUG) updateManager.checkUpdate(manual = false)
+            }
             val themePreset by LocalStorageData.themeId.collectAsState()
             val appearanceMode by LocalStorageData.appearanceMode.collectAsState()
             AppTheme(
@@ -335,6 +346,7 @@ fun ProvideSnackBarHost(
 ) {
     val snackBarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val updateManager: UpdateManager = koinInject()
     var isShowLoadingDialog by remember {
         mutableStateOf(false)
     }
@@ -385,6 +397,9 @@ fun ProvideSnackBarHost(
                     globalMessageDialogData = null
                 })
             }
+
+            // 全局更新弹窗（发现新版本/下载进度/下载完成/失败重试）
+            UpdateDialog(updateManager)
 
             content(padding)
         }

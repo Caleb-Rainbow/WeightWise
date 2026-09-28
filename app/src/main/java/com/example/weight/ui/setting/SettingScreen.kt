@@ -50,6 +50,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.weight.BuildConfig
 import com.example.weight.LocalHideLoadingDialog
 import com.example.weight.LocalShowLoadingDialog
 import com.example.weight.LocalSnackBarShow
@@ -67,6 +68,9 @@ import com.example.weight.ui.common.WeightWiseDimens
 import com.example.weight.ui.common.NumberSelector
 import com.example.weight.ui.theme.AppearanceMode
 import com.example.weight.ui.theme.ThemePreset
+import com.example.weight.ui.update.ManualCheckUpdateFeedback
+import com.example.weight.ui.update.UpdateManager
+import com.example.weight.ui.update.UpdateUiState
 import com.example.weight.util.ActivityLevel
 import com.example.weight.util.CalorieCalculator
 import com.example.weight.util.Gender
@@ -108,6 +112,7 @@ fun SettingScreen(modifier: Modifier = Modifier, goBack: () -> Unit) {
             item { ReminderPushCard() }
             item { AiModelCard() }
             item { DataManagementCard() }
+            item { AboutCard() }
         }
     }
 }
@@ -182,5 +187,22 @@ internal fun AiModelCard() {
             onSelect = { value -> LocalStorageData.doubaoModelId.update { value } },
             onDismiss = { editing = false },
         )
+    }
+}
+
+/** 关于：当前版本与手动检查更新（结果经全局更新弹窗/Snackbar 反馈） */
+@Composable
+internal fun AboutCard() {
+    val manager: UpdateManager = koinInject()
+    ManualCheckUpdateFeedback(manager)
+    val state by manager.state.collectAsStateWithLifecycle()
+
+    SettingsCard(title = "关于") {
+        SettingsRow(
+            label = "检查更新",
+            value = if (state is UpdateUiState.Checking) "检查中…" else "v" + BuildConfig.VERSION_NAME,
+            onClick = { manager.checkUpdate(manual = true) },
+        )
+        SettingsFootnote("发现新版本后会弹出更新窗口，可选择立即更新或稍后处理")
     }
 }
