@@ -1,7 +1,7 @@
 package com.example.weight.data.record
 
 import com.example.weight.data.LocalStorageData
-import java.time.Instant
+import com.example.weight.util.TimeUtils
 import java.time.ZoneOffset
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.Flow
@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.Flow
  * 日期归组的固定北京时区偏移，与 [RecordDao] SQL 里的 '+8 hours' 同源同口径：
  * 刻意不随系统时区变化——按常住时区归日，跨时区旅行期间图表日期仍然稳定。
  */
-val BEIJING_OFFSET: ZoneOffset = ZoneOffset.ofHours(8)
+val BEIJING_OFFSET: ZoneOffset = TimeUtils.BEIJING_ZONE
 
 /** 每日统计口径：多次称重时取哪条/怎么算，影响首页图表、报告与小组件趋势 */
 enum class DailyStatMode(val label: String) {
@@ -72,7 +72,7 @@ object DailyWeightAggregator {
             }
 
     private fun Long.toBeijingDay(): String =
-        Instant.ofEpochMilli(this).atOffset(BEIJING_OFFSET).toLocalDate().toString()
+        TimeUtils.beijingDate(this).toString()
 }
 
 /** 按当前口径聚合自 [startMillis]（含）以来的每日体重；口径切换时经 MMKV Flow 自动重发 */

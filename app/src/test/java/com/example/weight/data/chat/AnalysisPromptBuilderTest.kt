@@ -4,9 +4,12 @@ import com.example.weight.data.diet.DailyCalories
 import com.example.weight.data.record.Record
 import com.example.weight.data.record.DailyWeight
 import com.example.weight.util.WeightTrendAnalyzer
+import com.example.weight.util.TimeUtils
 import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneId
+import java.util.TimeZone
+import org.junit.After
+import org.junit.Before
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -14,10 +17,20 @@ import org.junit.Test
 
 class AnalysisPromptBuilderTest {
 
-    /** 固定时间戳；期望日期用同一时区换算，测试不依赖运行环境的时区 */
+    private lateinit var originalZone: TimeZone
+
+    @Before
+    fun setDeviceZone() {
+        originalZone = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+    }
+
+    @After
+    fun restoreDeviceZone() = TimeZone.setDefault(originalZone)
+
+    /** UTC 设备仍按北京日关联体重与饮食，期望值不从被测口径推导。 */
     private val ts = Instant.parse("2026-08-19T16:30:00Z").toEpochMilli()
-    private val expectedDate =
-        Instant.ofEpochMilli(ts).atZone(ZoneId.systemDefault()).toLocalDate().toString()
+    private val expectedDate = "2026-08-20"
 
     private fun record(weight: Double, log: String = "") =
         Record(weight = weight, log = log, timestamp = ts)
@@ -147,7 +160,7 @@ class AnalysisPromptBuilderTest {
             Record(
                 weight = 80.0,
                 log = "",
-                timestamp = date.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                timestamp = date.atStartOfDay(TimeUtils.BEIJING_ZONE).toInstant().toEpochMilli()
             )
         }
         val prompt = AnalysisPromptBuilder.build(
@@ -161,6 +174,18 @@ class AnalysisPromptBuilderTest {
         assertTrue("应按月输出聚合行", "- 2026-07: 打卡 31 天，平均 80.0kg，最高 80.0kg，最低 80.0kg" in prompt)
         assertTrue("应按月输出聚合行", "- 2026-08: 打卡 2 天，平均 80.0kg，最高 80.0kg，最低 80.0kg" in prompt)
         assertFalse("不应再输出逐条日期明细", "日志:" in prompt)
+    }
+
+    @Test
+    fun `月界两侧的记录按北京月份和打卡日去重`() {
+        val records = List(61) {
+            record(75.0).copy(timestamp = Instant.parse("2026-08-31T15:59:59.999Z").toEpochMilli())
+        } + listOf("2026-08-31T16:00:00Z", "2026-09-01T15:59:59.999Z").map {
+            record(74.0).copy(timestamp = Instant.parse(it).toEpochMilli())
+        }
+        val prompt = AnalysisPromptBuilder.build(records, "近3月", 23.5, 175.0, 70.0)
+        assertTrue("- 2026-08: 打卡 1 天，平均 75.0kg" in prompt)
+        assertTrue("- 2026-09: 打卡 1 天，平均 74.0kg" in prompt)
     }
 
     @Test

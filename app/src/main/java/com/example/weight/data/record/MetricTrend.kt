@@ -1,7 +1,6 @@
 package com.example.weight.data.record
 
-import java.time.Instant
-import java.time.ZoneOffset
+import com.example.weight.util.TimeUtils
 import java.util.Locale
 
 /**
@@ -76,12 +75,10 @@ fun dailyLastCompositions(raws: List<RecordCompositionRaw>): List<MetricPoint> {
     for (raw in raws) {
         val composition = BodyCompositionJson.decode(raw.bodyComposition) ?: continue
         if (!composition.hasAny) continue
-        val day = Instant.ofEpochMilli(raw.timestamp).atZone(BEIJING).toLocalDate().toString()
+        val day = TimeUtils.beijingDate(raw.timestamp).toString()
         if (day != lastDay) points.add(MetricPoint(day, raw.timestamp, composition))
         else points[points.lastIndex] = MetricPoint(day, raw.timestamp, composition)
         lastDay = day
     }
     return points
 }
-
-private val BEIJING = ZoneOffset.ofHours(8)

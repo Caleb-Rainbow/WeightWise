@@ -49,7 +49,7 @@ class ChatRemoteDataSource(
             model.copy(model = modelId),
         ))
         try {
-            val responseText = okHttpClient.newCall(request).execute().use { response ->
+            val responseText = okHttpClient.newCall(request).executeCancellable { response ->
                 val body = response.body.string()
                 if (!response.isSuccessful) throw toApiException(response.code, body)
                 json.parseToJsonElement(body).jsonObject
@@ -77,16 +77,26 @@ class ChatRemoteDataSource(
             ChatBodyModel.serializer(),
             model.copy(stream = true, model = modelId),
         ))
+        streamChat(request, onMessage)
+    }
+
+    // 请求构造与传输分开，允许 JVM 测试直接使用本地 SSE 服务，无需 Android 存储或 API key。
+    internal suspend fun streamChat(
+        request: Request,
+        onMessage: (StreamChunkResponse?) -> Unit,
+    ) {
+        val context = currentCoroutineContext()
         try {
-            okHttpClient.newCall(request).execute().use { response ->
+            okHttpClient.newCall(request).executeCancellable { response ->
                 val source = response.body.source()
                 if (!response.isSuccessful) {
                     throw toApiException(response.code, source.readUtf8())
                 }
                 while (true) {
-                    // 逐行读 SSE；每行检查协程活跃度，取消时中断阻塞读并关闭连接
-                    currentCoroutineContext().ensureActive()
+                    context.ensureActive()
                     val line = source.readUtf8Line() ?: break
+                    // 取消可能发生在阻塞读取期间；不再向 UI 发送已取消请求的 chunk。
+                    context.ensureActive()
                     onMessage(parseChunk(line))
                 }
             }

@@ -181,8 +181,8 @@ class ReportViewModel(
                     val prevWeights = async {
                         recordDao.dailyWeightsBetween(prevRange.first, prevRange.second).first()
                     }
-                    val startDate = TimeUtils.convertMillisToDate(start)
-                    val endDate = TimeUtils.convertMillisToDate(end)
+                    val startDate = TimeUtils.beijingDate(start).toString()
+                    val endDate = TimeUtils.beijingDate(end).toString()
                     val goalProfile = combine(
                         LocalStorageData.height,
                         LocalStorageData.targetWeight,
@@ -249,7 +249,7 @@ class ReportViewModel(
             val (dailyCalories, weights) = coroutineScope {
                 val caloriesDeferred = async {
                     dietRecordDao.getDailyCaloriesBetween(
-                        TimeUtils.convertMillisToDate(start), TimeUtils.convertMillisToDate(end),
+                        TimeUtils.beijingDate(start).toString(), TimeUtils.beijingDate(end).toString(),
                     ).first()
                 }
                 val weightsDeferred = async { recordDao.dailyWeightsBetween(start, end).first() }

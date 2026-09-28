@@ -323,9 +323,9 @@ internal fun PeriodDigest(
                 }
                 Text(
                     buildString {
-                        firstWeightRecord?.timestamp?.let { append(TimeUtils.convertMillisToDate(it).takeLast(5)) }
+                        firstWeightRecord?.recordDay?.let { append(it.takeLast(5)) }
                         append(" → ")
-                        lastWeightRecord?.timestamp?.let { append(TimeUtils.convertMillisToDate(it).takeLast(5)) }
+                        lastWeightRecord?.recordDay?.let { append(it.takeLast(5)) }
                     },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.52f),

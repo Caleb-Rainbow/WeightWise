@@ -63,7 +63,7 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
-import java.util.Calendar
+import java.time.LocalTime
 import java.util.Locale
 
 internal const val IMMERSIVE_TOP_BAR_TAG = "immersiveTopBarSurface"
@@ -89,7 +89,7 @@ fun TimePickerOutlineTextFiled(
 ) {
     var isShowTimePicker by remember { mutableStateOf(false) }
     if (isShowTimePicker) {
-        TimePicker(onDismiss = { isShowTimePicker = false }, onConfirm = {
+        TimePicker(initialTime = value, onDismiss = { isShowTimePicker = false }, onConfirm = {
             onValueChanged(it)
             isShowTimePicker = false
         })
@@ -112,13 +112,17 @@ fun TimePickerOutlineTextFiled(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TimePicker(
+    initialTime: String,
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val currentTime = Calendar.getInstance()
+    // 沿用字段的墙钟值：称重录入为北京时间，提醒设置为本地时间。
+    val currentTime = remember(initialTime) {
+        runCatching { LocalTime.parse(initialTime) }.getOrElse { LocalTime.now() }
+    }
     val timePickerState = rememberTimePickerState(
-        initialHour = currentTime.get(Calendar.HOUR_OF_DAY),
-        initialMinute = currentTime.get(Calendar.MINUTE),
+        initialHour = currentTime.hour,
+        initialMinute = currentTime.minute,
         is24Hour = true,
     )
 

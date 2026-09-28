@@ -1,5 +1,14 @@
 import com.android.build.api.dsl.ApplicationExtension
+import com.android.build.api.variant.impl.VariantOutputImpl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
+// 版本号唯一入口：格式 yyyy.MM.dd.当日序号，每次发布（或同日重打）手动递增最后一段。
+// 注意：开启 configuration cache 后，配置期读取系统时间在命中缓存时会拿到旧日期，
+// 因此版本号用显式常量而非运行时日期，保证 versionCode / versionName / APK 文件名三者一致。
+val appVersion = "2026.09.28.01"
+
+// Version Code 由版本号去点生成：2026.09.28.01 -> 2026092801
+val appVersionCode = appVersion.replace(".", "").toInt()
 
 plugins {
     alias(libs.plugins.android.application)
@@ -20,12 +29,22 @@ extensions.configure<ApplicationExtension>("android") {
         applicationId = "com.example.weight"
         minSdk = 29
         targetSdk = 37
-        versionCode = 20
-        versionName = "2.0.0"
+        versionCode = appVersionCode
+        versionName = appVersion
         buildConfigField("String", "SYNC_SERVER_URL", "\"" + providers.gradleProperty("syncServerUrl").getOrElse("https://app-admin.yingluozhiwei.cn") + "\"")
         ndk.abiFilters.add("arm64-v8a")
 
         testInstrumentationRunner = "com.example.weight.SyncTestRunner"
+    }
+
+    // Release 签名：根目录 key（PKCS12），已被 .gitignore 排除
+    signingConfigs {
+        create("release") {
+            storeFile = rootProject.file("key")
+            storePassword = "123456"
+            keyAlias = "key0"
+            keyPassword = "123456"
+        }
     }
 
     buildTypes {
@@ -43,6 +62,7 @@ extensions.configure<ApplicationExtension>("android") {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {
@@ -63,6 +83,18 @@ extensions.configure<ApplicationExtension>("android") {
         }
     }
 }
+
+// Release 包命名：体重记录V<版本号>.apk（仅 release 变体）
+androidComponents {
+    onVariants(selector().withBuildType("release")) { variant ->
+        variant.outputs.forEach { output ->
+            if (output is VariantOutputImpl) {
+                output.outputFileName = "体重记录V$appVersion.apk"
+            }
+        }
+    }
+}
+
 kotlin {
     compilerOptions {
         jvmTarget = JvmTarget.fromTarget("21")

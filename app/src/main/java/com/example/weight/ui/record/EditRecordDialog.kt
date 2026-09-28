@@ -40,13 +40,13 @@ fun EditRecordDialog(
 ) {
     val pickerState = rememberDatePickerState(
         initialSelectedDateMillis = TimeUtils.convertDateToUtcMillis(
-            TimeUtils.convertMillisToDate(record.timestamp)
+            TimeUtils.beijingDate(record.timestamp).toString()
         )
     )
     val date = pickerState.selectedDateMillis?.let {
         TimeUtils.convertUtcMillisToDate(it)
     } ?: ""
-    var time by remember { mutableStateOf(TimeUtils.convertMillisToHM(record.timestamp)) }
+    var time by remember { mutableStateOf(TimeUtils.convertMillisToBeijingHM(record.timestamp)) }
     var weight by remember { mutableDoubleStateOf(record.weight) }
     var log by remember { mutableStateOf(record.log) }
 
@@ -69,7 +69,7 @@ fun EditRecordDialog(
                     Spacer(modifier = Modifier.width(10.dp))
                     TimePickerOutlineTextFiled(
                         modifier = Modifier.weight(0.7f),
-                        hint = "时间",
+                        hint = "时间（北京时间）",
                         value = time,
                         onValueChanged = { time = it },
                         isRequired = true,

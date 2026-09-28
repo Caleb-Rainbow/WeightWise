@@ -65,7 +65,7 @@ data class AddTabState(
     /** 手动选过餐次后本会话（VM 生命周期，跨午夜重置）不再自动覆盖 */
     val mealTypeManuallySelected: Boolean = false,
     /** 用餐日期（yyyy-MM-dd），默认今天；改为过去日期即补记，保存落在所选日 */
-    val date: String = TimeUtils.getCurrentDate(),
+    val date: String = TimeUtils.beijingToday().toString(),
     val isAnalyzing: Boolean = false,
     val isSaving: Boolean = false,
     val aiResponse: AiDietResponse? = null,
@@ -157,7 +157,7 @@ class DietRecordViewModel(
     val events: Flow<DietEvent> = _events.receiveAsFlow()
 
     /** 「今天」的口径：跨午夜后由 UI 在 ON_RESUME 时调用 [refreshTodayDate] 刷新 */
-    private val _todayDate = MutableStateFlow(TimeUtils.getCurrentDate())
+    private val _todayDate = MutableStateFlow(TimeUtils.beijingToday().toString())
 
     /** 「今天」暴露给页面做相对日期文案（今天/昨天/标题日期），跨午夜随 ON_RESUME 滑动 */
     val todayDate: StateFlow<String> = _todayDate.asStateFlow()
@@ -212,7 +212,7 @@ class DietRecordViewModel(
      * 餐次推断跨午夜重置（评审定稿）、清理拍照临时目录（覆盖进程死亡残留）
      */
     fun refreshTodayDate() {
-        val today = TimeUtils.getCurrentDate()
+        val today = TimeUtils.beijingToday().toString()
         // 目录 stat+删除是磁盘操作，丢到 IO 执行：ON_RESUME 挂在主线程，
         // 回前台不该同步做文件操作；keep 先快照，避免与新拍照赋值竞态
         val keepFile = _addTab.value.captureFile
@@ -527,34 +527,25 @@ class DietRecordViewModel(
         _historyTab.update { it.copy(rangeDays = days) }
     }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     private fun observeHistory() {
         viewModelScope.launch {
-            _historyTab.flatMapLatest { state ->
-                dietRecordDao.getByDateRange(historyStartDate(state.rangeDays), historyEndDateExclusive)
-                    .map { records -> buildHistoryDays(records, state.rangeDays) }
-                    .flowOn(Dispatchers.Default)
-            }.collect { days ->
-                _historyTab.update { it.copy(days = days) }
-            }
+            dietHistoryData(dietRecordDao, _todayDate, _historyTab.map { it.rangeDays })
+                .map { buildHistoryDays(it.records, it.dates) }
+                .flowOn(Dispatchers.Default)
+                .collect { days ->
+                    _historyTab.update { it.copy(days = days) }
+                }
         }
     }
-
-    private fun historyStartDate(rangeDays: Int): String =
-        LocalDate.now().minusDays((rangeDays - 1).toLong()).toString()
-
-    private val historyEndDateExclusive: String
-        get() = LocalDate.now().plusDays(1).toString() // 排他:明天零点
 
     /**
      * 完整日期序列(OV4B):空档日也占一行「当天未记录」;有记录但食物 JSON 全部解析失败的日,
      * trafficLight 为 null(UI 灰点+保留合计,E3A)。新→旧排序
      */
-    private fun buildHistoryDays(records: List<DietRecord>, rangeDays: Int): List<HistoryDay> {
-        val today = LocalDate.now()
+    private fun buildHistoryDays(records: List<DietRecord>, dates: List<String>): List<HistoryDay> {
         val byDate = records.groupBy { it.date }
         val lights = computeDayLights(records)
-        return TimeUtils.lastNDates(today, rangeDays).reversed().map { date ->
+        return dates.map { date ->
             val dayRecords = byDate[date].orEmpty()
             if (dayRecords.isEmpty()) {
                 HistoryDay(date)

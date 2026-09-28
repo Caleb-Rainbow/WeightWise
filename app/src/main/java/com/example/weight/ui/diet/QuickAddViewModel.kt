@@ -63,7 +63,7 @@ class QuickAddViewModel(
     val events: Flow<QuickAddEvent> = _events.receiveAsFlow()
 
     /** 常用食物窗口锚点；保存时刷新（跨午夜首存即滑动窗口），表变更由 Room Flow 自动重发 */
-    private val today = MutableStateFlow(TimeUtils.getCurrentDate())
+    private val today = MutableStateFlow(TimeUtils.beijingToday().toString())
 
     init {
         observeFrequentFoods()
@@ -92,7 +92,7 @@ class QuickAddViewModel(
 
     /** 跨午夜后回到页面时刷新「今天」口径（与 DietRecordViewModel.refreshTodayDate 同模式），由 UI 在 ON_RESUME 调用 */
     fun refreshTodayDate() {
-        val now = TimeUtils.getCurrentDate()
+        val now = TimeUtils.beijingToday().toString()
         if (today.value != now) today.value = now
     }
 
@@ -137,14 +137,14 @@ class QuickAddViewModel(
                     DietRecordWriter.Draft(
                         foods = snapshot.selectedFoods,
                         mealType = snapshot.selectedMealType,
-                        date = TimeUtils.getCurrentDate(),
+                        date = TimeUtils.beijingToday().toString(),
                         userInput = "快速添加",
                         // 无 AI：红绿灯由 Writer 内本地推导
                         trafficLight = null,
                     )
                 )
                 _state.update { it.copy(selectedFoods = emptyList()) }
-                today.value = TimeUtils.getCurrentDate()
+                today.value = TimeUtils.beijingToday().toString()
                 val remaining = snapshot.recommendedCalories?.let {
                     it - (snapshot.todayTotalCalories + savedCalories)
                 }

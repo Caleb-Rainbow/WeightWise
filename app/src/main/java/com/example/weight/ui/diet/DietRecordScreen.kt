@@ -237,7 +237,7 @@ fun DietRecordScreen(
                 is DietEvent.RecordSaved -> {
                     noteState.value = ""
                     snackBarShow(
-                        savedMessage(event.date, LocalDate.now(), event.remainingCalories)
+                        savedMessage(event.date, TimeUtils.beijingToday(), event.remainingCalories)
                     )
                     showAddPage = false
                     pagerState.animateScrollToPage(TAB_TODAY)

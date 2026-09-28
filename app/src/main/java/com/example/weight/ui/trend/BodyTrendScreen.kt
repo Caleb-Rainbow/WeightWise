@@ -56,7 +56,6 @@ import com.example.weight.ui.common.SectionHeader
 import com.example.weight.ui.common.WeightWiseDimens
 import com.example.weight.ui.common.movingAverage
 import com.example.weight.ui.main.StatisticsScope
-import com.example.weight.util.TimeUtils
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModelProducer
 import com.patrykandpatrick.vico.compose.cartesian.data.lineModel
 import com.patrykandpatrick.vico.compose.common.vicoTheme
@@ -205,7 +204,7 @@ private fun TrendChartCard(metric: TrendMetric, series: List<MetricPoint>, value
                 Spacer(modifier = Modifier.weight(1f))
                 series.lastOrNull()?.let {
                     Text(
-                        text = "最新 ${TimeUtils.convertMillisToDate(it.timestamp).takeLast(5)}",
+                        text = "最新 ${it.day.takeLast(5)}",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -287,14 +286,14 @@ private fun TrendStatsCard(metric: TrendMetric, series: List<MetricPoint>, value
                 modifier = Modifier.weight(1f),
                 value = metric.formatValue(values[maxIndex]),
                 label = "最高",
-                sub = series.getOrNull(maxIndex)?.timestamp?.let { TimeUtils.convertMillisToDate(it).takeLast(5) },
+                sub = series.getOrNull(maxIndex)?.day?.takeLast(5),
             )
             VerticalDivider(modifier = Modifier.height(40.dp))
             TrendStatItem(
                 modifier = Modifier.weight(1f),
                 value = metric.formatValue(values[minIndex]),
                 label = "最低",
-                sub = series.getOrNull(minIndex)?.timestamp?.let { TimeUtils.convertMillisToDate(it).takeLast(5) },
+                sub = series.getOrNull(minIndex)?.day?.takeLast(5),
             )
             VerticalDivider(modifier = Modifier.height(40.dp))
             TrendStatItem(
@@ -302,9 +301,9 @@ private fun TrendStatsCard(metric: TrendMetric, series: List<MetricPoint>, value
                 value = deltaFormat.format(delta),
                 label = "变化",
                 sub = buildString {
-                    series.firstOrNull()?.timestamp?.let { append(TimeUtils.convertMillisToDate(it).takeLast(5)) }
+                    series.firstOrNull()?.day?.let { append(it.takeLast(5)) }
                     append(" 至 ")
-                    series.lastOrNull()?.timestamp?.let { append(TimeUtils.convertMillisToDate(it).takeLast(5)) }
+                    series.lastOrNull()?.day?.let { append(it.takeLast(5)) }
                 },
                 // 升降配色与首页体重视觉语义一致：降=primary、升=error
                 valueColor = if (delta <= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,

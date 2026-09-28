@@ -197,7 +197,7 @@ fun AddRecordDialog(onDismissRequest: () -> Unit, viewModel: MainViewModel = koi
                 Spacer(modifier = Modifier.width(10.dp))
                 TimePickerOutlineTextFiled(
                     modifier = Modifier.weight(0.7f),
-                    hint = "时间",
+                    hint = "时间（北京时间）",
                     value = time,
                     onValueChanged = {
                         time = it

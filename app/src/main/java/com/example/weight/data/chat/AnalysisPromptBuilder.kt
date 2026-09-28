@@ -3,10 +3,8 @@ package com.example.weight.data.chat
 import com.example.weight.data.diet.DailyCalories
 import com.example.weight.data.record.Record
 import com.example.weight.util.TrendConfidence
+import com.example.weight.util.TimeUtils
 import com.example.weight.util.WeightTrendInsight
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -100,28 +98,20 @@ $lowConfidenceLimit
 
     /** 逐条明细；记录超过 [RECORD_DETAIL_LIMIT] 条改按月聚合（打卡天数/日均/最高/最低），控制 Prompt 长度 */
     private fun recordsText(records: List<Record>): String {
-        val zone = ZoneId.systemDefault() // 每条记录重复获取有查找成本，取一次复用
         if (records.size <= RECORD_DETAIL_LIMIT) {
             return records.joinToString("\n") { record ->
-                val date = Instant.ofEpochMilli(record.timestamp)
-                    .atZone(zone)
-                    .toLocalDate()
-                    .format(DateTimeFormatter.ISO_LOCAL_DATE)
+                val date = TimeUtils.beijingDate(record.timestamp)
                 val logText = if (record.log.isNotBlank()) " [日志: ${record.log}]" else ""
                 "- $date: ${String.format(Locale.CHINA, "%.1f", record.weight)}kg$logText"
             }
         }
         return records
             .groupBy { record ->
-                Instant.ofEpochMilli(record.timestamp)
-                    .atZone(zone)
-                    .toLocalDate()
-                    .toString()
-                    .take(7)
+                TimeUtils.beijingDate(record.timestamp).toString().take(7)
             }
             .map { (month, monthRecords) ->
                 val days = monthRecords
-                    .map { Instant.ofEpochMilli(it.timestamp).atZone(zone).toLocalDate() }
+                    .map { TimeUtils.beijingDate(it.timestamp) }
                     .distinct()
                     .size
                 val weights = monthRecords.map { it.weight }

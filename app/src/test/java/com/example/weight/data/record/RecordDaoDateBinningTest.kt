@@ -4,12 +4,19 @@ import android.content.Context
 import androidx.paging.PagingSource
 import androidx.room.Room
 import com.example.weight.data.AppDataBase
+import com.example.weight.util.RecordStreakCalculator
+import com.example.weight.util.TimeUtils
+import java.time.Clock
+import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.ZoneOffset
+import java.util.TimeZone
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -28,9 +35,12 @@ class RecordDaoDateBinningTest {
 
     private lateinit var db: AppDataBase
     private lateinit var dao: RecordDao
+    private lateinit var originalZone: TimeZone
 
     @Before
     fun setup() {
+        originalZone = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
         val context: Context = RuntimeEnvironment.getApplication()
         db = Room.inMemoryDatabaseBuilder(context, AppDataBase::class.java)
             .allowMainThreadQueries()
@@ -40,7 +50,29 @@ class RecordDaoDateBinningTest {
 
     @After
     fun teardown() {
-        db.close()
+        try {
+            db.close()
+        } finally {
+            TimeZone.setDefault(originalZone)
+        }
+    }
+
+    @Test
+    fun `非东八区设备北京跨午夜后趋势窗口和打卡今天一致`() = runBlocking {
+        val midnight = Instant.parse("2026-12-31T16:00:00Z").toEpochMilli()
+        insert(75.0, midnight - 1)
+        insert(74.0, midnight)
+        for (zone in listOf("UTC", "America/Los_Angeles", "Pacific/Kiritimati")) {
+            TimeZone.setDefault(TimeZone.getTimeZone(zone))
+            val clock = Clock.fixed(Instant.ofEpochMilli(midnight), ZoneId.systemDefault())
+            val today = TimeUtils.beijingToday(clock)
+            val weights = aggregateSince(TimeUtils.getStartTimeForLastDays(1, clock), DailyStatMode.MIN)
+            assertEquals(listOf("2027-01-01"), weights.map { it.recordDay })
+            assertEquals(listOf(74.0), weights.map { it.value })
+            val streak = RecordStreakCalculator.calculate(dao.getRecordDaysFlow().first(), today)
+            assertTrue(streak.checkedToday)
+            assertEquals(2, streak.currentStreak)
+        }
     }
 
     @Test
