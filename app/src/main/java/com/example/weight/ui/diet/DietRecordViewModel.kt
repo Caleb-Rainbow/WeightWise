@@ -410,6 +410,7 @@ class DietRecordViewModel(
     }
 
     fun saveRecord(userNote: String) {
+        val owner = com.example.weight.data.sync.ActiveAccount.id
         val snapshot = _addTab.value
         if (snapshot.recognizedFoods.isEmpty() || snapshot.isSaving) return
         viewModelScope.launch(Dispatchers.IO) {
@@ -419,6 +420,7 @@ class DietRecordViewModel(
                 val savedCalories = snapshot.recognizedFoods.sumOf { it.estimatedCalories }
                 writer.insert(
                     DietRecordWriter.Draft(
+                        ownerId = owner,
                         foods = snapshot.recognizedFoods,
                         mealType = snapshot.selectedMealType,
                         date = snapshot.date,

@@ -94,6 +94,7 @@ class MainActivity : ComponentActivity() {
             }
             val themePreset by LocalStorageData.themeId.collectAsState()
             val appearanceMode by LocalStorageData.appearanceMode.collectAsState()
+            com.example.weight.ui.common.AccountContent {
             AppTheme(
                 themePreset = ThemePreset.fromId(themePreset),
                 appearanceMode = AppearanceMode.fromId(appearanceMode),
@@ -156,6 +157,7 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                 }
+            }
             }
         }
     }

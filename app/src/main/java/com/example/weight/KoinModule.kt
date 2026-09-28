@@ -27,9 +27,8 @@ import java.util.concurrent.TimeUnit
 class KoinModule {
     @Single
     fun provideAppDataBase(application: Application): AppDataBase {
-        return Room.databaseBuilder(application, AppDataBase::class.java, "database")
-            .fallbackToDestructiveMigration(false)
-            .addMigrations(MIGRATION_10_11)
+        return Room.databaseBuilder(application, AppDataBase::class.java, com.example.weight.data.sync.SyncStorage.databaseName)
+            .addMigrations(MIGRATION_10_11, com.example.weight.data.sync.MIGRATION_13_14)
             .build()
     }
 

@@ -1,6 +1,8 @@
 package com.example.weight.data.diet
 
 import androidx.compose.runtime.Immutable
+import com.example.weight.data.sync.ActiveAccount
+import java.util.UUID
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
@@ -18,9 +20,16 @@ import kotlinx.serialization.Serializable
     tableName = "DietRecord",
     indices = [Index("date"), Index("timestamp")],
 )
+@Serializable
 data class DietRecord(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
+    @ColumnInfo(defaultValue = "0") val ownerId: Long = ActiveAccount.id,
+    @ColumnInfo(defaultValue = "''") val syncId: String = UUID.randomUUID().toString(),
+    @ColumnInfo(defaultValue = "0") val revision: Long = 0,
+    @ColumnInfo(defaultValue = "''") val mutationId: String = UUID.randomUUID().toString(),
+    @ColumnInfo(defaultValue = "1") val dirty: Boolean = true,
+    @ColumnInfo(defaultValue = "0") val deleted: Boolean = false,
     val date: String,
     val timestamp: Long,
     val mealType: String,

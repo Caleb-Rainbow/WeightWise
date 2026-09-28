@@ -163,6 +163,7 @@ class MainViewModel(
         composition: BodyComposition? = null,
         onSuccess: () -> Unit,
     ) {
+        val owner = com.example.weight.data.sync.ActiveAccount.id
         viewModelScope.launch(Dispatchers.IO) {
             recordDao.insert(
                 Record.create(
@@ -170,7 +171,7 @@ class MainViewModel(
                     weight = weight,
                     log = log,
                     composition = composition,
-                )
+                ).copy(ownerId = owner)
             )
             // 小组件刷新走独立协程：updateAll 含跨进程 binder + RemoteViews 组合，
             // 不能阻塞弹窗关闭回调；launch 在 insert 之后保证组件读到新数据

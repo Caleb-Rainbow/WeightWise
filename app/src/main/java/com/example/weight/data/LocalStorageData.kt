@@ -10,7 +10,7 @@ const val DEFAULT_WEEKLY_TARGET_CHANGE_KG = 0.5
 const val DEFAULT_STAGE_GOAL_STEP_KG = 2.0
 const val DEFAULT_AGE = 0
 
-object LocalStorageData : MMKVOwner(mmapID = "settings") {
+object LocalStorageData : MMKVOwner(mmapID = com.example.weight.data.sync.SyncStorage.settingsName) {
 
     /*--------基础信息---------*/
     val height by mmkvDouble(default = DEFAULT_HEIGHT).asStateFlow()

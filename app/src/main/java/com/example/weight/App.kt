@@ -38,6 +38,9 @@ class App : Application(), Configuration.Provider {
         startKoin<KoinApp> {
             androidContext(this@App)
         }
+        val sync = GlobalContext.get().get<com.example.weight.data.sync.SyncRepository>()
+        sync.initialize()
+        sync.start()
         createNotificationChannels()
         // 旧版饮食图片存于 cacheDir，清缓存即丢失；启动时迁到 filesDir 并回写数据库路径
         appScope.launch {

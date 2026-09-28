@@ -47,7 +47,7 @@ class DietDeleteUndoManager(
         val records = _pendingRecords.value
         if (records.isEmpty()) return
         _pendingRecords.value = emptyList()
-        appScope.launch { dietRecordDao.insertAll(records) }
+        appScope.launch { dietRecordDao.updateAll(records.map { it.copy(deleted = false) }) }
     }
 
     /** 撤销窗口关闭（SnackBar 超时/被顶掉且未点撤销）：提交图片删除并清空待撤销栈 */

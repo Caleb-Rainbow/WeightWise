@@ -24,15 +24,23 @@ interface RecordDao {
     suspend fun insertAll(records: List<Record>)
 
     @Update
-    suspend fun update(record: Record)
+    suspend fun updateRaw(record: Record)
 
-    @Delete
-    suspend fun delete(record: Record)
+    @Query("SELECT * FROM Record WHERE id = :id LIMIT 1")
+    suspend fun findForUpdate(id: Int): Record?
+
+    @androidx.room.Transaction
+    suspend fun update(record: Record) {
+        val current = findForUpdate(record.id) ?: return
+        updateRaw(record.copy(ownerId = current.ownerId, syncId = current.syncId, revision = if (current.mutationId == record.mutationId || current.dirty || current.deleted) current.revision else record.revision, dirty = true, mutationId = java.util.UUID.randomUUID().toString()))
+    }
+
+    suspend fun delete(record: Record) = update(record.copy(deleted = true))
 
     // 按日志内容或北京时间日期（yyyy-MM-dd，支持 2026、2026-08、08-20 等前缀/子串）搜索
     @Query(
         """
-    SELECT * FROM Record
+    SELECT * FROM (SELECT * FROM Record WHERE deleted = 0 AND ownerId = COALESCE((SELECT userId FROM SyncAccount WHERE id = 1), 0))
     WHERE log LIKE '%' || :query || '%'
        OR DATE(timestamp / 1000, 'unixepoch', '$BEIJING_TZ_SQL') LIKE '%' || :query || '%'
     ORDER BY timestamp DESC
@@ -41,19 +49,19 @@ interface RecordDao {
     fun pagingSource(query: String): PagingSource<Int, Record>
 
     // suspend：Room 自动调度到 IO 执行器，杜绝调用方忘包 withContext 时阻塞主线程的隐患
-    @Query("SELECT * FROM Record ORDER BY id DESC LIMIT 1")
+    @Query("SELECT * FROM (SELECT * FROM Record WHERE deleted = 0 AND ownerId = COALESCE((SELECT userId FROM SyncAccount WHERE id = 1), 0)) ORDER BY id DESC LIMIT 1")
     suspend fun getLastData(): Record?
 
-    @Query("SELECT * FROM Record ORDER BY timestamp DESC LIMIT 1")
+    @Query("SELECT * FROM (SELECT * FROM Record WHERE deleted = 0 AND ownerId = COALESCE((SELECT userId FROM SyncAccount WHERE id = 1), 0)) ORDER BY timestamp DESC LIMIT 1")
     fun getLastDataFlow(): Flow<Record?>
 
-    @Query("SELECT COUNT(*) FROM Record")
+    @Query("SELECT COUNT(*) FROM (SELECT * FROM Record WHERE deleted = 0 AND ownerId = COALESCE((SELECT userId FROM SyncAccount WHERE id = 1), 0))")
     fun getRecordCount(): Flow<Int>
 
-    @Query("SELECT * FROM Record ORDER BY id asc LIMIT 1")
+    @Query("SELECT * FROM (SELECT * FROM Record WHERE deleted = 0 AND ownerId = COALESCE((SELECT userId FROM SyncAccount WHERE id = 1), 0)) ORDER BY id asc LIMIT 1")
     suspend fun getFirstData(): Record?
 
-    @Query("SELECT * FROM Record ORDER BY id asc LIMIT 1")
+    @Query("SELECT * FROM (SELECT * FROM Record WHERE deleted = 0 AND ownerId = COALESCE((SELECT userId FROM SyncAccount WHERE id = 1), 0)) ORDER BY id asc LIMIT 1")
     fun getFirstDataFlow(): Flow<Record?>
 
     /**
@@ -62,13 +70,13 @@ interface RecordDao {
      * SQL 不再绑定任何统计口径；便捷入口见 [dailyWeightsSince] / [dailyWeightsBetween]。
      */
     @Query(
-        "SELECT timestamp, weight FROM Record " +
+        "SELECT timestamp, weight FROM (SELECT * FROM Record WHERE deleted = 0 AND ownerId = COALESCE((SELECT userId FROM SyncAccount WHERE id = 1), 0)) " +
             "WHERE timestamp >= :startMillis AND timestamp < :endMillis ORDER BY timestamp ASC"
     )
     fun getWeightsRaw(startMillis: Long, endMillis: Long): Flow<List<RecordWeightRaw>>
 
     /** 成分趋势页取数：时间窗内含成分的记录（升序），空串手动记录排除；JSON 逐条解码与每日聚合在 [MetricTrend] 纯函数层完成 */
-    @Query("SELECT timestamp, bodyComposition FROM Record WHERE timestamp >= :startTimeMillis AND bodyComposition != '' ORDER BY timestamp ASC")
+    @Query("SELECT timestamp, bodyComposition FROM (SELECT * FROM Record WHERE deleted = 0 AND ownerId = COALESCE((SELECT userId FROM SyncAccount WHERE id = 1), 0)) WHERE timestamp >= :startTimeMillis AND bodyComposition != '' ORDER BY timestamp ASC")
     fun getCompositionsSince(startTimeMillis: Long): Flow<List<RecordCompositionRaw>>
 
     /**
@@ -77,29 +85,29 @@ interface RecordDao {
      * 三列之和 > 0 表示该行有成分数据（0.0=未测得，与 BodyComposition 的 0/空=未测得口径一致）。
      */
     @Query(
-        "SELECT timestamp, fatRatio, muscleRatio, waterRatio FROM Record " +
+        "SELECT timestamp, fatRatio, muscleRatio, waterRatio FROM (SELECT * FROM Record WHERE deleted = 0 AND ownerId = COALESCE((SELECT userId FROM SyncAccount WHERE id = 1), 0)) " +
             "WHERE timestamp >= :startTimeMillis AND fatRatio + muscleRatio + waterRatio > 0 ORDER BY timestamp ASC"
     )
     fun getMetricColumnsSince(startTimeMillis: Long): Flow<List<RecordMetricRaw>>
 
-    @Query("SELECT * FROM Record WHERE timestamp >= :startTimeMillis")
+    @Query("SELECT * FROM (SELECT * FROM Record WHERE deleted = 0 AND ownerId = COALESCE((SELECT userId FROM SyncAccount WHERE id = 1), 0)) WHERE timestamp >= :startTimeMillis")
     suspend fun getRecordWeightSince(startTimeMillis: Long): List<Record>
 
     /** 周期报告 AI 总结取数：[startMillis] 含、[endMillis] 排他，取原始记录（含日志） */
-    @Query("SELECT * FROM Record WHERE timestamp >= :startMillis AND timestamp < :endMillis ORDER BY timestamp ASC")
+    @Query("SELECT * FROM (SELECT * FROM Record WHERE deleted = 0 AND ownerId = COALESCE((SELECT userId FROM SyncAccount WHERE id = 1), 0)) WHERE timestamp >= :startMillis AND timestamp < :endMillis ORDER BY timestamp ASC")
     suspend fun getRecordWeightBetween(startMillis: Long, endMillis: Long): List<Record>
 
-    @Query("SELECT * FROM Record ORDER BY timestamp ASC")
+    @Query("SELECT * FROM (SELECT * FROM Record WHERE deleted = 0 AND ownerId = COALESCE((SELECT userId FROM SyncAccount WHERE id = 1), 0)) ORDER BY timestamp ASC")
     suspend fun getAllOnce(): List<Record>
 
     /** 去重用轻量投影：只取 (timestamp, weight)，避免导入链路全量物化日志等大字段 */
-    @Query("SELECT timestamp, weight FROM Record")
+    @Query("SELECT timestamp, weight FROM (SELECT * FROM Record WHERE deleted = 0 AND ownerId = COALESCE((SELECT userId FROM SyncAccount WHERE id = 1), 0))")
     suspend fun getDedupKeys(): List<RecordDedupKey>
 
     /** 全部打卡日（北京时间 yyyy-MM-dd，去重升序），供连续打卡计算 */
     @Query(
         "SELECT DISTINCT DATE(timestamp / 1000, 'unixepoch', '$BEIJING_TZ_SQL') AS recordDay " +
-            "FROM Record ORDER BY recordDay ASC"
+            "FROM (SELECT * FROM Record WHERE deleted = 0 AND ownerId = COALESCE((SELECT userId FROM SyncAccount WHERE id = 1), 0)) ORDER BY recordDay ASC"
     )
     fun getRecordDaysFlow(): Flow<List<String>>
 

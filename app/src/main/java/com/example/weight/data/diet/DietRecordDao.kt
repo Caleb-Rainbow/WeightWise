@@ -23,18 +23,26 @@ interface DietRecordDao {
     suspend fun insertAll(records: List<DietRecord>)
 
     @Update
-    suspend fun update(record: DietRecord)
+    suspend fun updateRaw(record: DietRecord)
 
-    @Delete
-    suspend fun delete(record: DietRecord)
+    @Query("SELECT * FROM DietRecord WHERE id = :id LIMIT 1")
+    suspend fun findForUpdate(id: Int): DietRecord?
 
-    @Query("SELECT * FROM DietRecord WHERE date = :date ORDER BY timestamp ASC")
+    @androidx.room.Transaction
+    suspend fun update(record: DietRecord) {
+        val current = findForUpdate(record.id) ?: return
+        updateRaw(record.copy(ownerId = current.ownerId, syncId = current.syncId, revision = if (current.mutationId == record.mutationId || current.dirty || current.deleted) current.revision else record.revision, dirty = true, mutationId = java.util.UUID.randomUUID().toString()))
+    }
+
+    suspend fun delete(record: DietRecord) = update(record.copy(deleted = true))
+
+    @Query("SELECT * FROM (SELECT * FROM DietRecord WHERE deleted = 0 AND ownerId = COALESCE((SELECT userId FROM SyncAccount WHERE id = 1), 0)) WHERE date = :date ORDER BY timestamp ASC")
     fun getByDate(date: String): Flow<List<DietRecord>>
 
     /** 历史 Tab 取数：[startDate] 含、[endDate] 排他（yyyy-MM-dd 字典序），按日期倒序+日内时间正序 */
     @Query(
         """
-        SELECT * FROM DietRecord
+        SELECT * FROM (SELECT * FROM DietRecord WHERE deleted = 0 AND ownerId = COALESCE((SELECT userId FROM SyncAccount WHERE id = 1), 0))
         WHERE date >= :startDate AND date < :endDate
         ORDER BY date DESC, timestamp ASC
         """
@@ -46,20 +54,20 @@ interface DietRecordDao {
      * （沿用 getDedupKeys 的惯例）。Flow 随表任意写操作重发，编辑/删除/撤销无需手动刷新；
      * today 上界挡未来日期补记提前参与统计（日期选择器允许选未来日期）
      */
-    @Query("SELECT recognizedFoodJson FROM DietRecord WHERE date >= :sinceDate AND date <= :today AND recognizedFoodJson != ''")
+    @Query("SELECT recognizedFoodJson FROM (SELECT * FROM DietRecord WHERE deleted = 0 AND ownerId = COALESCE((SELECT userId FROM SyncAccount WHERE id = 1), 0)) WHERE date >= :sinceDate AND date <= :today AND recognizedFoodJson != ''")
     fun getFoodJsonBetween(sinceDate: String, today: String): Flow<List<String>>
 
-    @Query("SELECT COALESCE(SUM(estimatedCalories), 0) FROM DietRecord WHERE date = :date")
+    @Query("SELECT COALESCE(SUM(estimatedCalories), 0) FROM (SELECT * FROM DietRecord WHERE deleted = 0 AND ownerId = COALESCE((SELECT userId FROM SyncAccount WHERE id = 1), 0)) WHERE date = :date")
     suspend fun getDailyCalories(date: String): Int
 
-    @Query("SELECT COALESCE(SUM(estimatedCalories), 0) FROM DietRecord WHERE date = :date")
+    @Query("SELECT COALESCE(SUM(estimatedCalories), 0) FROM (SELECT * FROM DietRecord WHERE deleted = 0 AND ownerId = COALESCE((SELECT userId FROM SyncAccount WHERE id = 1), 0)) WHERE date = :date")
     fun getDailyCaloriesFlow(date: String): Flow<Int>
 
     /** 周期报告取数：[startDate] 含、[endDate] 排他（周期结束次日，yyyy-MM-dd 字典序比较） */
     @Query(
         """
         SELECT date, SUM(estimatedCalories) AS calories
-        FROM DietRecord
+        FROM (SELECT * FROM DietRecord WHERE deleted = 0 AND ownerId = COALESCE((SELECT userId FROM SyncAccount WHERE id = 1), 0))
         WHERE date >= :startDate AND date < :endDate
         GROUP BY date
         ORDER BY date ASC
@@ -71,21 +79,21 @@ interface DietRecordDao {
     @Query(
         """
         SELECT trafficLight, COUNT(*) as count
-        FROM DietRecord
+        FROM (SELECT * FROM DietRecord WHERE deleted = 0 AND ownerId = COALESCE((SELECT userId FROM SyncAccount WHERE id = 1), 0))
         WHERE date >= :startDate AND date < :endDate
         GROUP BY trafficLight
     """
     )
     fun getTrafficLightBetween(startDate: String, endDate: String): Flow<List<TrafficLightCount>>
 
-    @Query("SELECT * FROM DietRecord WHERE date >= :sinceDate ORDER BY date ASC, timestamp ASC")
+    @Query("SELECT * FROM (SELECT * FROM DietRecord WHERE deleted = 0 AND ownerId = COALESCE((SELECT userId FROM SyncAccount WHERE id = 1), 0)) WHERE date >= :sinceDate ORDER BY date ASC, timestamp ASC")
     suspend fun getRecordsSince(sinceDate: String): List<DietRecord>
 
     /** 范围内每日摄入热量合计（date 为 yyyy-MM-dd，可字典序比较），供 AI 分析融合饮食数据 */
     @Query(
         """
         SELECT date, SUM(estimatedCalories) AS calories
-        FROM DietRecord
+        FROM (SELECT * FROM DietRecord WHERE deleted = 0 AND ownerId = COALESCE((SELECT userId FROM SyncAccount WHERE id = 1), 0))
         WHERE date >= :sinceDate
         GROUP BY date
         ORDER BY date ASC
@@ -93,20 +101,20 @@ interface DietRecordDao {
     )
     suspend fun getDailyCaloriesSince(sinceDate: String): List<DailyCalories>
 
-    @Query("SELECT * FROM DietRecord WHERE imageUri != ''")
+    @Query("SELECT * FROM (SELECT * FROM DietRecord WHERE deleted = 0 AND ownerId = COALESCE((SELECT userId FROM SyncAccount WHERE id = 1), 0)) WHERE imageUri != ''")
     suspend fun getRecordsWithImage(): List<DietRecord>
 
-    @Update
-    suspend fun updateAll(records: List<DietRecord>)
+    @androidx.room.Transaction
+    suspend fun updateAll(records: List<DietRecord>) { records.forEach { update(it) } }
 
-    @Query("SELECT * FROM DietRecord ORDER BY timestamp DESC")
+    @Query("SELECT * FROM (SELECT * FROM DietRecord WHERE deleted = 0 AND ownerId = COALESCE((SELECT userId FROM SyncAccount WHERE id = 1), 0)) ORDER BY timestamp DESC")
     fun pagingSource(): PagingSource<Int, DietRecord>
 
-    @Query("SELECT * FROM DietRecord ORDER BY timestamp ASC")
+    @Query("SELECT * FROM (SELECT * FROM DietRecord WHERE deleted = 0 AND ownerId = COALESCE((SELECT userId FROM SyncAccount WHERE id = 1), 0)) ORDER BY timestamp ASC")
     suspend fun getAllOnce(): List<DietRecord>
 
     /** 去重用轻量投影：只取 (date, timestamp, mealType)，避免全量物化 recognizedFoodJson 等大字段 */
-    @Query("SELECT date, timestamp, mealType FROM DietRecord")
+    @Query("SELECT date, timestamp, mealType FROM (SELECT * FROM DietRecord WHERE deleted = 0 AND ownerId = COALESCE((SELECT userId FROM SyncAccount WHERE id = 1), 0))")
     suspend fun getDedupKeys(): List<DietRecordDedupKey>
 }
 

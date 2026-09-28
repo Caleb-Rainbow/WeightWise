@@ -1,5 +1,8 @@
 package com.example.weight.data.record
 
+import com.example.weight.data.sync.ActiveAccount
+import java.util.UUID
+import kotlinx.serialization.Serializable
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
@@ -7,9 +10,16 @@ import androidx.room.PrimaryKey
 
 // timestamp 索引：首页/报告/小组件的时间窗查询、最新记录、分页排序都依赖它，无索引时全部退化为全表扫描
 @Entity(indices = [Index("timestamp")])
+@Serializable
 data class Record(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
+    @ColumnInfo(defaultValue = "0") val ownerId: Long = ActiveAccount.id,
+    @ColumnInfo(defaultValue = "''") val syncId: String = UUID.randomUUID().toString(),
+    @ColumnInfo(defaultValue = "0") val revision: Long = 0,
+    @ColumnInfo(defaultValue = "''") val mutationId: String = UUID.randomUUID().toString(),
+    @ColumnInfo(defaultValue = "1") val dirty: Boolean = true,
+    @ColumnInfo(defaultValue = "0") val deleted: Boolean = false,
     val weight: Double,
     @ColumnInfo(defaultValue = "")
     val log:String,

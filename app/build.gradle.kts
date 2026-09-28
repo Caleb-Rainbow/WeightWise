@@ -22,9 +22,10 @@ extensions.configure<ApplicationExtension>("android") {
         targetSdk = 37
         versionCode = 20
         versionName = "2.0.0"
+        buildConfigField("String", "SYNC_SERVER_URL", "\"" + providers.gradleProperty("syncServerUrl").getOrElse("https://app-admin.yingluozhiwei.cn") + "\"")
         ndk.abiFilters.add("arm64-v8a")
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner = "com.example.weight.SyncTestRunner"
     }
 
     buildTypes {

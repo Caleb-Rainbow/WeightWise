@@ -105,6 +105,7 @@ fun SettingScreen(modifier: Modifier = Modifier, goBack: () -> Unit) {
             item {
                 SettingsIntro()
             }
+            item { AccountSyncCard() }
             item { GoalCard() }
             item { ProfileCard() }
             item { AppearanceCard() }

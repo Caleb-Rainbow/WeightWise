@@ -37,6 +37,7 @@ class Migration11To13Test {
     fun `迁移保留数据并移除 Health Connect 来源列和索引`() {
         val room = Room.databaseBuilder(context, AppDataBase::class.java, DB_NAME)
             .allowMainThreadQueries()
+            .addMigrations(com.example.weight.data.sync.MIGRATION_13_14)
             .build()
         try {
             val db = room.openHelper.writableDatabase
@@ -63,6 +64,13 @@ class Migration11To13Test {
             // 与 HC 无关的索引须保留
             assertTrue(indexNames(db, "Record").contains("index_Record_timestamp"))
             assertTrue(indexNames(db, "DietRecord").contains("index_DietRecord_timestamp"))
+            db.query("SELECT ownerId, syncId, dirty, deleted FROM Record").use {
+                assertTrue(it.moveToFirst())
+                assertEquals(0, it.getInt(0))
+                assertEquals(32, it.getString(1).length)
+                assertEquals(1, it.getInt(2))
+                assertEquals(0, it.getInt(3))
+            }
         } finally {
             room.close()
         }

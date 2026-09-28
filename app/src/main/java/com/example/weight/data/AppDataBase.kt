@@ -65,8 +65,8 @@ val MIGRATION_10_11: Migration = object : Migration(10, 11) {
 }
 
 @Database(
-    version = 13,
-    entities = [Record::class, DietRecord::class],
+    version = 14,
+    entities = [Record::class, DietRecord::class, com.example.weight.data.sync.SyncAccount::class, com.example.weight.data.sync.SyncProfile::class, com.example.weight.data.sync.SyncConflict::class],
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
@@ -83,6 +83,7 @@ val MIGRATION_10_11: Migration = object : Migration(10, 11) {
     ],
 )
 abstract class AppDataBase : RoomDatabase() {
+    abstract fun syncDao(): com.example.weight.data.sync.SyncDao
     abstract fun recordDao(): RecordDao
     abstract fun dietRecordDao(): DietRecordDao
 }

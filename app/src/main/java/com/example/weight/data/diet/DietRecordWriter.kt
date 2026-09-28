@@ -16,6 +16,7 @@ class DietRecordWriter(
 ) {
 
     data class Draft(
+        val ownerId: Long = com.example.weight.data.sync.ActiveAccount.id,
         val foods: List<RecognizedFoodItem>,
         val mealType: MealType,
         val date: String,
@@ -27,6 +28,7 @@ class DietRecordWriter(
 
     suspend fun insert(draft: Draft): Long {
         val record = DietRecord(
+            ownerId = draft.ownerId,
             date = draft.date,
             timestamp = newTimestamp(),
             mealType = draft.mealType.name,
