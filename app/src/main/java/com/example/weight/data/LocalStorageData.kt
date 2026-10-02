@@ -34,7 +34,7 @@ object LocalStorageData : MMKVOwner(mmapID = com.example.weight.data.sync.SyncSt
     /** 每周计划变化量（kg），同时用于目标日期规划与减重热量建议 */
     val weeklyTargetChangeKg by mmkvDouble(default = DEFAULT_WEEKLY_TARGET_CHANGE_KG).asStateFlow()
 
-    /** 阶段目标间隔（kg） */
+    /** 旧版阶段目标间隔（kg），仅为备份与同步兼容保留，不再参与目标展示。 */
     val stageGoalStepKg by mmkvDouble(default = DEFAULT_STAGE_GOAL_STEP_KG).asStateFlow()
 
     /** 当前腰围（cm）；0.0 表示未设置 */

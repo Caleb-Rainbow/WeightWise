@@ -88,7 +88,6 @@ internal fun GoalCard() {
     val targetWeight by LocalStorageData.targetWeight.collectAsStateWithLifecycle()
     val startWeight by LocalStorageData.startWeight.collectAsStateWithLifecycle()
     val weeklyTargetChangeKg by LocalStorageData.weeklyTargetChangeKg.collectAsStateWithLifecycle()
-    val stageGoalStepKg by LocalStorageData.stageGoalStepKg.collectAsStateWithLifecycle()
     val targetWaistCm by LocalStorageData.targetWaistCm.collectAsStateWithLifecycle()
     val targetBodyFatPercent by LocalStorageData.targetBodyFatPercent.collectAsStateWithLifecycle()
     val recordDao = koinInject<RecordDao>()
@@ -119,7 +118,6 @@ internal fun GoalCard() {
     var editingTarget by remember { mutableStateOf(false) }
     var editingStart by remember { mutableStateOf(false) }
     var editingWeeklyRate by remember { mutableStateOf(false) }
-    var editingStageStep by remember { mutableStateOf(false) }
     var editingTargetWaist by remember { mutableStateOf(false) }
     var editingTargetBodyFat by remember { mutableStateOf(false) }
     val effectiveStart = if (startWeight > 0) startWeight else firstRecordWeight
@@ -143,11 +141,6 @@ internal fun GoalCard() {
             onClick = { editingWeeklyRate = true },
         )
         SettingsRow(
-            label = "阶段目标间隔",
-            value = "${stageGoalStepKg.formatPlain()} kg",
-            onClick = { editingStageStep = true },
-        )
-        SettingsRow(
             label = "目标腰围",
             value = if (targetWaistCm > 0) "${targetWaistCm.formatPlain()} cm" else "未设置",
             valueColor = unsetOrValue(targetWaistCm > 0),
@@ -159,7 +152,7 @@ internal fun GoalCard() {
             valueColor = unsetOrValue(targetBodyFatPercent > 0),
             onClick = { editingTargetBodyFat = true },
         )
-        SettingsFootnote("目标速度会用于计划日期与减重热量建议；阶段目标帮助拆分长期目标")
+        SettingsFootnote("目标速度会用于总目标的计划日期与减重热量建议")
     }
 
     if (editingTarget) {
@@ -196,16 +189,6 @@ internal fun GoalCard() {
                 LocalStorageData.weeklyTargetChangeKg.update { value }
             },
             onDismiss = { editingWeeklyRate = false },
-        )
-    }
-    if (editingStageStep) {
-        NumberEditDialog(
-            title = "阶段目标间隔",
-            initialValue = stageGoalStepKg,
-            integerRange = 1..10,
-            unit = "kg",
-            onConfirm = { value -> LocalStorageData.stageGoalStepKg.update { value.coerceAtLeast(0.5) } },
-            onDismiss = { editingStageStep = false },
         )
     }
     if (editingTargetWaist) {

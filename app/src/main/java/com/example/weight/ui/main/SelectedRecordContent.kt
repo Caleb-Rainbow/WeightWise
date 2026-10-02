@@ -78,6 +78,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
@@ -115,8 +116,6 @@ import kotlin.math.absoluteValue
 @Composable
 fun SelectedRecordContent(
     record: DailyWeight?,
-    selectedScope: StatisticsScope,
-    onScopeSelected: (StatisticsScope) -> Unit,
     modifier: Modifier = Modifier,
     streakInfo: StreakInfo = StreakInfo(0, 0, false),
     onSetting: () -> Unit = {},
@@ -128,41 +127,39 @@ fun SelectedRecordContent(
             .background(MaterialTheme.colorScheme.primary),
     ) {
         val ringColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.08f)
-        Box(
+        Canvas(
             modifier = Modifier
-                .align(Alignment.TopEnd)
-                .windowInsetsPadding(statusBarInsets),
+                .matchParentSize()
+                .windowInsetsPadding(statusBarInsets)
+                .testTag(HERO_RING_TEST_TAG),
         ) {
-            Canvas(
-                modifier = Modifier
-                    .size(190.dp)
-                    .testTag(HERO_RING_TEST_TAG),
-            ) {
-                drawCircle(color = ringColor, radius = size.minDimension * 0.42f)
-                drawCircle(
-                    color = ringColor,
-                    radius = size.minDimension * 0.29f,
-                    style = Stroke(width = 1.5.dp.toPx()),
-                )
-            }
+            val diameter = 140.dp.toPx()
+            val center = Offset(size.width - diameter / 2, size.height / 2)
+            drawCircle(color = ringColor, radius = diameter * 0.42f, center = center)
+            drawCircle(
+                color = ringColor,
+                radius = diameter * 0.29f,
+                center = center,
+                style = Stroke(width = 1.5.dp.toPx()),
+            )
         }
         Column(
             modifier = Modifier
                 .windowInsetsPadding(statusBarInsets)
-                .padding(start = 24.dp, top = 20.dp, end = 20.dp, bottom = 14.dp),
+                .padding(horizontal = 20.dp, vertical = 8.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "WEIGHTWISE / 今日",
-                        style = MaterialTheme.typography.labelLarge,
+                        style = MaterialTheme.typography.labelSmall,
                         letterSpacing = 1.1.sp,
                         color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.64f),
                     )
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(2.dp))
                     Text(
                         text = "今日体重",
-                        style = MaterialTheme.typography.headlineMedium,
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimary,
                     )
@@ -177,8 +174,11 @@ fun SelectedRecordContent(
                     }
                 }
             }
-            Spacer(Modifier.height(22.dp))
-            Row(verticalAlignment = Alignment.Bottom) {
+            Spacer(Modifier.height(4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 AnimatedContent(targetState = record?.value ?: 0.0, transitionSpec = {
                     if (targetState > initialState) {
                         slideInVertically { height -> height } + fadeIn() togetherWith
@@ -192,7 +192,7 @@ fun SelectedRecordContent(
                 }) {
                     Text(
                         text = String.format(Locale.CHINA, "%.1f", it),
-                        style = MaterialTheme.typography.displayLarge,
+                        style = MaterialTheme.typography.displayMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimary,
                         letterSpacing = (-2).sp,
@@ -201,38 +201,29 @@ fun SelectedRecordContent(
                 Text(
                     modifier = Modifier
                         .align(Alignment.Bottom)
-                        .padding(bottom = 10.dp, start = 4.dp),
+                        .padding(bottom = 8.dp, start = 4.dp),
                     text = "kg",
                     style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.64f),
                 )
-            }
-            Spacer(Modifier.height(10.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                AnimatedVisibility(visible = record != null) {
-                    record?.timestamp?.let {
-                        Text(
-                            text = "最近记录  ${TimeUtils.convertMillisToTime(it)}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.66f),
-                        )
+                Spacer(Modifier.weight(1f))
+                Column(horizontalAlignment = Alignment.End) {
+                    AnimatedVisibility(visible = record != null) {
+                        record?.timestamp?.let {
+                            Text(
+                                text = "最近记录 ${TimeUtils.convertMillisToTime(it)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.66f),
+                            )
+                        }
+                    }
+                    // 至少连续 2 天才展示徽章，单天打卡没有激励意义。
+                    if (streakInfo.currentStreak >= 2) {
+                        Spacer(Modifier.height(4.dp))
+                        HeroPill(text = "连续 ${streakInfo.currentStreak} 天")
                     }
                 }
-                Spacer(Modifier.weight(1f))
-                // 至少连续 2 天才展示徽章，单天打卡没有激励意义
-                if (streakInfo.currentStreak >= 2) {
-                    HeroPill(text = "连续 ${streakInfo.currentStreak} 天")
-                }
             }
-            Spacer(Modifier.height(14.dp))
-            ScopeSelector(
-                selected = selectedScope,
-                onSelected = onScopeSelected,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-            )
         }
     }
 }

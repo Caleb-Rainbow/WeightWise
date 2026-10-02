@@ -3,7 +3,6 @@ package com.example.weight.ui.main
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertTopPositionInRootIsEqualTo
-import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -36,13 +35,11 @@ class SelectedRecordContentUiTest {
     )
 
     @Test
-    fun `今日卡突出体重范围与连续打卡`() {
+    fun `今日卡突出体重与连续打卡并移除独立周期行`() {
         composeRule.setContent {
             AppTheme {
                 SelectedRecordContent(
                     record = record,
-                    selectedScope = StatisticsScope.LAST_7DAYS,
-                    onScopeSelected = {},
                     streakInfo = StreakInfo(7, 21, true),
                 )
             }
@@ -50,7 +47,7 @@ class SelectedRecordContentUiTest {
 
         composeRule.onNodeWithText("今日体重").assertExists()
         composeRule.onNodeWithText("68.4").assertExists()
-        composeRule.onNodeWithText("近7天").assertHasClickAction()
+        composeRule.onNodeWithText("近7天").assertDoesNotExist()
         composeRule.onNodeWithText("连续 7 天").assertExists()
     }
 
@@ -61,8 +58,6 @@ class SelectedRecordContentUiTest {
             AppTheme {
                 SelectedRecordContent(
                     record = record,
-                    selectedScope = StatisticsScope.LAST_7DAYS,
-                    onScopeSelected = {},
                     onSetting = { clicked = true },
                 )
             }
@@ -79,15 +74,13 @@ class SelectedRecordContentUiTest {
             AppTheme {
                 SelectedRecordContent(
                     record = record,
-                    selectedScope = StatisticsScope.LAST_7DAYS,
-                    onScopeSelected = {},
                     statusBarInsets = WindowInsets(0, topInset, 0, 0),
                 )
             }
         }
 
         composeRule.onNodeWithText("WEIGHTWISE / 今日")
-            .assertTopPositionInRootIsEqualTo(44.dp)
+            .assertTopPositionInRootIsEqualTo(32.dp)
     }
 
     @Test
@@ -99,8 +92,6 @@ class SelectedRecordContentUiTest {
             AppTheme {
                 SelectedRecordContent(
                     record = record,
-                    selectedScope = StatisticsScope.LAST_7DAYS,
-                    onScopeSelected = {},
                     statusBarInsets = WindowInsets(0, topInset, 0, 0),
                 )
             }
@@ -111,36 +102,4 @@ class SelectedRecordContentUiTest {
         assertEquals(expectedTopPx, ringTop, 0.01f)
     }
 
-    @Test
-    fun `观察周期菜单锚定在当前值一侧`() {
-        composeRule.setContent {
-            AppTheme {
-                SelectedRecordContent(
-                    record = record,
-                    selectedScope = StatisticsScope.LAST_7DAYS,
-                    onScopeSelected = {},
-                )
-            }
-        }
-
-        val labelRight = composeRule.onNodeWithText(
-            text = "观察周期",
-            useUnmergedTree = true,
-        )
-            .fetchSemanticsNode().boundsInRoot.right
-        val menuAnchorLeft = composeRule.onNodeWithTag(
-            testTag = SCOPE_MENU_ANCHOR_TEST_TAG,
-            useUnmergedTree = true,
-        )
-            .fetchSemanticsNode().boundsInRoot.left
-
-        assertTrue(
-            "下拉菜单的父布局应位于右侧当前周期附近：" +
-                "labelRight=$labelRight, menuAnchorLeft=$menuAnchorLeft",
-            menuAnchorLeft > labelRight,
-        )
-
-        composeRule.onNodeWithText("近7天").performClick()
-        composeRule.onNodeWithText("近14天").assertExists()
-    }
 }

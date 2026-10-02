@@ -204,7 +204,7 @@ internal fun DataManagementCard() {
 
     // 重算确认弹窗：公式升级后按当前公式与档案重刷历史，覆盖不可撤销
     pendingRecalcCount?.let { count ->
-        val waist = LocalStorageData.currentWaistCm.value
+        val waist by LocalStorageData.currentWaistCm.collectAsStateWithLifecycle()
         AlertDialog(
             onDismissRequest = { pendingRecalcCount = null },
             title = { Text("重算身体成分") },

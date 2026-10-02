@@ -85,6 +85,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.weight.LocalSnackBarShow
@@ -180,7 +181,8 @@ fun MainScreen(
             currentScopeData?.let { viewModel.setSelectedRecord(it.lastOrNull()) }
         }
 
-        Box(modifier = Modifier.fillMaxSize()) {
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val viewportHeight = maxHeight
             Column(
                 modifier = Modifier
                     .padding(paddingValues)
@@ -205,7 +207,7 @@ fun MainScreen(
                         (if (targetWeight > 0) minOf(raw, targetWeight) else raw).minus(1)
                     }
 
-                    BoxWithConstraints {
+                    Column {
                         // 提升到此处一次性收集，避免在下层参数表达式里内联 collect
                         val selectedScope by viewModel.selectedScope.collectAsStateWithLifecycle()
                         // 稳定引用：内联 lambda 每次重组都是新实例，会让图表的 marker listener 链失效重建
@@ -223,14 +225,12 @@ fun MainScreen(
                                 Column {
                                     SelectedRecordContent(
                                         record = uiState.selectedRecord,
-                                        selectedScope = selectedScope,
-                                        onScopeSelected = viewModel::selectScope,
                                         streakInfo = streakInfo,
                                         onSetting = goSetting,
                                     )
                                     GoalProgressContent(
                                         modifier = Modifier
-                                            .padding(start = 20.dp, end = 20.dp, bottom = 22.dp)
+                                            .padding(start = 20.dp, end = 20.dp, bottom = 10.dp)
                                             .fillMaxWidth(),
                                         currentRecord = uiState.latestRecord,
                                         firstRecord = uiState.firstRecord,
@@ -240,32 +240,17 @@ fun MainScreen(
                             }
                         }
 
-                        val trendContent: @Composable () -> Unit = {
-                            DashboardSectionTitle(
-                                index = "01",
-                                title = "趋势轨迹",
-                                subtitle = "点按曲线查看当天记录",
-                                modifier = Modifier.padding(top = 28.dp, bottom = 12.dp),
+                        val trendContent: @Composable (Dp) -> Unit = { chartHeight ->
+                            DashboardTrendSection(
+                                currentScopeDataList = scopeData,
+                                selectedScope = selectedScope,
+                                onScopeSelected = viewModel::selectScope,
+                                maxWeight = chartMaxWeight,
+                                minWeight = chartMinWeight,
+                                targetWeight = targetWeight,
+                                chartHeight = chartHeight,
+                                onMarkerClick = onRecordSelected,
                             )
-                            Surface(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(
-                                    topStart = 8.dp,
-                                    topEnd = 30.dp,
-                                    bottomStart = 30.dp,
-                                    bottomEnd = 8.dp,
-                                ),
-                                color = MaterialTheme.colorScheme.surfaceContainerLowest,
-                                shadowElevation = 1.dp,
-                            ) {
-                                StatisticChart(
-                                    currentScopeDataList = scopeData,
-                                    selectedScope = selectedScope,
-                                    maxWeight = chartMaxWeight,
-                                    minWeight = chartMinWeight,
-                                    onMarkerClick = onRecordSelected,
-                                )
-                            }
                         }
 
                         val statsContent: @Composable () -> Unit = {
@@ -294,41 +279,13 @@ fun MainScreen(
                             )
                         }
 
-                        if (maxWidth >= 700.dp) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = WeightWiseDimens.PageHorizontal),
-                                horizontalArrangement = Arrangement.spacedBy(WeightWiseDimens.SectionGap),
-                                verticalAlignment = Alignment.Top,
-                            ) {
-                                Column(modifier = Modifier.weight(0.42f)) {
-                                    heroContent(Modifier.clip(MaterialTheme.shapes.extraLarge))
-                                    DashboardQuickActions(
-                                        modifier = Modifier.padding(top = 16.dp),
-                                        onAddRecord = viewModel::showAddDialog,
-                                        onDietQuickAdd = { showQuickAdd = true },
-                                    )
-                                    statsContent()
-                                }
-                                Column(modifier = Modifier.weight(0.58f)) {
-                                    trendContent()
-                                    bmiContent()
-                                }
-                            }
-                        } else {
-                            Column {
-                                heroContent(Modifier)
-                                Column(modifier = Modifier.padding(horizontal = WeightWiseDimens.PageHorizontal)) {
-                                    DashboardQuickActions(
-                                        modifier = Modifier.padding(top = 18.dp),
-                                        onAddRecord = viewModel::showAddDialog,
-                                        onDietQuickAdd = { showQuickAdd = true },
-                                    )
-                                    trendContent()
-                                    statsContent()
-                                    bmiContent()
-                                }
-                            }
-                        }
+                        DashboardLayout(
+                            viewportHeight = viewportHeight,
+                            heroContent = heroContent,
+                            trendContent = trendContent,
+                            statsContent = statsContent,
+                            bmiContent = bmiContent,
+                        )
                     }
                 }
             }

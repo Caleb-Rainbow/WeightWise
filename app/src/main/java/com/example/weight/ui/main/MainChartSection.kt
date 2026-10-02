@@ -85,6 +85,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.weight.LocalSnackBarShow
@@ -114,32 +115,64 @@ import kotlin.math.absoluteValue
 
 internal const val SCOPE_MENU_ANCHOR_TEST_TAG = "scope_menu_anchor"
 
+@Composable
+internal fun DashboardTrendSection(
+    currentScopeDataList: List<DailyWeight>,
+    selectedScope: StatisticsScope,
+    onScopeSelected: (StatisticsScope) -> Unit,
+    maxWeight: Double,
+    minWeight: Double,
+    targetWeight: Double,
+    chartHeight: Dp,
+    onMarkerClick: (DailyWeight) -> Unit,
+) {
+    DashboardSectionTitle(
+        index = "01",
+        title = "趋势轨迹",
+        subtitle = "点按曲线查看当天记录",
+        modifier = Modifier.padding(top = 10.dp, bottom = 6.dp),
+        action = {
+            ScopeSelector(selected = selectedScope, onSelected = onScopeSelected)
+        },
+    )
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(topStart = 8.dp, topEnd = 30.dp, bottomStart = 30.dp, bottomEnd = 8.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+        shadowElevation = 1.dp,
+    ) {
+        StatisticChart(
+            currentScopeDataList = currentScopeDataList,
+            selectedScope = selectedScope,
+            maxWeight = maxWeight,
+            minWeight = minWeight,
+            targetWeight = targetWeight,
+            chartHeight = chartHeight,
+            onMarkerClick = onMarkerClick,
+        )
+    }
+}
 
-/** 轻量化的统计范围选择器：当前范围文字 + 下拉箭头，不与左侧体重数抢视觉 */
+
+/** 趋势标题右侧的观察周期选择器：当前范围文字与下拉箭头。 */
 @Composable
 internal fun ScopeSelector(
     selected: StatisticsScope,
     onSelected: (StatisticsScope) -> Unit,
+    modifier: Modifier = Modifier,
     contentColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
 ) {
     var expanded by remember { mutableStateOf(false) }
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
+        modifier = modifier
             .heightIn(min = 48.dp)
             .clip(RoundedCornerShape(10.dp))
             .background(contentColor.copy(alpha = 0.08f))
-            .clickable(role = Role.Button, onClickLabel = "选择统计范围") { expanded = true }
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .clickable(role = Role.Button, onClickLabel = "选择观察周期") { expanded = true }
+            .padding(start = 10.dp, end = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = "观察周期",
-            style = MaterialTheme.typography.labelMedium,
-            color = contentColor.copy(alpha = 0.62f),
-        )
-        Spacer(Modifier.weight(1f))
-        // 菜单只以右侧当前值为锚点；外层整行仍保持 48dp 以上的点击区域。
+        // 只展示当前周期，菜单锚定在标题右侧；保留至少 48dp 的点击高度。
         Box(modifier = Modifier.testTag(SCOPE_MENU_ANCHOR_TEST_TAG)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -181,10 +214,11 @@ internal fun StatisticChart(
     maxWeight: Double,
     minWeight: Double,
     onMarkerClick: (DailyWeight) -> Unit,
+    targetWeight: Double,
+    chartHeight: Dp = 220.dp,
 ) {
     // 根据收集到的数据构建 LineChart 所需的参数，当 currentScopeDataList 变化时重组
     val labels = remember(currentScopeDataList) { currentScopeDataList.map { it.recordDay } }
-    val targetWeight by LocalStorageData.targetWeight.collectAsStateWithLifecycle()
     val insight = remember(currentScopeDataList, selectedScope, targetWeight) {
         WeightTrendAnalyzer.analyze(
             dailyWeights = currentScopeDataList,
@@ -221,9 +255,10 @@ internal fun StatisticChart(
         val onMarkerIndexClick = remember(onMarkerClick, currentScopeDataList) {
             { index: Int -> onMarkerClick(currentScopeDataList[index]) }
         }
-        Column {
+        Column(modifier = Modifier.testTag(TREND_CHART_TEST_TAG)) {
             WeightChart(
                 lineColor = vicoTheme.lineColor,
+                modifier = Modifier.height(chartHeight),
                 modelProducer = modelProducer,
                 maxWeight = maxWeight,
                 minWeight = minWeight,
@@ -240,6 +275,7 @@ internal fun StatisticChart(
 
 @Composable
 private fun TrendInsightSummary(insight: com.example.weight.util.WeightTrendInsight) {
+    var expanded by remember(insight) { mutableStateOf(false) }
     val legend = if (insight.sevenDayAverage.isNotEmpty()) {
         "实线为平滑趋势，辅助线为7日均值"
     } else {
@@ -262,15 +298,37 @@ private fun TrendInsightSummary(insight: com.example.weight.util.WeightTrendInsi
         color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f),
         contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
         shape = RoundedCornerShape(14.dp),
-        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp).fillMaxWidth(),
+        modifier = Modifier
+            .padding(start = 12.dp, end = 12.dp, bottom = 8.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(role = Role.Button, onClickLabel = if (expanded) "收起趋势依据与图例" else "展开趋势依据与图例") {
+                expanded = !expanded
+            },
     ) {
-        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+        Column(modifier = Modifier.heightIn(min = 48.dp).padding(horizontal = 10.dp, vertical = 6.dp)) {
             Text(headline, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-            Text(
-                "${insight.confidence.label} · ${insight.confidenceReason} · $legend",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.72f),
-            )
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    insight.confidence.label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.72f),
+                )
+                Spacer(Modifier.weight(1f))
+                Text(if (expanded) "收起依据与图例" else "展开依据与图例", style = MaterialTheme.typography.labelSmall)
+                Icon(
+                    imageVector = Icons.Default.ArrowDropDown,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+            AnimatedVisibility(visible = expanded) {
+                Text(
+                    "${insight.confidenceReason}\n$legend",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.72f),
+                )
+            }
         }
     }
 }

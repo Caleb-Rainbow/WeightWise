@@ -84,6 +84,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -112,6 +113,7 @@ import java.util.Locale
 import kotlin.math.absoluteValue
 
 internal const val HERO_RING_TEST_TAG = "hero_ring"
+internal const val TREND_CHART_TEST_TAG = "trend_chart"
 
 
 /** 首次进入、数据库尚未发出第一份数据时的短暂加载态 */
@@ -158,56 +160,41 @@ internal fun EmptyContent(onAddRecord: () -> Unit) {
     }
 }
 
-/** 首页的两条高频任务。用不对称比例强调称重，避免所有入口等权的图标宫格。 */
+/** 手机优先展示体重、总目标和趋势；宽屏并排利用横向空间。 */
 @Composable
-internal fun DashboardQuickActions(
+internal fun DashboardLayout(
+    viewportHeight: Dp,
+    heroContent: @Composable (Modifier) -> Unit,
+    trendContent: @Composable (Dp) -> Unit,
+    statsContent: @Composable () -> Unit,
+    bmiContent: @Composable () -> Unit,
     modifier: Modifier = Modifier,
-    onAddRecord: () -> Unit,
-    onDietQuickAdd: () -> Unit,
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .heightIn(min = 112.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Surface(
-            modifier = Modifier
-                .weight(1.25f)
-                .fillMaxSize()
-                .clickable(role = Role.Button, onClickLabel = "记录体重", onClick = onAddRecord),
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 8.dp, bottomStart = 8.dp, bottomEnd = 28.dp),
-            color = MaterialTheme.colorScheme.tertiaryContainer,
-            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.SpaceBetween,
+    // 使用滚动容器外的可用高度，短屏缩小图表，同时保留坐标和触控空间。
+    val chartHeight = (viewportHeight * 0.30f).coerceIn(180.dp, 220.dp)
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        if (maxWidth >= 700.dp) {
+            Row(
+                modifier = Modifier.padding(horizontal = WeightWiseDimens.PageHorizontal),
+                horizontalArrangement = Arrangement.spacedBy(WeightWiseDimens.SectionGap),
+                verticalAlignment = Alignment.Top,
             ) {
-                Icon(Icons.Default.EditNote, contentDescription = null, modifier = Modifier.size(28.dp))
-                Column {
-                    Text("记录体重", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("今天还没称？现在记一笔", style = MaterialTheme.typography.bodySmall)
+                Column(modifier = Modifier.weight(0.42f)) {
+                    heroContent(Modifier.clip(MaterialTheme.shapes.extraLarge))
+                    statsContent()
+                }
+                Column(modifier = Modifier.weight(0.58f)) {
+                    trendContent(chartHeight)
+                    bmiContent()
                 }
             }
-        }
-        Surface(
-            modifier = Modifier
-                .weight(0.75f)
-                .fillMaxSize()
-                .clickable(role = Role.Button, onClickLabel = "记一餐", onClick = onDietQuickAdd),
-            shape = RoundedCornerShape(topStart = 8.dp, topEnd = 28.dp, bottomStart = 28.dp, bottomEnd = 8.dp),
-            color = MaterialTheme.colorScheme.secondaryContainer,
-            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Icon(Icons.Default.Restaurant, contentDescription = null, modifier = Modifier.size(26.dp))
-                Column {
-                    Text("记一餐", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("拍照或文字", style = MaterialTheme.typography.bodySmall)
+        } else {
+            Column {
+                heroContent(Modifier)
+                Column(modifier = Modifier.padding(horizontal = WeightWiseDimens.PageHorizontal)) {
+                    trendContent(chartHeight)
+                    statsContent()
+                    bmiContent()
                 }
             }
         }
@@ -221,8 +208,9 @@ internal fun DashboardSectionTitle(
     title: String,
     subtitle: String,
     modifier: Modifier = Modifier,
+    action: (@Composable () -> Unit)? = null,
 ) {
-    Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+    Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(
             text = index,
             style = MaterialTheme.typography.labelLarge,
@@ -230,14 +218,18 @@ internal fun DashboardSectionTitle(
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(bottom = 4.dp),
         )
-        Spacer(Modifier.width(12.dp))
-        Column {
-            Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.width(8.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Text(
                 subtitle,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+        if (action != null) {
+            Spacer(Modifier.width(8.dp))
+            action()
         }
     }
 }
@@ -253,7 +245,6 @@ internal fun GoalProgressContent(
         val targetWeight by LocalStorageData.targetWeight.collectAsStateWithLifecycle()
         val configuredStartWeight by LocalStorageData.startWeight.collectAsStateWithLifecycle()
         val weeklyTargetChangeKg by LocalStorageData.weeklyTargetChangeKg.collectAsStateWithLifecycle()
-        val stageGoalStepKg by LocalStorageData.stageGoalStepKg.collectAsStateWithLifecycle()
         val currentWaistCm by LocalStorageData.currentWaistCm.collectAsStateWithLifecycle()
         val targetWaistCm by LocalStorageData.targetWaistCm.collectAsStateWithLifecycle()
         val targetBodyFatPercent by LocalStorageData.targetBodyFatPercent.collectAsStateWithLifecycle()
@@ -290,85 +281,121 @@ internal fun GoalProgressContent(
             val plannedDays = remember(currentWeight, targetWeight, weeklyTargetChangeKg) {
                 GoalPlanCalculator.plannedDays(currentWeight, targetWeight, weeklyTargetChangeKg)
             }
-            val nextStage = remember(startWeight, currentWeight, targetWeight, stageGoalStepKg) {
-                GoalPlanCalculator.nextStage(startWeight, currentWeight, targetWeight, stageGoalStepKg)
-            }
-
-            Surface(
+            GoalProgressSummary(
                 modifier = modifier,
-                shape = RoundedCornerShape(topStart = 10.dp, topEnd = 30.dp, bottomStart = 30.dp, bottomEnd = 10.dp),
-                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.09f),
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-            ) {
+                startWeight = startWeight,
+                currentWeight = currentWeight,
+                targetWeight = targetWeight,
+                progress = animatedProgress,
+                goalReached = goalReached,
+                plannedDays = plannedDays,
+                remainingDays = remainingDays,
+                currentWaistCm = currentWaistCm,
+                targetWaistCm = targetWaistCm,
+                currentBodyFatPercent = it.fatRatio,
+                targetBodyFatPercent = targetBodyFatPercent,
+            )
+        }
+    }
+}
+
+/** 总目标展示与存储分离，便于验证小屏布局和不同目标方向的文案。 */
+@Composable
+internal fun GoalProgressSummary(
+    startWeight: Double,
+    currentWeight: Double,
+    targetWeight: Double,
+    progress: Float,
+    goalReached: Boolean,
+    plannedDays: Long?,
+    remainingDays: Long?,
+    modifier: Modifier = Modifier,
+    currentWaistCm: Double = 0.0,
+    targetWaistCm: Double = 0.0,
+    currentBodyFatPercent: Double = 0.0,
+    targetBodyFatPercent: Double = 0.0,
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(topStart = 10.dp, topEnd = 30.dp, bottomStart = 30.dp, bottomEnd = 10.dp),
+        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.09f),
+        contentColor = MaterialTheme.colorScheme.onPrimary,
+    ) {
+        Row(
+            modifier = Modifier.padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            GoalRing(
+                progress = progress,
+                modifier = Modifier.size(60.dp),
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
                 Row(
-                    modifier = Modifier.padding(16.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    GoalRing(
-                        progress = animatedProgress,
-                        modifier = Modifier.size(78.dp),
+                    Text(
+                        text = if (goalReached) "总目标已达成" else "总目标进度",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.68f),
                     )
-                    Spacer(Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = if (goalReached) "目标已达成" else "目标进度",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.68f),
-                        )
-                        Spacer(Modifier.height(3.dp))
-                        val remainingWeight = (currentWeight - targetWeight).absoluteValue
-                        Text(
-                            text = if (goalReached) {
-                                val changedWeight = (currentWeight - startWeight).absoluteValue
-                                when {
-                                    changedWeight < 0.05 -> "稳住现在的节奏"
-                                    // 方向按实际增减判定：维持目标下减轻也说"已减轻"，不能跟 losing 走
-                                    currentWeight < startWeight -> "已减轻 ${String.format(Locale.CHINA, "%.1f", changedWeight)} kg"
-                                    else -> "已增加 ${String.format(Locale.CHINA, "%.1f", changedWeight)} kg"
-                                }
-                            } else {
-                                nextStage?.let { stage ->
-                                    "阶段 ${stage.index}/${stage.total} · ${String.format(Locale.CHINA, "%.1f", stage.targetWeight)} kg"
-                                } ?: "还差 ${String.format(Locale.CHINA, "%.1f", remainingWeight)} kg"
-                            },
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = buildString {
-                                append("起点 ${String.format(Locale.CHINA, "%.1f", startWeight)}  ·  目标 ${String.format(Locale.CHINA, "%.1f", targetWeight)}")
-                                if (!goalReached && plannedDays != null) append("  ·  计划 $plannedDays 天")
-                                if (!goalReached && remainingDays != null) append("  ·  趋势 $remainingDays 天")
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.68f),
-                        )
-                        val bodyGoals = buildList {
-                            if (targetWaistCm > 0) {
-                                add(
-                                    if (currentWaistCm > 0) {
-                                        "腰围 ${String.format(Locale.CHINA, "%.1f", currentWaistCm)} → ${String.format(Locale.CHINA, "%.1f", targetWaistCm)} cm"
-                                    } else "腰围目标 ${String.format(Locale.CHINA, "%.1f", targetWaistCm)} cm"
-                                )
+                    val remainingWeight = (currentWeight - targetWeight).absoluteValue
+                    Text(
+                        text = if (goalReached) {
+                            val changedWeight = (currentWeight - startWeight).absoluteValue
+                            when {
+                                changedWeight < 0.05 -> "稳住现在的节奏"
+                                // 方向按实际增减判定：维持目标下减轻也说"已减轻"，不能跟 losing 走
+                                currentWeight < startWeight -> "已减轻 ${String.format(Locale.CHINA, "%.1f", changedWeight)} kg"
+                                else -> "已增加 ${String.format(Locale.CHINA, "%.1f", changedWeight)} kg"
                             }
-                            if (targetBodyFatPercent > 0) {
-                                add(
-                                    if (it.fatRatio > 0) {
-                                        "体脂 ${String.format(Locale.CHINA, "%.1f", it.fatRatio)} → ${String.format(Locale.CHINA, "%.1f", targetBodyFatPercent)}%"
-                                    } else "体脂目标 ${String.format(Locale.CHINA, "%.1f", targetBodyFatPercent)}%"
-                                )
-                            }
+                        } else {
+                            "还差 ${String.format(Locale.CHINA, "%.1f", remainingWeight)} kg"
+                        },
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = buildString {
+                        append("起点 ${String.format(Locale.CHINA, "%.1f", startWeight)}  ·  目标 ${String.format(Locale.CHINA, "%.1f", targetWeight)}")
+                        if (!goalReached && (plannedDays != null || remainingDays != null)) {
+                            append("\n")
+                            if (plannedDays != null) append("计划 $plannedDays 天")
+                            if (plannedDays != null && remainingDays != null) append("  ·  ")
+                            if (remainingDays != null) append("趋势 $remainingDays 天")
                         }
-                        if (bodyGoals.isNotEmpty()) {
-                            Spacer(Modifier.height(3.dp))
-                            Text(
-                                text = bodyGoals.joinToString("  ·  "),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.68f),
-                            )
-                        }
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.68f),
+                )
+                val bodyGoals = buildList {
+                    if (targetWaistCm > 0) {
+                        add(
+                            if (currentWaistCm > 0) {
+                                "腰围 ${String.format(Locale.CHINA, "%.1f", currentWaistCm)} → ${String.format(Locale.CHINA, "%.1f", targetWaistCm)} cm"
+                            } else "腰围目标 ${String.format(Locale.CHINA, "%.1f", targetWaistCm)} cm"
+                        )
                     }
+                    if (targetBodyFatPercent > 0) {
+                        add(
+                            if (currentBodyFatPercent > 0) {
+                                "体脂 ${String.format(Locale.CHINA, "%.1f", currentBodyFatPercent)} → ${String.format(Locale.CHINA, "%.1f", targetBodyFatPercent)}%"
+                            } else "体脂目标 ${String.format(Locale.CHINA, "%.1f", targetBodyFatPercent)}%"
+                        )
+                    }
+                }
+                if (bodyGoals.isNotEmpty()) {
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        text = bodyGoals.joinToString("  ·  "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.68f),
+                    )
                 }
             }
         }
