@@ -1,5 +1,14 @@
 package com.example.weight.ui.trend
 
+import com.example.weight.ui.common.appMaterial
+import com.example.weight.ui.common.AppMaterialProfile
+
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import com.example.weight.ui.common.LocalFloatingNavigationInset
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,12 +28,12 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
+import com.example.weight.ui.common.AppDropdownMenu as DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
+import com.example.weight.ui.common.AppScaffold as Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
@@ -42,7 +51,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.weight.data.LocalStorageData
 import com.example.weight.data.record.MetricDisplay
 import com.example.weight.data.record.MetricGuide
 import com.example.weight.data.record.MetricPoint
@@ -69,7 +77,7 @@ private val deltaDecimalFormat = DecimalFormat("+#.#;-#.#")
 
 /**
  * 身体成分趋势页：指标 Chips 切换 + 单指标大图 + 区间统计摘要。
- * 入口在记录页身体成分详情弹窗；12 项数值指标共用一条图表管线，数据随 Room 表失效自动刷新。
+ * 入口在记录页身体成分详情弹窗；按实际可用指标显示，数据随 Room 表失效自动刷新。
  */
 @Composable
 fun BodyTrendScreen(
@@ -82,16 +90,27 @@ fun BodyTrendScreen(
     // null 仅表示首次加载（同首页 currentScopeData 语义）；切范围先回放旧值不闪空态
     val rawRecords by viewModel.rawRecords.collectAsStateWithLifecycle()
     val series by viewModel.metricSeries.collectAsStateWithLifecycle()
+    val availableMetrics by viewModel.availableMetrics.collectAsStateWithLifecycle()
+    LaunchedEffect(availableMetrics, selectedMetric) {
+        if (availableMetrics.isNotEmpty() && selectedMetric !in availableMetrics) {
+            viewModel.selectMetric(availableMetrics.first())
+        }
+    }
 
     Scaffold(
         modifier = modifier,
-        topBar = { MyTopBar(title = "成分趋势", goBack = goBack) },
+        topBar = {
+            Column(Modifier.appMaterial(profile = AppMaterialProfile.Chrome, shape = RoundedCornerShape(0.dp))) {
+                MyTopBar(title = "成分趋势", goBack = goBack)
+                TrendScopeSelector(selected = selectedScope, onSelected = viewModel::selectScope)
+            }
+        },
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(rememberScrollState())
+                .padding(padding),
         ) {
             PageLead(
                 eyebrow = "身体成分",
@@ -101,7 +120,6 @@ fun BodyTrendScreen(
                     vertical = 8.dp,
                 ),
             )
-            TrendScopeSelector(selected = selectedScope, onSelected = viewModel::selectScope)
             SectionHeader(
                 title = "选择指标",
                 subtitle = "点按指标切换趋势与区间统计",
@@ -112,7 +130,7 @@ fun BodyTrendScreen(
                     bottom = 8.dp,
                 ),
             )
-            MetricGrid(selected = selectedMetric, onSelected = viewModel::selectMetric)
+            MetricGrid(selected = selectedMetric, metrics = availableMetrics, onSelected = viewModel::selectMetric)
             Spacer(modifier = Modifier.height(WeightWiseDimens.SectionGap))
             when {
                 rawRecords == null -> Box(
@@ -129,12 +147,12 @@ fun BodyTrendScreen(
             }
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "指标为 App 依据阻抗与身体档案估算（±3-5%），仅供参考",
+                text = "仅比较最近连续的同一来源、方法及档案记录；估算误差未校准",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(16.dp + LocalFloatingNavigationInset.current))
         }
     }
 }
@@ -151,11 +169,11 @@ private fun TrendContent(metric: TrendMetric, series: List<MetricPoint>) {
 /** 图表卡：标题行（指标名 + 最新值 + 状态徽章，点击弹指标解读）+ 趋势折线 */
 @Composable
 private fun TrendChartCard(metric: TrendMetric, series: List<MetricPoint>, values: List<Double>) {
-    val gender by LocalStorageData.gender.collectAsStateWithLifecycle()
-    val sexMale = gender != "FEMALE"
+    val composition = series.lastOrNull()?.composition
+    val sexMale = composition?.inputs?.sexMale == true
     val currentValue = values.lastOrNull()
-    val info = remember(metric, currentValue, sexMale) {
-        currentValue?.let { MetricGuide.info(metric.key, it, sexMale) }
+    val info = remember(metric, currentValue, composition) {
+        currentValue?.let { MetricGuide.info(metric.key, it, sexMale, composition) }
     }
     var showInfo by remember { mutableStateOf(false) }
 
@@ -306,7 +324,7 @@ private fun TrendStatsCard(metric: TrendMetric, series: List<MetricPoint>, value
                     series.lastOrNull()?.day?.let { append(it.takeLast(5)) }
                 },
                 // 升降配色与首页体重视觉语义一致：降=primary、升=error
-                valueColor = if (delta <= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                valueColor = MaterialTheme.colorScheme.onSurface,
             )
         }
     }
@@ -334,16 +352,16 @@ private fun TrendStatItem(
     }
 }
 
-/** 指标网格：12 项指标 3 列 × 4 行铺满宽度，免横向滑动（chunked 等宽布局与成分网格同款） */
+/** 可用指标网格，与成分详情共用指标集合。 */
 @Composable
-private fun MetricGrid(selected: TrendMetric, onSelected: (TrendMetric) -> Unit) {
+private fun MetricGrid(selected: TrendMetric, metrics: List<TrendMetric>, onSelected: (TrendMetric) -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = WeightWiseDimens.PageHorizontal),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        TrendMetric.entries.chunked(3).forEach { rowItems ->
+        metrics.chunked(3).forEach { rowItems ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 rowItems.forEach { metric ->
                     val isSelected = metric == selected
@@ -387,6 +405,7 @@ private fun TrendScopeSelector(selected: StatisticsScope, onSelected: (Statistic
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(20.dp))
+                .appMaterial(shape = RoundedCornerShape(20.dp))
                 .clickable(role = Role.Button, onClickLabel = "选择统计范围") { expanded = true }
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,

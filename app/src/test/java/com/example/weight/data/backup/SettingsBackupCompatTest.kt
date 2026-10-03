@@ -37,6 +37,7 @@ class SettingsBackupCompatTest {
         assertNull(settings.weeklyTargetChangeKg)
         assertNull(settings.stageGoalStepKg)
         assertNull(settings.currentWaistCm)
+        assertNull(settings.currentWaistMeasuredAt)
         assertNull(settings.targetWaistCm)
         assertNull(settings.targetBodyFatPercent)
     }
@@ -50,7 +51,8 @@ class SettingsBackupCompatTest {
             doubaoModelId = "doubao-seed-2-0-lite-260215",
             themeId = "FOREST_GREEN", appearanceMode = "DARK",
             weeklyTargetChangeKg = 0.4, stageGoalStepKg = 2.5,
-            currentWaistCm = 82.0, targetWaistCm = 76.0, targetBodyFatPercent = 18.0,
+            currentWaistCm = 82.0, currentWaistMeasuredAt = 1_700_000_000_000L,
+            targetWaistCm = 76.0, targetBodyFatPercent = 18.0,
         )
 
         val decoded = json.decodeFromString(

@@ -5,7 +5,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 // 版本号唯一入口：格式 yyyy.MM.dd.当日序号，每次发布（或同日重打）手动递增最后一段。
 // 注意：开启 configuration cache 后，配置期读取系统时间在命中缓存时会拿到旧日期，
 // 因此版本号用显式常量而非运行时日期，保证 versionCode / versionName / APK 文件名三者一致。
-val appVersion = "2026.09.28.01"
+val appVersion = "2026.10.03.01"
 
 // Version Code 由版本号去点生成：2026.09.28.01 -> 2026092801
 val appVersionCode = appVersion.replace(".", "").toInt()
@@ -129,6 +129,8 @@ dependencies {
     //navigation
     implementation(libs.androidx.navigation.runtime)
     implementation(libs.androidx.navigation.ui)
+    implementation(libs.haze.blur)
+    implementation(libs.haze.glass)
     //room
     implementation(libs.androidx.room.runtime)
 
@@ -173,6 +175,8 @@ dependencies {
     testImplementation(libs.androidx.core.ktx)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     // T10 Compose UI 测试基建(Robolectric + createComposeRule);BOM 统一版本
     testImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.test.manifest)

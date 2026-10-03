@@ -39,6 +39,8 @@ object LocalStorageData : MMKVOwner(mmapID = com.example.weight.data.sync.SyncSt
 
     /** 当前腰围（cm）；0.0 表示未设置 */
     val currentWaistCm by mmkvDouble(default = 0.0).asStateFlow()
+    /** 腰围实际测量时间；0 为旧设置/未测量，不参与当日 RFM。 */
+    val currentWaistMeasuredAt by mmkvLong(default = 0L).asStateFlow()
 
     /** 目标腰围（cm）；0.0 表示未设置 */
     val targetWaistCm by mmkvDouble(default = 0.0).asStateFlow()
@@ -67,6 +69,9 @@ object LocalStorageData : MMKVOwner(mmapID = com.example.weight.data.sync.SyncSt
 
     /** 深浅模式,存 [com.example.weight.ui.theme.AppearanceMode].name */
     val appearanceMode by mmkvString(default = "SYSTEM").asStateFlow()
+
+    /** 本机全局界面材质，存 [com.example.weight.ui.theme.SurfaceEffect].name，默认模糊。 */
+    val surfaceEffect by mmkvString(default = "BLUR").asStateFlow()
 
     /*--------统计---------*/
     /** 每日体重统计口径，存 [com.example.weight.data.record.DailyStatMode].name；默认最低值保持历史行为 */

@@ -1,63 +1,74 @@
 package com.example.weight.data.record
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
+import com.example.weight.data.scale.BodyFatCalculator
+import org.junit.Assert.*
 import org.junit.Test
 
 class BodyCompositionMetricItemsTest {
+    private val input = CompositionInputs(true,30,170,70.0,1_700_000_000_000L,
+        scaleFatRatio = 20.0, scaleWaterRatio = 50.0, scaleMuscleRatio = 40.0,
+        scaleBoneMass = 3.0, impedanceOhm = 500.0)
 
-    @Test
-    fun `全指标按重要性排序输出`() {
-        val c = BodyComposition(
-            fatRatio = 43.6, waterRatio = 41.3, muscleRatio = 53.3, impedance = 534,
-            ffm = 57.5, muscleMass = 54.3, boneMass = 3.2,
-            skeletalMuscleMass = 32.9, skeletalMuscleRatio = 32.3,
-            proteinRatio = 10.2, subcutaneousFatRatio = 41.5,
-            visceralFatLevel = 7, bodyType = "虚胖型", bodyScore = 58,
-        )
-        val items = c.metricItems()
-        assertEquals(13, items.size)
-        // 结论项在前，key 供解读弹窗反查
-        assertEquals(MetricDisplay("bodyType", "体型", "虚胖型"), items[0])
-        assertEquals(MetricDisplay("bodyScore", "身体得分", "58"), items[1])
-        assertEquals(MetricDisplay("fatRatio", "体脂率", "43.6%"), items[2])
-        assertTrue(items.any { it == MetricDisplay("visceralFatLevel", "内脏脂肪", "等级 7") })
-        assertTrue(items.any { it == MetricDisplay("muscleMass", "肌肉量", "54.3 kg") })
-        assertTrue(items.any { it == MetricDisplay("impedance", "阻抗", "534 Ω") })
+    @Test fun supportedMeasurementsDisplayInOrderWithEstimatedLabels() {
+        val c = BodyFatCalculator.resolve(input)!!
+        assertEquals(listOf("fatRatio","waterRatio","muscleMass","ffm","boneMass","impedance"),
+            c.metricItems().map { it.key })
+        assertTrue(c.metricItems().any { it == MetricDisplay("muscleMass","秤端肌肉量","28 kg") })
+        assertTrue(c.metricItems().any { it == MetricDisplay("ffm","去脂体重（估算）","56 kg") })
     }
 
-    @Test
-    fun `未测项自动跳过`() {
-        // 回退路径：仅体脂率 + 体型/得分
-        val c = BodyComposition(fatRatio = 19.8, bodyType = "标准型", bodyScore = 92)
-        val items = c.metricItems()
-        assertEquals(listOf("bodyType", "bodyScore", "fatRatio"), items.map { it.key })
+    @Test fun legacyBrokenSunFatAndSyntheticValuesAreHiddenWithoutDeletingArchive() {
+        for (method in listOf("sun2003", "fused_rfm_sun")) {
+            val c = BodyComposition(fatRatio = 43.8, impedance = 536, waterRatio = 41.2,
+                muscleMass = 54.2, boneMass = 3.2, ffm = 57.3, bodyScore = 100, bodyType = "标准型",
+                proteinRatio = 10.0, visceralFatLevel = 7, fatMethod = method)
+            val archived = BodyCompositionJson.encode(c)
+            assertEquals(listOf("impedance"), c.metricItems().map { it.key })
+            assertNull(c.rawValueOf("fatRatio"))
+            assertNull(c.rawValueOf("bodyScore"))
+            assertEquals(c, BodyCompositionJson.decode(archived))
+        }
     }
 
-    @Test
-    fun `空成分输出空列表`() {
+    @Test fun oldScaleFatSurvivesButAppInventedDerivedFieldsDoNot() {
+        val c = BodyComposition(fatRatio = 22.0, waterRatio = 58.0, muscleMass = 55.0,
+            boneMass = 3.0, ffm = 58.0, fatMethod = "scale_reported")
+        assertEquals(listOf("fatRatio"), c.metricItems().map { it.key })
+        assertTrue(c.sourceDescription.contains("历史"))
+    }
+
+    @Test fun noMissingOrDeprecatedMeasurementsAreAddedToGrid() {
+        val c = BodyFatCalculator.resolve(input.copy(
+            scaleFatRatio = null, scaleWaterRatio = null, scaleMuscleRatio = null, scaleBoneMass = null,
+        ))!!
+        assertEquals(listOf("fatRatio","ffm","impedance"), c.metricItems().map { it.key })
+        assertEquals(0, c.bodyScore)
+        assertEquals("", c.bodyType)
+    }
+
+    @Test fun nonfiniteOrOutOfRangeMetricsCannotLeakToGrid() {
+        val c = BodyComposition(fatRatio = Double.NaN, waterRatio = Double.POSITIVE_INFINITY,
+            muscleMass = -2.0, boneMass = Double.NaN, impedance = 2)
+        assertTrue(c.metricItems().isEmpty())
+        assertNull(c.rawValueOf("fatRatio"))
+    }
+
+    @Test fun emptyCompositionHasNoMetrics() {
+        assertFalse(BodyComposition().hasAny)
         assertTrue(BodyComposition().metricItems().isEmpty())
+        assertNull(BodyComposition().rawValueOf("unknown"))
     }
 
-    @Test
-    fun `整数化数值不带小数尾零`() {
-        val c = BodyComposition(boneMass = 3.0, impedance = 500)
-        val items = c.metricItems()
-        assertTrue(items.any { it == MetricDisplay("boneMass", "骨量", "3 kg") })
-        assertTrue(items.any { it == MetricDisplay("impedance", "阻抗", "500 Ω") })
+    @Test fun unversionedRecordsCannotBeMistakenForNativeMeasurements() {
+        val c = BodyComposition(fatRatio = 43.8,waterRatio = 41.2,muscleMass = 54.2,boneMass = 3.2,
+            impedance = 536,ffm = 57.3)
+        assertEquals(listOf(MetricDisplay("impedance","存档阻抗","536 Ω")),c.metricItems())
+        assertNull(c.rawValueOf("fatRatio"))
+        assertNull(c.rawValueOf("muscleMass"))
     }
 
-    @Test
-    fun `rawValueOf反查与未测返回null`() {
-        val c = BodyComposition(
-            fatRatio = 43.6, visceralFatLevel = 7, bodyScore = 58, bodyType = "虚胖型",
-        )
-        assertEquals(43.6, c.rawValueOf("fatRatio")!!, 0.001)
-        assertEquals(7.0, c.rawValueOf("visceralFatLevel")!!, 0.001)
-        assertEquals(58.0, c.rawValueOf("bodyScore")!!, 0.001)
-        assertNull(c.rawValueOf("bodyType"))     // 文本型
-        assertNull(c.rawValueOf("waterRatio"))   // 未测
-        assertNull(c.rawValueOf("nonexistent"))
+    @Test fun declaringNewVersionWithoutInputsDoesNotBypassSourceValidation() {
+        val c = BodyComposition(algorithmVersion = 2,fatRatio = 43.8,muscleMass = 54.2,ffm = 57.3)
+        assertTrue(c.metricItems().isEmpty())
     }
 }

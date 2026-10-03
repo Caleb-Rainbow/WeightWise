@@ -1,21 +1,32 @@
 package com.example.weight.ui.main
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
@@ -23,28 +34,29 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Restaurant
-import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import dev.chrisbanes.haze.HazeState
+import com.example.weight.ui.theme.SurfaceEffect
+import com.example.weight.ui.common.AppMaterialContext
+import com.example.weight.ui.common.appMaterial
 
-/**
- * 深墨悬浮导航坞（T-4 起为全局层，常驻于所有一级目的地）。
- * 导航与页面表面彻底分层，中心朱砂动作只负责记体重。
- * [currentTab] 为栈顶最近的一级目的地，决定哪个槽位高亮；
- * 栈顶是二级页（设置/身体成分趋势）时沿用其下的一级目的地。
- */
+/** Floating glass navigation; secondary pages keep their parent tab selected. */
 @Composable
 internal fun MainBottomToolbar(
     currentTab: Any?,
@@ -54,79 +66,97 @@ internal fun MainBottomToolbar(
     onSelectRecord: () -> Unit,
     onSelectReport: () -> Unit,
     onAddWeight: () -> Unit,
+    hazeState: HazeState,
     modifier: Modifier = Modifier,
+    effect: SurfaceEffect = SurfaceEffect.BLUR,
     homeKey: Any,
     dietKey: Any,
     recordKey: Any,
     reportKey: Any,
 ) {
+    val selectedIndex = when (currentTab) {
+        dietKey -> 1
+        recordKey -> 2
+        reportKey -> 3
+        else -> 0
+    }
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .background(Color.Transparent)
-            .windowInsetsPadding(WindowInsets.navigationBars),
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 10.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 7.dp),
-            shape = RoundedCornerShape(26.dp),
-            color = MaterialTheme.colorScheme.inverseSurface,
-            contentColor = MaterialTheme.colorScheme.inverseOnSurface,
-            shadowElevation = 18.dp,
+        Row(
+            modifier = Modifier.widthIn(max = 520.dp).fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 5.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
+            val capsule = RoundedCornerShape(50)
+            BoxWithConstraints(
+                modifier = Modifier
+                    .weight(1f)
+                    .navigationGlass(hazeState, capsule, effect)
+                    .selectableGroup()
+                    .padding(6.dp),
             ) {
-                MainToolbarItem(
-                    label = "首页",
-                    icon = Icons.Default.Home,
-                    onClick = onSelectHome,
-                    selected = currentTab == homeKey,
+                val itemWidth = maxWidth / 4
+                val selectionOffset by animateDpAsState(
+                    targetValue = itemWidth * selectedIndex,
+                    animationSpec = spring(dampingRatio = 0.86f, stiffness = 420f),
+                    label = "navigationSelection",
                 )
-                MainToolbarItem(
-                    label = "饮食",
-                    icon = Icons.Default.Restaurant,
-                    onClick = onSelectDiet,
-                    onLongClick = onLongPressDiet,
-                    selected = currentTab == dietKey,
-                )
-                Column(
-                    modifier = Modifier.weight(1f),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    FilledIconButton(
-                        onClick = onAddWeight,
-                        modifier = Modifier.size(52.dp),
-                        shape = RoundedCornerShape(18.dp),
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.tertiary,
-                            contentColor = MaterialTheme.colorScheme.onTertiary,
-                        ),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "记体重",
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
+                Box(Modifier.matchParentSize()) {
+                    Box(
+                        Modifier
+                            .offset { IntOffset(selectionOffset.roundToPx(), 0) }
+                            .width(itemWidth)
+                            .fillMaxHeight()
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), capsule),
+                    )
                 }
-                MainToolbarItem(
-                    label = "记录",
-                    icon = Icons.AutoMirrored.Filled.ReceiptLong,
-                    onClick = onSelectRecord,
-                    selected = currentTab == recordKey,
-                )
-                MainToolbarItem(
-                    label = "报告",
-                    icon = Icons.Default.Insights,
-                    onClick = onSelectReport,
-                    selected = currentTab == reportKey,
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    MainToolbarItem("首页", Icons.Default.Home, onSelectHome, selected = selectedIndex == 0)
+                    MainToolbarItem(
+                        "饮食", Icons.Default.Restaurant, onSelectDiet,
+                        onLongClick = onLongPressDiet, selected = selectedIndex == 1,
+                    )
+                    MainToolbarItem(
+                        "记录", Icons.AutoMirrored.Filled.ReceiptLong, onSelectRecord,
+                        selected = selectedIndex == 2,
+                    )
+                    MainToolbarItem("报告", Icons.Default.Insights, onSelectReport, selected = selectedIndex == 3)
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .navigationGlass(hazeState, capsule, effect)
+                    .clickable(role = Role.Button, onClick = onAddWeight),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "记体重",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(28.dp),
                 )
             }
         }
     }
+}
+
+@Composable
+private fun Modifier.navigationGlass(
+    hazeState: HazeState,
+    shape: RoundedCornerShape,
+    effect: SurfaceEffect,
+): Modifier {
+    return shadow(
+        12.dp, shape, clip = false,
+        ambientColor = Color.Black.copy(alpha = 0.12f), spotColor = Color.Black.copy(alpha = 0.16f),
+    )
+        .appMaterial(shape = shape, context = AppMaterialContext(hazeState, effect))
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -138,40 +168,41 @@ private fun RowScope.MainToolbarItem(
     onLongClick: (() -> Unit)? = null,
     selected: Boolean = false,
 ) {
+    val color by animateColorAsState(
+        if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        label = "navigationItemColor",
+    )
     Column(
         modifier = Modifier
             .weight(1f)
-            .clip(RoundedCornerShape(16.dp))
+            .heightIn(min = 56.dp)
+            .clip(RoundedCornerShape(50))
+            .semantics { this.selected = selected }
             .then(
                 if (onLongClick != null) {
                     Modifier.combinedClickable(
-                        role = Role.Button,
+                        role = Role.Tab,
                         onClickLabel = label,
+                        onLongClickLabel = "快速记一餐",
                         onClick = onClick,
                         onLongClick = onLongClick,
                     )
                 } else {
-                    Modifier.clickable(role = Role.Button, onClickLabel = label, onClick = onClick)
-                }
+                    Modifier.clickable(role = Role.Tab, onClickLabel = label, onClick = onClick)
+                },
             )
-            .padding(horizontal = 3.dp, vertical = 7.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(horizontal = 2.dp, vertical = 7.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = if (selected) MaterialTheme.colorScheme.inversePrimary
-            else MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.64f),
-            modifier = Modifier.size(22.dp),
-        )
-        Spacer(modifier = Modifier.height(4.dp))
+        Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.height(3.dp))
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = if (selected) MaterialTheme.colorScheme.inversePrimary
-            else MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.68f),
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-            maxLines = 1
+            color = color,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+            maxLines = 1,
         )
     }
 }

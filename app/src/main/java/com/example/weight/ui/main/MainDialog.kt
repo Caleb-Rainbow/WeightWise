@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
+import com.example.weight.ui.common.AppAlertDialog as AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -160,8 +160,8 @@ fun AddRecordDialog(onDismissRequest: () -> Unit, viewModel: MainViewModel = koi
                     stateFlow = engine.state,
                     composition = engine.lastComposition,
                 )
-                // 读秤完成后展示全指标网格；手改体重过大则视为放弃秤数据一并隐藏
-                measuredWeight?.takeIf { kotlin.math.abs(it - weight) <= 0.5 }
+                // 成分快照只对应秤测得的体重；任何手改体重都解除关联。
+                measuredWeight?.takeIf { it == weight }
                     ?.let { engine.lastComposition }
                     ?.takeIf { it.hasAny }
                     ?.let {
@@ -222,7 +222,7 @@ fun AddRecordDialog(onDismissRequest: () -> Unit, viewModel: MainViewModel = koi
         Button(onClick = {
             // 体脂秤测得值与滚轮值一致（±0.5kg）才带上成分；用户手改过大视为放弃秤数据
             val composition = measuredWeight
-                ?.takeIf { kotlin.math.abs(it - weight) <= 0.5 }
+                ?.takeIf { it == weight }
                 ?.let { engine.lastComposition }
             viewModel.insertRecord(
                 date = date, time = time, weight = weight, log = log,
@@ -261,7 +261,7 @@ private fun ScaleSyncHint(stateFlow: StateFlow<ScaleBleEngine.State>, compositio
         is ScaleBleEngine.State.Done -> buildString {
             append("已读取 ${s.weightKg} kg")
             composition?.takeIf { it.fatRatio > 0 }?.let {
-                append(" · 体脂 ${it.fatRatio}% · ${it.bodyType} · ${it.bodyScore}分")
+                append(" · 体脂估算 ${String.format(java.util.Locale.CHINA, "%.1f", it.fatRatio)}%")
             }
         }
         is ScaleBleEngine.State.Failed -> "未连上体脂秤，手动记录即可"

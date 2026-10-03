@@ -18,9 +18,10 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material3.AlertDialog
+import com.example.weight.ui.common.AppAlertDialog as AlertDialog
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerState
+import androidx.compose.material3.DatePickerDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
@@ -237,10 +238,16 @@ fun DatePickerDocked(
                 Box(
                     modifier = Modifier
                         .padding(top = 64.dp)
-                        .shadow(elevation = 5.dp)
+                        .shadow(elevation = 5.dp, shape = RoundedCornerShape(20.dp), clip = false)
+                        .appMaterial(
+                            shape = RoundedCornerShape(20.dp), profile = AppMaterialProfile.Readable,
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            context = LocalOverlayMaterialContext.current,
+                        )
                 ) {
                     DatePicker(
-                        title = null, headline = null, state = datePickerState, showModeToggle = false
+                        title = null, headline = null, state = datePickerState, showModeToggle = false,
+                        colors = DatePickerDefaults.colors(containerColor = Color.Transparent),
                     )
                     TextButton(
                         modifier = Modifier
@@ -331,11 +338,17 @@ fun BaseDropdownMenu(
         ), expanded = isExpend, onExpandedChange = { onExpandedChange(it) }) {
         textFiled()
         ExposedDropdownMenu(
-            modifier = dropdownMenuModifier,
+            modifier = dropdownMenuModifier.appMaterial(
+                shape = RoundedCornerShape(bottomStart = 5.dp, bottomEnd = 5.dp),
+                profile = AppMaterialProfile.Readable,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                context = LocalOverlayMaterialContext.current,
+            ),
             expanded = isExpend,
             shape = RoundedCornerShape(bottomStart = 5.dp, bottomEnd = 5.dp),
             onDismissRequest = { onExpandedChange(false) },
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            containerColor = Color.Transparent,
+            tonalElevation = 0.dp,
         ) {
             content()
         }
@@ -397,8 +410,12 @@ fun MyTopBar(
     // Surface 必须包住 TopAppBar 自带的 statusBars inset：背景绘制到窗口顶端，
     // TopAppBar 只把标题/按钮下移到安全区，避免“状态栏留白 + 工具栏”假沉浸。
     Surface(
-        modifier = modifier.testTag(IMMERSIVE_TOP_BAR_TAG),
-        color = MaterialTheme.colorScheme.primary,
+        modifier = modifier.testTag(IMMERSIVE_TOP_BAR_TAG).appMaterial(
+            shape = RoundedCornerShape(bottomEnd = 30.dp),
+            profile = AppMaterialProfile.Chrome,
+            color = MaterialTheme.colorScheme.primary,
+        ),
+        color = Color.Transparent,
         contentColor = MaterialTheme.colorScheme.onPrimary,
         shape = RoundedCornerShape(bottomEnd = 30.dp),
     ) {

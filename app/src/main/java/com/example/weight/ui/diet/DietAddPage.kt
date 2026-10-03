@@ -1,5 +1,8 @@
 package com.example.weight.ui.diet
 
+import com.example.weight.ui.common.LocalFloatingNavigationInset
+import com.example.weight.ui.common.LocalAppTopInset
+
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -41,7 +44,7 @@ import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PhotoLibrary
-import androidx.compose.material3.AlertDialog
+import com.example.weight.ui.common.AppAlertDialog as AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -164,7 +167,10 @@ internal fun AddTabPage(
     LazyColumn(
         state = listState,
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 15.dp, top = 12.dp, end = 15.dp, bottom = 24.dp),
+        contentPadding = PaddingValues(
+            start = 15.dp, top = 12.dp + LocalAppTopInset.current, end = 15.dp,
+            bottom = 24.dp + LocalFloatingNavigationInset.current,
+        ),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         // 第一步只回答“吃了什么”:常用食物与图片入口保持稳定,不因已选食物而跳变。

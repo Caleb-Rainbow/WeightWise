@@ -103,6 +103,7 @@ class BackupRepository(
                 weeklyTargetChangeKg = LocalStorageData.weeklyTargetChangeKg.value,
                 stageGoalStepKg = LocalStorageData.stageGoalStepKg.value,
                 currentWaistCm = LocalStorageData.currentWaistCm.value,
+                currentWaistMeasuredAt = LocalStorageData.currentWaistMeasuredAt.value,
                 targetWaistCm = LocalStorageData.targetWaistCm.value,
                 targetBodyFatPercent = LocalStorageData.targetBodyFatPercent.value,
                 reminderEnabled = LocalStorageData.reminderEnabled.value,
@@ -278,8 +279,10 @@ class BackupRepository(
         settings.stageGoalStepKg?.takeIf { it > 0 }?.let { value ->
             LocalStorageData.stageGoalStepKg.update { value.coerceAtLeast(0.5) }
         }
-        settings.currentWaistCm?.takeIf { it >= 0 }?.let { value ->
+        settings.currentWaistCm?.takeIf { it.isFinite() && it >= 0 }?.let { value ->
+            LocalStorageData.currentWaistMeasuredAt.update { 0L }
             LocalStorageData.currentWaistCm.update { value }
+            LocalStorageData.currentWaistMeasuredAt.update { settings.currentWaistMeasuredAt?.takeIf { it > 0 } ?: 0L }
         }
         settings.targetWaistCm?.takeIf { it >= 0 }?.let { value ->
             LocalStorageData.targetWaistCm.update { value }

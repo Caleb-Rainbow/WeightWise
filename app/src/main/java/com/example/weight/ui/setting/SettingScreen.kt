@@ -1,5 +1,11 @@
 package com.example.weight.ui.setting
 
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import com.example.weight.ui.common.LocalFloatingNavigationInset
+
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -21,14 +27,14 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material3.AlertDialog
+import com.example.weight.ui.common.AppAlertDialog as AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Scaffold
+import com.example.weight.ui.common.AppScaffold as Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -89,16 +95,20 @@ import org.koin.compose.koinInject
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingScreen(modifier: Modifier = Modifier, goBack: () -> Unit) {
-    Scaffold(modifier = modifier, topBar = {
-        MyTopBar(title = "设置", goBack = goBack)
-    }) { paddingValues ->
+    Scaffold(
+        modifier = modifier,
+        topBar = {
+            MyTopBar(title = "设置", goBack = goBack)
+        },
+    ) { paddingValues ->
         LazyColumn(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues),
+                .fillMaxSize(),
             contentPadding = PaddingValues(
-                horizontal = WeightWiseDimens.PageHorizontal,
-                vertical = 10.dp,
+                start = WeightWiseDimens.PageHorizontal,
+                end = WeightWiseDimens.PageHorizontal,
+                top = 10.dp + paddingValues.calculateTopPadding(),
+                bottom = 10.dp + LocalFloatingNavigationInset.current,
             ),
             verticalArrangement = Arrangement.spacedBy(WeightWiseDimens.SectionGap),
         ) {

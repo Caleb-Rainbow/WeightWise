@@ -1,5 +1,8 @@
 package com.example.weight.ui.diet
 
+import com.example.weight.ui.common.LocalFloatingNavigationInset
+import com.example.weight.ui.common.LocalAppTopInset
+
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -41,7 +44,7 @@ import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PhotoLibrary
-import androidx.compose.material3.AlertDialog
+import com.example.weight.ui.common.AppAlertDialog as AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -271,7 +274,10 @@ internal fun HistoryTabPage(
     val recordedDays = remember(state.days) { state.days.filter { it.records.isNotEmpty() } }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 15.dp, vertical = 12.dp),
+        contentPadding = PaddingValues(
+            start = 15.dp, end = 15.dp, top = 12.dp + LocalAppTopInset.current,
+            bottom = 12.dp + LocalFloatingNavigationInset.current,
+        ),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         // 时间口径:复用主屏 ScopeSelector 的心智(近30天/近3月/近6月)

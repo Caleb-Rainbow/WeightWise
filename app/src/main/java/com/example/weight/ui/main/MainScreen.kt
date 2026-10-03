@@ -1,5 +1,9 @@
 package com.example.weight.ui.main
 
+import com.example.weight.ui.common.LocalFloatingNavigationInset
+import com.example.weight.ui.common.appMaterial
+import com.example.weight.ui.common.AppMaterialProfile
+
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
@@ -53,7 +57,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
+import com.example.weight.ui.common.AppDropdownMenu as DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
@@ -61,7 +65,7 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
+import com.example.weight.ui.common.AppScaffold as Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
@@ -168,12 +172,19 @@ fun MainScreen(
         uiState.selectedRecord?.value?.div(heightMeters.times(heightMeters)) ?: 0.0
     }
     MainDialog()
-    // 导航坞已上提为全局层(T-4):由 MainActivity 宿主 Scaffold 承载,所有一级目的地常驻
+    // 导航坞浮于全屏内容之上，只有滚动末尾预留避让空间。
     Scaffold(
         modifier = modifier,
-        containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0),
-    ) { paddingValues ->
+        topBar = {
+            Box(
+                Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars)
+                    .appMaterial(
+                        shape = RoundedCornerShape(0.dp), profile = AppMaterialProfile.Chrome,
+                        color = MaterialTheme.colorScheme.primary,
+                    ),
+            )
+        },
+    ) {
         // 缓存在 ViewModel 的 StateFlow 里：导航返回直接回放旧值，null 仅表示真正的首次加载
         val currentScopeData by viewModel.currentScopeData.collectAsStateWithLifecycle()
         val scopeData = currentScopeData
@@ -185,7 +196,6 @@ fun MainScreen(
             val viewportHeight = maxHeight
             Column(
                 modifier = Modifier
-                    .padding(paddingValues)
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
             ) {
@@ -289,15 +299,8 @@ fun MainScreen(
                     }
                 }
             }
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp + LocalFloatingNavigationInset.current))
             }
-            // 最后绘制为固定承托层：列表滚动后也不会让浅色卡片跑到状态栏图标下方。
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .windowInsetsTopHeight(WindowInsets.statusBars)
-                    .background(MaterialTheme.colorScheme.primary),
-            )
         }
     }
 }

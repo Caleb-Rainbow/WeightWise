@@ -9,18 +9,15 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.AlertDialog
+import com.example.weight.ui.common.AppAlertDialog as AlertDialog
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -48,6 +45,13 @@ import androidx.navigation3.ui.NavDisplay
 import com.example.weight.data.LocalStorageData
 import com.example.weight.data.update.ApkInstaller
 import com.example.weight.ui.common.navPopTransitionSpec
+import com.example.weight.ui.common.FloatingNavigationLayout
+import com.example.weight.ui.common.AppSnackbarHost
+import com.example.weight.ui.common.AppMaterialProfile
+import com.example.weight.ui.common.LocalOverlayMaterialContext
+import com.example.weight.ui.common.appMaterial
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
 import com.example.weight.ui.common.navTransitionSpec
 import com.example.weight.ui.common.prependNavTransitionSpec
 import com.example.weight.ui.diet.DietRecordScreen
@@ -58,6 +62,7 @@ import com.example.weight.ui.report.ReportScreen
 import com.example.weight.ui.setting.SettingScreen
 import com.example.weight.ui.theme.AppTheme
 import com.example.weight.ui.theme.AppearanceMode
+import com.example.weight.ui.theme.SurfaceEffect
 import com.example.weight.ui.theme.ThemePreset
 import com.example.weight.ui.trend.BodyTrendScreen
 import com.example.weight.ui.update.UpdateDialog
@@ -67,6 +72,7 @@ import com.patrykandpatrick.vico.compose.m3.common.rememberM3VicoTheme
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import kotlinx.serialization.Serializable
+import dev.chrisbanes.haze.HazeState
 
 class MainActivity : ComponentActivity() {
 
@@ -94,6 +100,7 @@ class MainActivity : ComponentActivity() {
             }
             val themePreset by LocalStorageData.themeId.collectAsState()
             val appearanceMode by LocalStorageData.appearanceMode.collectAsState()
+            val surfaceEffect by LocalStorageData.surfaceEffect.collectAsState()
             com.example.weight.ui.common.AccountContent {
             AppTheme(
                 themePreset = ThemePreset.fromId(themePreset),
@@ -123,8 +130,11 @@ class MainActivity : ComponentActivity() {
                     val currentTopLevel = backStack.lastOrNull { it in topLevelKeys }
 
                     ProvideSnackBarHost(
-                        bottomBar = {
+                        effect = SurfaceEffect.fromId(surfaceEffect),
+                        bottomBar = { hazeState ->
                             MainBottomToolbar(
+                                hazeState = hazeState,
+                                effect = SurfaceEffect.fromId(surfaceEffect),
                                 currentTab = currentTopLevel,
                                 homeKey = Main,
                                 dietKey = DietRecord,
@@ -144,12 +154,11 @@ class MainActivity : ComponentActivity() {
                                 },
                             )
                         },
-                    ) { padding ->
+                    ) {
                         MainNav3(
                             backStack = backStack,
                             topLevelKeys = topLevelKeys,
                             navigateToTopLevel = ::navigateToTopLevel,
-                            contentBottomPadding = padding,
                             openAddDialogRequest = openAddDialogRequest,
                             onOpenAddDialogConsumed = { openAddDialogRequest = false },
                             quickAddRequest = quickAddRequest,
@@ -190,19 +199,24 @@ class MainActivity : ComponentActivity() {
 
 /**
  * 全应用统一绘制到系统栏后方。状态栏先以透明 + 浅色图标启动，首帧后再根据当前主题页头
- * 的 onPrimary 亮度同步图标；导航栏继续交给 Activity 默认策略。
+ * 的 onPrimary 亮度同步图标；底部导航区透明，内容一直绘制到屏幕边缘。
  */
 internal fun ComponentActivity.enableWeightWiseEdgeToEdge() {
     enableEdgeToEdge(
         statusBarStyle = SystemBarStyle.dark(AndroidColor.TRANSPARENT),
+        navigationBarStyle = SystemBarStyle.auto(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT),
     )
+    window.isNavigationBarContrastEnforced = false
 }
 
 @Composable
 private fun WeightWiseStatusBarEffect(window: Window) {
     val onPrimaryLuminance = MaterialTheme.colorScheme.onPrimary.luminance()
+    val onSurfaceLuminance = MaterialTheme.colorScheme.onSurface.luminance()
     SideEffect {
         window.syncStatusBarIconContrast(onPrimaryLuminance)
+        WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightNavigationBars =
+            onSurfaceLuminance < 0.5f
     }
 }
 
@@ -235,7 +249,6 @@ private fun MainNav3(
     backStack: androidx.navigation3.runtime.NavBackStack<NavKey>,
     topLevelKeys: Set<NavKey>,
     navigateToTopLevel: (NavKey) -> Unit,
-    contentBottomPadding: PaddingValues,
     openAddDialogRequest: Boolean,
     onOpenAddDialogConsumed: () -> Unit,
     quickAddRequest: Boolean,
@@ -244,10 +257,8 @@ private fun MainNav3(
     val transitionSpec = remember(topLevelKeys) { navTransitionSpec(topLevelKeys) }
     NavDisplay(
         backStack = backStack,
-        // 全局坞在宿主 Scaffold bottomBar,页面内容只垫底部,顶部 insets 由各页自管
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(bottom = contentBottomPadding.calculateBottomPadding()),
+        // 内容全屏铺在悬浮坞后方；各页只在滚动末尾使用 LocalFloatingNavigationInset。
+        modifier = Modifier.fillMaxSize(),
         transitionSpec = transitionSpec,
         popTransitionSpec = navPopTransitionSpec,
         predictivePopTransitionSpec = prependNavTransitionSpec, entryProvider = entryProvider {
@@ -324,7 +335,7 @@ val LocalShowMessageDialog = staticCompositionLocalOf<(String, String, () -> Uni
 /**
  * 提供一个集中管理 SnackBar 消息、加载对话框、大图对话框、消息对话框和更新对话框的主机。
  *
- * 这个可组合函数使用 [Scaffold] 包裹 `content` 参数提供的内容，并包含一个 [SnackbarHost] 用于显示 snackbar。
+ * 使用全屏内容与悬浮导航层，并包含一个 [SnackbarHost] 用于显示 snackbar。
  * 它还管理和显示各种类型的对话框，包括：
  * - 加载对话框：一个全屏模态对话框，指示加载状态。
  * - 大图对话框：一个显示大图片的对话框。
@@ -337,14 +348,14 @@ val LocalShowMessageDialog = staticCompositionLocalOf<(String, String, () -> Uni
  * - [LocalHideLoadingDialog]: 一个隐藏加载对话框的函数。
  * - [LocalShowMessageDialog]: 一个显示消息对话框的函数。
  *
- * @param content 要显示在 Scaffold 中的内容，会传递内padding的参数。
- * the scaffold, padding values are passed to it.
+ * @param content 全屏内容；滚动末尾的导航避让高度由 CompositionLocal 提供。
  *
  */
 @Composable
 fun ProvideSnackBarHost(
-    bottomBar: @Composable () -> Unit = {},
-    content: @Composable (PaddingValues) -> Unit
+    bottomBar: @Composable (HazeState) -> Unit = {},
+    effect: SurfaceEffect = SurfaceEffect.BLUR,
+    content: @Composable () -> Unit
 ) {
     val snackBarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -381,12 +392,11 @@ fun ProvideSnackBarHost(
         LocalHideLoadingDialog provides hideLoadingDialog,
         LocalShowMessageDialog provides showMessageDialog,
     ) {
-        Scaffold(
-            modifier = Modifier
-                .imePadding()
-                .fillMaxSize(),
-            snackbarHost = { SnackbarHost(hostState = snackBarHostState) },
-            bottomBar = bottomBar) { padding ->
+        FloatingNavigationLayout(
+            snackbarHost = { AppSnackbarHost(snackBarHostState) },
+            navigationBar = bottomBar,
+            effect = effect,
+        ) {
             if (isShowLoadingDialog) {
                 LoadingDialog {
                     hideLoadingDialog()
@@ -403,7 +413,7 @@ fun ProvideSnackBarHost(
             // 全局更新弹窗（发现新版本/下载进度/下载完成/失败重试）
             UpdateDialog(updateManager)
 
-            content(padding)
+            content()
         }
     }
 }
@@ -418,7 +428,13 @@ fun ProvideSnackBarHost(
 @Composable
 fun LoadingDialog(onDismissRequest: () -> Unit) {
     BasicAlertDialog(modifier = Modifier.size(80.dp), onDismissRequest = onDismissRequest) {
-        Card {
+        Surface(
+            modifier = Modifier.appMaterial(
+                shape = RoundedCornerShape(24.dp), profile = AppMaterialProfile.Readable,
+                context = LocalOverlayMaterialContext.current,
+            ),
+            shape = RoundedCornerShape(24.dp), color = androidx.compose.ui.graphics.Color.Transparent,
+        ) {
             Box(modifier = Modifier.fillMaxSize()) {
                 CircularProgressIndicator(
                     modifier = Modifier

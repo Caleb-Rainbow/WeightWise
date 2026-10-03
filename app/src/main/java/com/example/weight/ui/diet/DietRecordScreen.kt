@@ -1,5 +1,13 @@
 package com.example.weight.ui.diet
 
+import com.example.weight.ui.common.appMaterial
+import com.example.weight.ui.common.AppMaterialProfile
+
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -41,7 +49,7 @@ import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PhotoLibrary
-import androidx.compose.material3.AlertDialog
+import com.example.weight.ui.common.AppAlertDialog as AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -56,7 +64,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.ProgressIndicatorDefaults
-import androidx.compose.material3.Scaffold
+import com.example.weight.ui.common.AppScaffold as Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarResult
@@ -290,12 +298,20 @@ fun DietRecordScreen(
 
     Scaffold(
         topBar = {
-            MyTopBar(
-                title = if (showAddPage) "记录${addState.selectedMealType.displayName}" else "饮食记录",
-                goBack = if (showAddPage) ({ showAddPage = false }) else goBack,
-            )
+            Column(Modifier.appMaterial(profile = AppMaterialProfile.Chrome, shape = RoundedCornerShape(0.dp))) {
+                MyTopBar(
+                    title = if (showAddPage) "记录${addState.selectedMealType.displayName}" else "饮食记录",
+                    goBack = if (showAddPage) ({ showAddPage = false }) else goBack,
+                )
+                if (!showAddPage) {
+                    DietModeSwitcher(
+                        selected = pagerState.currentPage,
+                        onSelected = { page -> scope.launch { pagerState.animateScrollToPage(page) } },
+                    )
+                }
+            }
         }
-    ) { paddingValues ->
+    ) {
         if (showAddPage) {
             AddTabPage(
                 state = addState,
@@ -322,18 +338,13 @@ fun DietRecordScreen(
                 onClearFoods = viewModel::clearFoods,
                 onSave = { viewModel.saveRecord(noteState.value) },
                 listState = addListState,
-                modifier = Modifier.padding(paddingValues),
+                modifier = Modifier,
             )
         } else {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues)
             ) {
-                DietModeSwitcher(
-                    selected = pagerState.currentPage,
-                    onSelected = { page -> scope.launch { pagerState.animateScrollToPage(page) } },
-                )
                 HorizontalPager(
                     state = pagerState,
                     modifier = Modifier.fillMaxSize(),
@@ -365,9 +376,10 @@ private fun DietModeSwitcher(selected: Int, onSelected: (Int) -> Unit) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = WeightWiseDimens.PageHorizontal, vertical = 10.dp),
+            .padding(horizontal = WeightWiseDimens.PageHorizontal, vertical = 10.dp)
+            .appMaterial(shape = RoundedCornerShape(18.dp)),
         shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        color = Color.Transparent,
     ) {
         Row(modifier = Modifier.padding(4.dp)) {
             listOf(TAB_TODAY to "今天怎么吃", TAB_HISTORY to "回看记录").forEach { (page, label) ->

@@ -19,7 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material3.AlertDialog
+import com.example.weight.ui.common.AppAlertDialog as AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -27,7 +27,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
+import com.example.weight.ui.common.AppModalBottomSheet as ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -87,44 +87,46 @@ fun DietRecordEditorSheet(
     val lightLabel = trafficLightLabel(previewLight)
     val totalCalories = foods.sumOf { it.estimatedCalories }
 
-    if (showFoodEditor) {
-        FoodItemEditorSheet(
-            initialItem = editingFoodItem,
-            onConfirm = { item ->
-                if (editingFoodIndex >= 0) onUpdateFood(editingFoodIndex, item) else onAddFood(item)
-                showFoodEditor = false
-                editingFoodIndex = -1
-                editingFoodItem = null
-            },
-            onDismiss = {
-                showFoodEditor = false
-                editingFoodIndex = -1
-                editingFoodItem = null
-            },
-        )
-    }
 
-    if (showEmptyDeleteConfirm) {
-        AlertDialog(
-            onDismissRequest = { showEmptyDeleteConfirm = false },
-            title = { Text("删除这条记录？") },
-            text = { Text("食物列表已清空，无法保存空记录。可以删除整条记录（可在撤销窗口内恢复）。") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showEmptyDeleteConfirm = false
-                    onDeleteRecord()
-                }) { Text("删除", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showEmptyDeleteConfirm = false }) { Text("取消") }
-            },
-        )
-    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
     ) {
+        if (showFoodEditor) {
+            FoodItemEditorSheet(
+                initialItem = editingFoodItem,
+                onConfirm = { item ->
+                    if (editingFoodIndex >= 0) onUpdateFood(editingFoodIndex, item) else onAddFood(item)
+                    showFoodEditor = false
+                    editingFoodIndex = -1
+                    editingFoodItem = null
+                },
+                onDismiss = {
+                    showFoodEditor = false
+                    editingFoodIndex = -1
+                    editingFoodItem = null
+                },
+            )
+        }
+
+        if (showEmptyDeleteConfirm) {
+            AlertDialog(
+                onDismissRequest = { showEmptyDeleteConfirm = false },
+                title = { Text("删除这条记录？") },
+                text = { Text("食物列表已清空，无法保存空记录。可以删除整条记录（可在撤销窗口内恢复）。") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showEmptyDeleteConfirm = false
+                        onDeleteRecord()
+                    }) { Text("删除", color = MaterialTheme.colorScheme.error) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showEmptyDeleteConfirm = false }) { Text("取消") }
+                },
+            )
+        }
+
         LazyColumn(
             modifier = Modifier
                 .fillMaxWidth(),

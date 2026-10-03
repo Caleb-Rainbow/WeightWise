@@ -7,6 +7,7 @@ import com.example.weight.data.record.RecordCompositionRaw
 import com.example.weight.data.record.RecordDao
 import com.example.weight.data.record.TrendMetric
 import com.example.weight.data.record.dailyLastCompositions
+import com.example.weight.data.record.comparableMetricSeries
 import com.example.weight.ui.main.StatisticsScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -50,7 +51,11 @@ class BodyTrendViewModel(
     /** 当前所选指标的序列：跳过该指标未测得的日期（老记录缺个别字段时不留空洞） */
     val metricSeries: StateFlow<List<MetricPoint>> = combine(
         dailyPoints, selectedMetric,
-    ) { points, metric -> points.filter { metric.valueOf(it.composition) != null } }
+    ) { points, metric -> comparableMetricSeries(points, metric) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val availableMetrics: StateFlow<List<TrendMetric>> = dailyPoints
+        .map { points -> TrendMetric.entries.filter { metric -> points.any { metric.valueOf(it.composition) != null } } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun selectScope(scope: StatisticsScope) {

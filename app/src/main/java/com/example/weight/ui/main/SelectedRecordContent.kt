@@ -1,5 +1,14 @@
 package com.example.weight.ui.main
 
+import androidx.compose.runtime.CompositionLocalProvider
+import com.example.weight.ui.common.AppMaterialContext
+import com.example.weight.ui.common.LocalAppMaterialContext
+import com.example.weight.ui.common.AppMaterialProfile
+import com.example.weight.ui.common.appMaterial
+import com.example.weight.ui.theme.SurfaceEffect
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.rememberHazeState
+
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
@@ -53,7 +62,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
+import com.example.weight.ui.common.AppDropdownMenu as DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
@@ -121,6 +130,8 @@ fun SelectedRecordContent(
     onSetting: () -> Unit = {},
     statusBarInsets: WindowInsets = WindowInsets.statusBars,
 ) {
+    val heroState = rememberHazeState()
+    val effect = LocalAppMaterialContext.current?.effect ?: SurfaceEffect.BLUR
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -130,6 +141,8 @@ fun SelectedRecordContent(
         Canvas(
             modifier = Modifier
                 .matchParentSize()
+                .hazeSource(heroState)
+                .background(MaterialTheme.colorScheme.primary)
                 .windowInsetsPadding(statusBarInsets)
                 .testTag(HERO_RING_TEST_TAG),
         ) {
@@ -143,6 +156,7 @@ fun SelectedRecordContent(
                 style = Stroke(width = 1.5.dp.toPx()),
             )
         }
+        CompositionLocalProvider(LocalAppMaterialContext provides AppMaterialContext(heroState, effect)) {
         Column(
             modifier = Modifier
                 .windowInsetsPadding(statusBarInsets)
@@ -165,8 +179,12 @@ fun SelectedRecordContent(
                     )
                 }
                 Surface(
+                    modifier = Modifier.appMaterial(
+                        shape = RoundedCornerShape(16.dp), profile = AppMaterialProfile.Chrome,
+                        color = MaterialTheme.colorScheme.primary,
+                    ),
                     shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.10f),
+                    color = Color.Transparent,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
                 ) {
                     IconButton(onClick = onSetting) {
@@ -225,6 +243,7 @@ fun SelectedRecordContent(
                 }
             }
         }
+        }
     }
 }
 
@@ -233,7 +252,10 @@ internal fun HeroPill(text: String) {
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(10.dp))
-            .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.10f))
+            .appMaterial(
+                shape = RoundedCornerShape(10.dp), profile = AppMaterialProfile.Chrome,
+                color = MaterialTheme.colorScheme.primary,
+            )
             .padding(horizontal = 9.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

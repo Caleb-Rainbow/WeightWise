@@ -21,7 +21,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material3.AlertDialog
+import com.example.weight.ui.common.AppAlertDialog as AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -192,7 +192,7 @@ internal fun DataManagementCard() {
                 scope.launch {
                     val count = recalculator.eligibleCount()
                     if (count == 0) {
-                        snackBarShow("没有可重算的记录（需本机秤测且存有阻抗）")
+                        snackBarShow("没有可重算的记录（需保存测量时原始输入及身体档案）")
                     } else {
                         pendingRecalcCount = count
                     }
@@ -204,15 +204,14 @@ internal fun DataManagementCard() {
 
     // 重算确认弹窗：公式升级后按当前公式与档案重刷历史，覆盖不可撤销
     pendingRecalcCount?.let { count ->
-        val waist by LocalStorageData.currentWaistCm.collectAsStateWithLifecycle()
         AlertDialog(
             onDismissRequest = { pendingRecalcCount = null },
             title = { Text("重算身体成分") },
             text = {
                 Text(
-                    "将按当前公式（阻抗×腰围双路融合）与当前身体档案重算 $count 条含阻抗测量的历史记录。" +
-                        "历史数值会被覆盖且不可撤销（原始阻抗保留）；无阻抗的记录不受影响。" +
-                        if (waist <= 0) "\n\n当前未设置腰围，将退回纯阻抗公式（结果与旧口径一致），建议先在目标档案中设置腰围。" else ""
+                    "将按当前算法与每条记录保存的测量时档案重算 $count 条记录。" +
+                        "不会使用当前腰围、年龄或身高覆盖过去；缺少测量档案的旧记录将跳过。" +
+                        "原始输入保留，估算结果会更新。"
                 )
             },
             confirmButton = {

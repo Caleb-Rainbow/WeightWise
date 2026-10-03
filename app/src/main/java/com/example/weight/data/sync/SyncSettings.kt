@@ -16,6 +16,7 @@ object SyncSettings {
         put("weeklyTargetChangeKg", DEFAULT_WEEKLY_TARGET_CHANGE_KG)
         put("stageGoalStepKg", DEFAULT_STAGE_GOAL_STEP_KG)
         put("currentWaistCm", 0.0)
+        put("currentWaistMeasuredAt", 0L)
         put("targetWaistCm", 0.0)
         put("targetBodyFatPercent", 0.0)
         put("reminderEnabled", false)
@@ -37,6 +38,7 @@ object SyncSettings {
         put("weeklyTargetChangeKg", LocalStorageData.weeklyTargetChangeKg.value)
         put("stageGoalStepKg", LocalStorageData.stageGoalStepKg.value)
         put("currentWaistCm", LocalStorageData.currentWaistCm.value)
+        put("currentWaistMeasuredAt", LocalStorageData.currentWaistMeasuredAt.value)
         put("targetWaistCm", LocalStorageData.targetWaistCm.value)
         put("targetBodyFatPercent", LocalStorageData.targetBodyFatPercent.value)
         put("reminderEnabled", LocalStorageData.reminderEnabled.value)
@@ -57,7 +59,9 @@ object SyncSettings {
         LocalStorageData.startWeight.value = value["startWeight"]?.jsonPrimitive?.doubleOrNull ?: DEFAULT_START_WEIGHT
         LocalStorageData.weeklyTargetChangeKg.value = value["weeklyTargetChangeKg"]?.jsonPrimitive?.doubleOrNull ?: DEFAULT_WEEKLY_TARGET_CHANGE_KG
         LocalStorageData.stageGoalStepKg.value = value["stageGoalStepKg"]?.jsonPrimitive?.doubleOrNull ?: DEFAULT_STAGE_GOAL_STEP_KG
+        LocalStorageData.currentWaistMeasuredAt.value = 0L
         LocalStorageData.currentWaistCm.value = value["currentWaistCm"]?.jsonPrimitive?.doubleOrNull ?: 0.0
+        LocalStorageData.currentWaistMeasuredAt.value = value["currentWaistMeasuredAt"]?.jsonPrimitive?.longOrNull?.takeIf { it > 0 } ?: 0L
         LocalStorageData.targetWaistCm.value = value["targetWaistCm"]?.jsonPrimitive?.doubleOrNull ?: 0.0
         LocalStorageData.targetBodyFatPercent.value = value["targetBodyFatPercent"]?.jsonPrimitive?.doubleOrNull ?: 0.0
         LocalStorageData.reminderEnabled.value = value["reminderEnabled"]?.jsonPrimitive?.booleanOrNull ?: false
@@ -79,6 +83,7 @@ object SyncSettings {
         LocalStorageData.weeklyTargetChangeKg.map { Unit },
         LocalStorageData.stageGoalStepKg.map { Unit },
         LocalStorageData.currentWaistCm.map { Unit },
+        LocalStorageData.currentWaistMeasuredAt.map { Unit },
         LocalStorageData.targetWaistCm.map { Unit },
         LocalStorageData.targetBodyFatPercent.map { Unit },
         LocalStorageData.reminderEnabled.map { Unit },

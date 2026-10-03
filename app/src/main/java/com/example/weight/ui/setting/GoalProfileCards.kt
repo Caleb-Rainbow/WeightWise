@@ -21,7 +21,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material3.AlertDialog
+import com.example.weight.ui.common.AppAlertDialog as AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -341,12 +341,16 @@ internal fun ProfileCard() {
     }
     if (editingWaist) {
         NumberEditDialog(
-            title = "当前腰围",
+            title = "今日实测腰围（髂骨上缘，正常呼气末）",
             initialValue = if (currentWaistCm > 0) currentWaistCm else 80.0,
             integerRange = 40..200,
             unit = "cm",
             resetValue = 0.0,
-            onConfirm = { value -> LocalStorageData.currentWaistCm.update { value } },
+            onConfirm = { value ->
+                LocalStorageData.currentWaistMeasuredAt.update { 0L }
+                LocalStorageData.currentWaistCm.update { value }
+                LocalStorageData.currentWaistMeasuredAt.update { if (value > 0) System.currentTimeMillis() else 0L }
+            },
             onDismiss = { editingWaist = false },
         )
     }

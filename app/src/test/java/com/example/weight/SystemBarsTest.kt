@@ -41,4 +41,13 @@ class SystemBarsTest {
         activity.window.syncStatusBarIconContrast(onPrimaryLuminance = 0f)
         assertTrue("浅色页头上的深色内容色应对应深色系统图标", controller.isAppearanceLightStatusBars)
     }
+
+    @Suppress("DEPRECATION")
+    @Test
+    fun `系统导航栏透明且不再自动加底部遮罩`() {
+        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
+        activity.enableWeightWiseEdgeToEdge()
+        assertEquals(Color.TRANSPARENT, activity.window.navigationBarColor)
+        assertFalse(activity.window.isNavigationBarContrastEnforced)
+    }
 }

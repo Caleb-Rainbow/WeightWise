@@ -21,8 +21,7 @@ object IcomonFrameParser {
         /** 结果帧（AC 27 type 0x01/0x02）解析出的阻抗 Ω；体重流帧无此值 */
         val impedanceOhm: Double? = null,
         /**
-         * 阻抗命中的候选字节偏移（4=本机实测主字段，6/17=其他固件口径候选，-1=未命中）。
-         * 主字段以外的候选命中意味着协议假设可能不成立，由上层打日志留证。
+         * 已验证阻抗字段偏移（4=本机实测字段，-1=未测得）。不猜测未知固件字段。
          */
         val impedanceSourceOffset: Int = -1,
         /** true = 这是稳定后的 BIA 结果帧（携带阻抗），用于引擎区分普通稳定体重帧 */
@@ -92,6 +91,7 @@ object IcomonFrameParser {
      * 肌肉/骨骼/水分均为小端 u16 ×0.1（openScale 曾因端序误判出"1997kg"，此处按现行主分支口径）。
      */
     fun parseCompositeSecond(p: ByteArray): Measurement? {
+        if (p.size != 20 || p[0] != 0x01.toByte() || p[1] != 0x00.toByte()) return null
         val muscle = u16le(p, 2)
         val bone = u16le(p, 6)
         val water = u16le(p, 8)
@@ -135,7 +135,7 @@ object IcomonFrameParser {
     /**
      * AC 27 结果帧（type 0x01/0x02）：稳定后约 3 秒下发，携带阻抗（体重常为空，由引擎用稳定帧值兜底）。
      * 本机实测：阻抗在字节 4-5（u16 大端，原始 Ω）；字节 17-18 是序列/校验位不是阻抗。
-     * 兼容保留同家族其他偏移候选，取落在成年人合理区间 [150,900]Ω 者。
+     * 仅接受已验证的 4-5 字段；6-7 和 17-18 的值即使落在合理范围也不是阻抗证据。
      */
     private fun parseAc27Result(p: ByteArray, altWeightOffset: Int): Measurement? {
         val primaryRaw = u24be(p, 3)
@@ -149,17 +149,10 @@ object IcomonFrameParser {
             else -> 0 // 纯阻抗帧：体重位全空，合法
         }
 
-        val c4 = u16be(p, 4).toDouble()          // 本机实测：原始 Ω
-        val c6 = u16be(p, 6).toDouble()          // AFU-WL-TZ-A1 口径
-        val c17 = u16be(p, 17) / 5.532           // MY_SCALE 口径（17-18 在部分固件是序列号，慎信）
-        val impedance: Double?
-        val sourceOffset: Int
-        when {
-            c4 in IMPEDANCE_RANGE -> { impedance = c4; sourceOffset = 4 }
-            c6 in IMPEDANCE_RANGE -> { impedance = c6; sourceOffset = 6 }
-            c17 in IMPEDANCE_RANGE -> { impedance = c17; sourceOffset = 17 }
-            else -> { impedance = null; sourceOffset = -1 }
-        }
+        val c4 = u16be(p, 4).toDouble()
+        // 若 3-5 已识别为体重，则 4-5 是体重的一部分，不能再当阻抗。
+        val impedance = c4.takeIf { !primaryTagOk && it in IMPEDANCE_RANGE }
+        val sourceOffset = if (impedance != null) 4 else -1
         return Measurement(
             weightKg = grams / 1000.0,
             isFinal = true,

@@ -37,6 +37,20 @@ interface RecordDao {
 
     suspend fun delete(record: Record) = update(record.copy(deleted = true))
 
+    /** 重算期间若原测量被编辑/删除则跳过，日志等并发修改按最新记录保留。 */
+    @Transaction
+    suspend fun updateCompositionIfUnchanged(original: Record, composition: BodyComposition): Boolean {
+        val current = findForUpdate(original.id) ?: return false
+        if (current.deleted || current.weight != original.weight ||
+            current.bodyComposition != original.bodyComposition) return false
+        update(current.copy(
+            bodyComposition = BodyCompositionJson.encode(composition),
+            fatRatio = composition.fatRatio, muscleRatio = composition.muscleRatio,
+            waterRatio = composition.waterRatio,
+        ))
+        return true
+    }
+
     // 按日志内容或北京时间日期（yyyy-MM-dd，支持 2026、2026-08、08-20 等前缀/子串）搜索
     @Query(
         """

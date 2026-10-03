@@ -1,5 +1,14 @@
 package com.example.weight.ui.record
 
+import com.example.weight.ui.common.appMaterial
+import com.example.weight.ui.common.AppMaterialProfile
+
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import com.example.weight.ui.common.LocalFloatingNavigationInset
+
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -31,7 +40,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.AlertDialog
+import com.example.weight.ui.common.AppAlertDialog as AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -40,7 +49,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.Scaffold
+import com.example.weight.ui.common.AppScaffold as Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -147,7 +156,7 @@ fun RecordScreen(
                         BodyCompositionGrid(composition = composition)
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "指标为 App 依据阻抗与身体档案估算（±3-5%），仅供参考",
+                            text = "估算值尚无个人校准精度保证，不同来源不能直接比较",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                         )
@@ -173,25 +182,24 @@ fun RecordScreen(
     Scaffold(
         modifier = modifier,
         topBar = {
-            MyTopBar(
-                title = "记录",
-                goBack = goBack,
-                actions = {
-                    IconButton(onClick = { showAddDialog = true }) {
-                        Icon(imageVector = Icons.Default.Add, contentDescription = "添加记录")
-                    }
-                })
+            Column(Modifier.appMaterial(profile = AppMaterialProfile.Chrome, shape = RoundedCornerShape(0.dp))) {
+                MyTopBar(
+                    title = "记录",
+                    goBack = goBack,
+                    actions = {
+                        IconButton(onClick = { showAddDialog = true }) {
+                            Icon(imageVector = Icons.Default.Add, contentDescription = "添加记录")
+                        }
+                    },
+                )
+                RecordSearchField(value = query, onValueChange = viewModel::onQueryChanged)
+            }
         }) { paddingValues ->
         val refreshState = recordList.loadState.refresh
         Column(
             modifier = Modifier
-                .padding(paddingValues)
                 .fillMaxSize()
         ) {
-            RecordSearchField(
-                value = query,
-                onValueChange = viewModel::onQueryChanged
-            )
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -208,8 +216,10 @@ fun RecordScreen(
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(
-                                horizontal = WeightWiseDimens.PageHorizontal,
-                                vertical = 12.dp,
+                                start = WeightWiseDimens.PageHorizontal,
+                                end = WeightWiseDimens.PageHorizontal,
+                                top = 12.dp + paddingValues.calculateTopPadding(),
+                                bottom = 12.dp + LocalFloatingNavigationInset.current,
                             ),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
@@ -274,15 +284,19 @@ private fun RecordSearchField(
         onValueChange = onValueChange,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = WeightWiseDimens.PageHorizontal, vertical = 8.dp),
+            .padding(horizontal = WeightWiseDimens.PageHorizontal, vertical = 8.dp)
+            .appMaterial(
+                shape = MaterialTheme.shapes.large, profile = AppMaterialProfile.Chrome,
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+            ),
         placeholder = { Text("搜索日期或日志") },
         leadingIcon = { Icon(imageVector = Icons.Default.Search, contentDescription = null) },
         singleLine = true,
         shape = MaterialTheme.shapes.large,
         colors = TextFieldDefaults.colors(
-            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            focusedContainerColor = Color.Transparent,
+            unfocusedContainerColor = Color.Transparent,
+            disabledContainerColor = Color.Transparent,
             focusedIndicatorColor = Color.Transparent,
             unfocusedIndicatorColor = Color.Transparent,
         ),
@@ -387,8 +401,8 @@ private fun RecordItemContent(
                     // 体脂秤测得的成分：时间旁一颗小标签（仅体脂率，成分全无则不显示）。
                     // remember 键住 JSON 文本：列表项每次重组（增删/分页追加）不必重新解码
                     val fatLabelText = remember(record.bodyComposition) {
-                        BodyCompositionJson.decode(record.bodyComposition)?.fatRatio
-                            ?.takeIf { it > 0 }?.let { "体脂 ${oneDecimalFormat.format(it)}%" }
+                        BodyCompositionJson.decode(record.bodyComposition)?.rawValueOf("fatRatio")
+                            ?.let { "体脂估算 ${oneDecimalFormat.format(it)}%" }
                     }
                     fatLabelText?.let { fat ->
                             Spacer(modifier = Modifier.width(6.dp))

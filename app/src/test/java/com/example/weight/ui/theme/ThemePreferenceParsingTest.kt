@@ -36,4 +36,14 @@ class ThemePreferenceParsingTest {
         val darks = ThemePreset.entries.map { it.dark.primary }
         assertEquals(darks.size, darks.toSet().size)
     }
+
+    @Test
+    fun `界面材质未知偏好默认模糊而旧设备使用兼容模糊`() {
+        assertEquals(SurfaceEffect.BLUR, SurfaceEffect.fromId(""))
+        assertEquals(SurfaceEffect.BLUR, SurfaceEffect.fromId("UNKNOWN"))
+        assertEquals(SurfaceEffect.BLUR, SurfaceEffect.fromId("BLUR"))
+        assertEquals(SurfaceEffect.BLUR, SurfaceEffect.GLASS.forSdk(32))
+        assertEquals(SurfaceEffect.GLASS, SurfaceEffect.GLASS.forSdk(33))
+        assertEquals(SurfaceEffect.BLUR, SurfaceEffect.BLUR.forSdk(33))
+    }
 }

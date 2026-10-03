@@ -207,7 +207,7 @@ class IcomonFrameParserTest {
     // ---- AC 27 结果帧（阻抗） ----
 
     @Test
-    fun `结果帧MY_SCALE口径阻抗17-18除以5532`() {
+    fun `未验证MY_SCALE字段保留体重但不推断阻抗`() {
         // 字节3-5 体重 101.4kg(tag35)；字节17-18 = 0x0A00 = 2560 → 2560/5.532 ≈ 462.9Ω
         val raw = 0x8C0000 or 101400
         val p = bytes(
@@ -220,9 +220,8 @@ class IcomonFrameParserTest {
         assertNotNull(m)
         assertTrue(m!!.isResultFrame)
         assertEquals(101.4, m.weightKg, 0.001)
-        assertEquals(2560 / 5.532, m.impedanceOhm!!, 0.01)
-        // 命中的是备选偏移 17（序列号慎信区），供上层告警
-        assertEquals(17, m.impedanceSourceOffset)
+        assertNull(m.impedanceOhm)
+        assertEquals(-1, m.impedanceSourceOffset)
     }
 
     @Test
@@ -275,6 +274,34 @@ class IcomonFrameParserTest {
     }
 
     // ---- 杂项 ----
+
+    @Test
+    fun `序列校验和未知偏移不会冒充阻抗`() {
+        val p = ByteArray(20)
+        p[0] = 0xAC.toByte(); p[1] = 0x27; p[2] = 0x01
+        p[6] = 0x01; p[7] = 0xF4.toByte() // 未验证的 500 Ω 候选
+        p[17] = 0x0B; p[18] = 0x94.toByte() // 2964/5.532 看似 535.8 Ω
+        val m = IcomonFrameParser.parse(p)!!
+        assertNull(m.impedanceOhm)
+        assertEquals(-1, m.impedanceSourceOffset)
+    }
+
+    @Test
+    fun `结果帧体重字节不能重复用作阻抗`() {
+        val raw = (26 shl 18) or 500
+        val p = ByteArray(20)
+        p[0] = 0xAC.toByte(); p[1] = 0x27; p[2] = 0x01
+        p[3] = (raw shr 16).toByte(); p[4] = (raw shr 8).toByte(); p[5] = raw.toByte()
+        val m = IcomonFrameParser.parse(p)!!
+        assertEquals(0.5, m.weightKg, 0.0)
+        assertNull(m.impedanceOhm)
+    }
+
+    @Test
+    fun `直接解析第二包也校验长度与帧头`() {
+        assertNull(IcomonFrameParser.parseCompositeSecond(ByteArray(2)))
+        assertNull(IcomonFrameParser.parseCompositeSecond(ByteArray(20) { 1 }))
+    }
 
     @Test
     fun `未知帧返回null不抛异常`() {

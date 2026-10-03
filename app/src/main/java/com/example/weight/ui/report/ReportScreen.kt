@@ -1,5 +1,14 @@
 package com.example.weight.ui.report
 
+import com.example.weight.ui.common.appMaterial
+import com.example.weight.ui.common.AppMaterialProfile
+
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import com.example.weight.ui.common.LocalFloatingNavigationInset
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -31,7 +40,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
+import com.example.weight.ui.common.AppScaffold as Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
@@ -106,21 +115,28 @@ fun ReportScreen(
     // AI 弹窗独立成组：流式期间每帧只重组这个小组件，而不是整个报告页
     ReportAiSheet(viewModel)
 
-    Scaffold(modifier = modifier, topBar = { MyTopBar(title = "健康报告", goBack = goBack) }) { padding ->
+    Scaffold(
+        modifier = modifier,
+        topBar = {
+            Column(Modifier.appMaterial(profile = AppMaterialProfile.Chrome, shape = RoundedCornerShape(0.dp))) {
+                MyTopBar(title = "健康报告", goBack = goBack)
+                PeriodTypeTabs(selectedType, viewModel::selectType)
+                PeriodNavigator(
+                    title = report?.takeIf { it.type == selectedType && it.anchor == anchor }?.title
+                        ?: selectedType.titleOf(anchor),
+                    canGoNext = selectedType.canGoNext(anchor, TimeUtils.beijingToday()),
+                    onPrevious = viewModel::previousPeriod,
+                    onNext = viewModel::nextPeriod,
+                )
+            }
+        },
+    ) { padding ->
         Column(
             modifier = Modifier
-                .padding(padding)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
+                .padding(padding)
         ) {
-            PeriodTypeTabs(selectedType, viewModel::selectType)
-            PeriodNavigator(
-                title = report?.takeIf { it.type == selectedType && it.anchor == anchor }?.title
-                    ?: selectedType.titleOf(anchor),
-                canGoNext = selectedType.canGoNext(anchor, TimeUtils.beijingToday()),
-                onPrevious = viewModel::previousPeriod,
-                onNext = viewModel::nextPeriod,
-            )
             // 每周决策条（评审 1A：第一眼是决定；Codex#6：渲染独立于下方报告空态——
             // 它依据的是过去六周，周一未称重时本周期报告走空态但决策卡仍显示）
             if (showDecision) {
@@ -196,7 +212,7 @@ fun ReportScreen(
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(16.dp + LocalFloatingNavigationInset.current))
         }
     }
 }
@@ -226,9 +242,10 @@ private fun PeriodTypeTabs(
     Surface(
         modifier = Modifier
             .padding(horizontal = WeightWiseDimens.PageHorizontal, vertical = 8.dp)
-            .fillMaxWidth(),
+            .fillMaxWidth()
+            .appMaterial(shape = RoundedCornerShape(18.dp)),
         shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        color = Color.Transparent,
     ) {
         Row(modifier = Modifier.padding(4.dp)) {
             ReportType.entries.forEach { type ->

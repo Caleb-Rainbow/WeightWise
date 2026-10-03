@@ -18,6 +18,8 @@ import android.content.Context
 import android.os.Build
 import com.example.weight.data.LocalStorageData
 import com.example.weight.data.record.BodyComposition
+import com.example.weight.data.record.BiaMethod
+import com.example.weight.data.record.CompositionInputs
 import com.example.weight.data.record.BodyCompositionJson
 import com.example.weight.data.record.Record
 import com.example.weight.data.record.RecordDao
@@ -136,13 +138,21 @@ class ScaleBleEngine(
         }
         val missing = buildList {
             if (Gender.entries.none { it.name == LocalStorageData.gender.value }) add("性别")
-            if (LocalStorageData.age.value <= 0) add("年龄")
+            if (LocalStorageData.age.value !in 10..100) add("年龄")
+            if (!LocalStorageData.height.value.isFinite() || LocalStorageData.height.value !in 100.0..250.0) add("身高")
         }
         if (missing.isNotEmpty()) {
             log("档案缺失：${missing.joinToString("、")}，拒绝开始体成分测量")
             _state.value = State.ProfileIncomplete(missing)
             return
         }
+        sessionProfile = Profile(
+            sexMale = LocalStorageData.gender.value == Gender.MALE.name,
+            age = LocalStorageData.age.value, heightCm = LocalStorageData.height.value.toInt(),
+            waistCm = LocalStorageData.currentWaistCm.value,
+            waistMeasuredAt = LocalStorageData.currentWaistMeasuredAt.value,
+        )
+        sessionSourceId = ""
         sessionActive = true
         stableWeightKg = null
         scaleReported.clear()
@@ -220,6 +230,7 @@ class ScaleBleEngine(
         scanTimeoutJob?.cancel()
         scanTimeoutJob = null
         val device = result.device
+        sessionSourceId = device.address
         // 缺 BLUETOOTH_CONNECT 运行时权限时 connectGatt 抛 SecurityException，兜底成可读错误而不是崩溃。
         // Context 版 connectGatt 自 API 37 起全部弃用，替代品 BluetoothGattConnectionSettings 仅 API 37+，
         // minSdk 29 下只能继续用此重载
@@ -341,12 +352,13 @@ class ScaleBleEngine(
             log("无 FFB1 写特征，跳过档案下发（仅记录体重）")
             return
         }
+        val capturedProfile = sessionProfile ?: return
         appScope.launch {
             val refWeight = runCatching { recordDao.getLastData()?.weight }.getOrNull() ?: 70.0
             val profile = IcomonFrameParser.buildAc27ProfileCommand(
-                sexMale = LocalStorageData.gender.value != "FEMALE",
-                age = LocalStorageData.age.value,
-                heightCm = LocalStorageData.height.value.toInt(),
+                sexMale = capturedProfile.sexMale,
+                age = capturedProfile.age,
+                heightCm = capturedProfile.heightCm,
                 refWeightKg = refWeight,
             )
             log("写档案 ${hex(profile)}")
@@ -369,7 +381,12 @@ class ScaleBleEngine(
     private val scaleReported = ConcurrentHashMap<String, Double>()
 
     /** 档案快照：会话期间固定，避免称重中途改档案导致同一轮数据口径不一致 */
-    private data class Profile(val sexMale: Boolean, val age: Int, val heightCm: Int)
+    private data class Profile(
+        val sexMale: Boolean, val age: Int, val heightCm: Int,
+        val waistCm: Double, val waistMeasuredAt: Long,
+    )
+    private var sessionProfile: Profile? = null
+    private var sessionSourceId: String = ""
 
     private fun handleFrame(payload: ByteArray) {
         // 会话已收尾（Done/Failed/手动停止）后秤仍会重发稳定帧：直接丢弃，防止状态机
@@ -428,8 +445,7 @@ class ScaleBleEngine(
     }
 
     /**
-     * 统一收尾：阻抗优先走 Sun 方程；无阻抗但有变体 A 自报体脂时按质量平衡补全；
-     * 都没有则只记体重。[reported] 为空 map 时视作无自报成分。
+     * 用本次固定档案与原始输入收尾；脚部阻抗不套手腕至脚踝公式。
      */
     private fun finalize(weightKg: Double, impedanceOhm: Double?, reported: Map<String, Double>) {
         if (!sessionActive) return
@@ -439,24 +455,25 @@ class ScaleBleEngine(
         // 否则连接与通知流会一直活到用户离开页面，秤端持续耗电、手机端持续处理空帧
         releaseBluetooth()
         val rounded = round01(weightKg)
+        val profile = sessionProfile ?: return
+        val measuredAt = System.currentTimeMillis()
+        val sourceId = sessionSourceId
+        val reportedSnapshot = reported.toMap()
         appScope.launch {
-            val profile = Profile(
-                sexMale = Gender.entries.firstOrNull { it.name == LocalStorageData.gender.value } != Gender.FEMALE,
-                age = LocalStorageData.age.value,
-                heightCm = LocalStorageData.height.value.toInt(),
-            )
-            // 阻抗 + 身体档案（含腰围）→ 全套身体成分；自报体脂兜底；公式全部失效时仍保留原始阻抗备查
-            val composition = BodyFatCalculator.resolve(
+            val composition = BodyFatCalculator.resolve(CompositionInputs(
                 sexMale = profile.sexMale,
                 age = profile.age,
                 heightCm = profile.heightCm,
                 weightKg = rounded,
                 impedanceOhm = impedanceOhm,
-                scaleFatRatio = reported[FAT_KEY],
-                waistCm = LocalStorageData.currentWaistCm.value.takeIf { it > 0 },
-            )?.copy(
-                impedance = impedanceOhm?.toInt() ?: 0,
-            ) ?: impedanceOhm?.let { BodyComposition(impedance = it.toInt()) }
+                scaleFatRatio = reportedSnapshot[FAT_KEY],
+                scaleWaterRatio = reportedSnapshot[WATER_KEY],
+                scaleMuscleRatio = reportedSnapshot[MUSCLE_KEY],
+                scaleBoneMass = reportedSnapshot[BONE_KEY],
+                waistCm = profile.waistCm, waistMeasuredAt = profile.waistMeasuredAt,
+                measuredAt = measuredAt, biaMethod = BiaMethod.FOOT_TO_FOOT,
+                sourceId = sourceId,
+            ))
             lastComposition = composition
 
             if (autoInsertOnDone) {
@@ -470,7 +487,7 @@ class ScaleBleEngine(
                         Record.create(
                             weight = rounded,
                             log = "",
-                            timestamp = System.currentTimeMillis(),
+                            timestamp = measuredAt,
                             composition = composition,
                         )
                     )

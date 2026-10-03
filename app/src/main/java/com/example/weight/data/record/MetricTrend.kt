@@ -16,34 +16,15 @@ enum class TrendMetric(
     /** 数值展示小数位：等级/得分/阻抗为整数，率类与量类一位小数 */
     val decimals: Int,
 ) {
-    BODY_SCORE("bodyScore", "身体得分", "分", 0),
-    FAT_RATIO("fatRatio", "体脂率", "%", 1),
-    VISCERAL_FAT("visceralFatLevel", "内脏脂肪", "级", 0),
-    SUBCUTANEOUS_FAT("subcutaneousFatRatio", "皮下脂肪率", "%", 1),
-    WATER("waterRatio", "水分率", "%", 1),
-    MUSCLE_MASS("muscleMass", "肌肉量", "kg", 1),
-    SKELETAL_MUSCLE_MASS("skeletalMuscleMass", "骨骼肌量", "kg", 1),
-    SKELETAL_MUSCLE_RATIO("skeletalMuscleRatio", "骨骼肌率", "%", 1),
-    PROTEIN("proteinRatio", "蛋白质率", "%", 1),
-    FFM("ffm", "去脂体重", "kg", 1),
-    BONE("boneMass", "骨量", "kg", 1),
-    IMPEDANCE("impedance", "阻抗", "Ω", 0);
+    FAT_RATIO("fatRatio", "体脂率（估算）", "%", 1),
+    WATER("waterRatio", "秤端水分率", "%", 1),
+    MUSCLE_MASS("muscleMass", "秤端肌肉量", "kg", 1),
+    FFM("ffm", "去脂体重（估算）", "kg", 1),
+    BONE("boneMass", "秤端骨量", "kg", 1),
+    IMPEDANCE("impedance", "原始阻抗", "Ω", 0);
 
     /** 从成分快照提取本指标数值；0 表示未测得返回 null（该日不计入序列）。 */
-    fun valueOf(c: BodyComposition): Double? = when (this) {
-        FAT_RATIO -> c.fatRatio.takeIf { it > 0 }
-        VISCERAL_FAT -> c.visceralFatLevel.takeIf { it > 0 }?.toDouble()
-        SUBCUTANEOUS_FAT -> c.subcutaneousFatRatio.takeIf { it > 0 }
-        WATER -> c.waterRatio.takeIf { it > 0 }
-        MUSCLE_MASS -> c.muscleMass.takeIf { it > 0 }
-        SKELETAL_MUSCLE_MASS -> c.skeletalMuscleMass.takeIf { it > 0 }
-        SKELETAL_MUSCLE_RATIO -> c.skeletalMuscleRatio.takeIf { it > 0 }
-        PROTEIN -> c.proteinRatio.takeIf { it > 0 }
-        FFM -> c.ffm.takeIf { it > 0 }
-        BONE -> c.boneMass.takeIf { it > 0 }
-        BODY_SCORE -> c.bodyScore.takeIf { it > 0 }?.toDouble()
-        IMPEDANCE -> c.impedance.takeIf { it > 0 }?.toDouble()
-    }
+    fun valueOf(c: BodyComposition): Double? = c.rawValueOf(key)
 
     /** 按本指标小数位格式化数值（整数指标不带小数尾零） */
     fun formatValue(v: Double): String =
@@ -81,4 +62,30 @@ fun dailyLastCompositions(raws: List<RecordCompositionRaw>): List<MetricPoint> {
         lastDay = day
     }
     return points
+}
+
+/** 只比较最近连续的同口径记录，不跨设备、公式版本、档案切换或未知来源连线。 */
+fun comparableMetricSeries(points: List<MetricPoint>, metric: TrendMetric): List<MetricPoint> {
+    val latestIndex = points.indexOfLast { metric.valueOf(it.composition) != null }
+    if (latestIndex < 0) return emptyList()
+    val latest = points[latestIndex]
+    val key = comparisonKey(latest.composition, metric) ?: return listOf(latest)
+    return points.take(latestIndex + 1)
+        .takeLastWhile { comparisonKey(it.composition, metric) == key }
+        .filter { metric.valueOf(it.composition) != null }
+}
+
+private fun comparisonKey(c: BodyComposition, metric: TrendMetric): String? {
+    val input = c.inputs ?: return null
+    if (c.algorithmVersion < 2 || !input.hasValidProfile) return null
+    if (metric == TrendMetric.IMPEDANCE) {
+        if (input.sourceId.isBlank() || input.biaMethod == BiaMethod.UNKNOWN) return null
+        return "impedance:${input.sourceId}:${input.biaMethod}"
+    }
+    val deviceMetric = metric in setOf(TrendMetric.WATER, TrendMetric.MUSCLE_MASS, TrendMetric.BONE)
+    if ((deviceMetric || c.fatMethod == "scale_reported") && input.sourceId.isBlank()) return null
+    val source = if (deviceMetric || c.fatMethod == "scale_reported") input.sourceId else ""
+    val method = if (deviceMetric) "scale_reported" else c.fatMethod
+    val age = if (method == "rfm") "" else input.age.toString()
+    return "${c.algorithmVersion}:$method:$source:${input.biaMethod}:${input.sexMale}:${input.heightCm}:$age"
 }

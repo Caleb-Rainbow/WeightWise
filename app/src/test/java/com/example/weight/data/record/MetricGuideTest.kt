@@ -1,103 +1,71 @@
 package com.example.weight.data.record
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
+import org.junit.Assert.*
 import org.junit.Test
 
-/**
- * 指标解读中心的状态判定锚点，含本机实测案例（男 102kg：体脂 43.6 / 阻抗 534Ω 派生指标）。
- */
 class MetricGuideTest {
-
-    @Test
-    fun `体脂率男性分带`() {
-        // 男 10-20 标准 / 20-25 偏高 / >25 过高
-        assertEquals(MetricGuide.Status.NORMAL, MetricGuide.info("fatRatio", 15.0, true)!!.status)
-        assertEquals(MetricGuide.Status.HIGH, MetricGuide.info("fatRatio", 23.0, true)!!.status)
-        assertEquals(MetricGuide.Status.VERY_HIGH, MetricGuide.info("fatRatio", 43.6, true)!!.status)
-        assertEquals(MetricGuide.Status.LOW, MetricGuide.info("fatRatio", 8.0, true)!!.status)
+    @Test fun fatReferenceBoundariesAreConsistent() {
+        for ((male, low, normal, high) in listOf(
+            listOf(1.0,10.0,20.0,25.0), listOf(0.0,18.0,28.0,33.0),
+        )) {
+            val sex = male == 1.0
+            assertEquals(MetricGuide.Status.LOW, MetricGuide.info("fatRatio",low-0.1,sex)!!.status)
+            assertEquals(MetricGuide.Status.NORMAL, MetricGuide.info("fatRatio",low,sex)!!.status)
+            assertEquals(MetricGuide.Status.NORMAL, MetricGuide.info("fatRatio",normal,sex)!!.status)
+            assertEquals(MetricGuide.Status.HIGH, MetricGuide.info("fatRatio",normal+0.1,sex)!!.status)
+            assertEquals(MetricGuide.Status.HIGH, MetricGuide.info("fatRatio",high,sex)!!.status)
+            assertEquals(MetricGuide.Status.VERY_HIGH, MetricGuide.info("fatRatio",high+0.1,sex)!!.status)
+        }
     }
 
-    @Test
-    fun `体脂率女性带平移`() {
-        assertEquals(MetricGuide.Status.NORMAL, MetricGuide.info("fatRatio", 24.0, false)!!.status)
-        assertEquals(MetricGuide.Status.VERY_HIGH, MetricGuide.info("fatRatio", 43.6, false)!!.status)
+    @Test fun fatReferenceIsNotAnObesityDiagnosis() {
+        val info = MetricGuide.info("fatRatio",22.0,true)!!
+        assertEquals(MetricGuide.Status.HIGH, info.status)
+        assertTrue(info.rangeText.contains("不是诊断"))
+        assertFalse(info.rangeText.contains("属肥胖"))
     }
 
-    @Test
-    fun `内脏脂肪分级`() {
-        assertEquals(MetricGuide.Status.NORMAL, MetricGuide.info("visceralFatLevel", 7.0, true)!!.status)
-        assertEquals(MetricGuide.Status.HIGH, MetricGuide.info("visceralFatLevel", 12.0, true)!!.status)
-        assertEquals(MetricGuide.Status.VERY_HIGH, MetricGuide.info("visceralFatLevel", 16.0, true)!!.status)
+    @Test fun historicalOrChildDataIsNotClassifiedUsingCurrentProfile() {
+        for (c in listOf(BodyComposition(fatRatio = 22.0),
+            BodyComposition(fatRatio = 22.0,algorithmVersion = 2, inputs = CompositionInputs(true,15,170,70.0)))) {
+            val info = MetricGuide.info("fatRatio",22.0,true,c)!!
+            assertNull(info.status)
+            assertNull(info.bar)
+        }
     }
 
-    @Test
-    fun `水分率骨骼肌率蛋白率分带`() {
-        assertEquals(MetricGuide.Status.LOW, MetricGuide.info("waterRatio", 41.3, true)!!.status)
-        assertEquals(MetricGuide.Status.NORMAL, MetricGuide.info("waterRatio", 55.0, true)!!.status)
-        assertEquals(MetricGuide.Status.LOW, MetricGuide.info("skeletalMuscleRatio", 32.3, true)!!.status)
-        assertEquals(MetricGuide.Status.NORMAL, MetricGuide.info("skeletalMuscleRatio", 45.0, true)!!.status)
-        assertEquals(MetricGuide.Status.NORMAL, MetricGuide.info("proteinRatio", 10.2, true)!!.status)
+    @Test fun currentSourceUsesArchivedProfileAndExplainsItsMethod() {
+        val c = BodyComposition(fatRatio = 22.0,algorithmVersion = 2,fatMethod = "rfm",
+            inputs = CompositionInputs(false,30,165,60.0))
+        val info = MetricGuide.info("fatRatio",22.0,false,c)!!
+        assertTrue(info.description.contains("腰围"))
+        assertTrue(info.rangeText.contains("女 18-28"))
     }
 
-    @Test
-    fun `身体得分分段`() {
-        assertEquals(MetricGuide.Status.LOW, MetricGuide.info("bodyScore", 58.0, true)!!.status)
-        // 60-79 与刻度条标准段 [60,100] 同口径：徽章不再标"偏高"
-        assertEquals(MetricGuide.Status.NORMAL, MetricGuide.info("bodyScore", 75.0, true)!!.status)
-        assertEquals(MetricGuide.Status.NORMAL, MetricGuide.info("bodyScore", 85.0, true)!!.status)
+    @Test fun noSyntheticOrDeviceMetricsCreateClinicalBands() {
+        for (key in listOf("waterRatio","muscleMass","boneMass","ffm","impedance",
+            "visceralFatLevel","subcutaneousFatRatio","proteinRatio","skeletalMuscleRatio","bodyScore","bodyType")) {
+            val info = MetricGuide.info(key,10.0,true)!!
+            assertNull(info.status)
+            assertNull(info.bar)
+        }
     }
 
-    @Test
-    fun `量类指标无状态与刻度条仅说明`() {
-        val muscle = MetricGuide.info("muscleMass", 54.3, true)!!
-        assertNull(muscle.status)
-        assertNull(muscle.bar)
-        assertNotNull(muscle.description)
-        val impedance = MetricGuide.info("impedance", 534.0, true)!!
-        assertNull(impedance.status)
-        val bodyType = MetricGuide.info("bodyType", null, true)!!
-        assertNull(bodyType.status)
+    @Test fun fullPercentRangeDoesNotClipLegitimateFatValue() {
+        val bar = MetricGuide.info("fatRatio",65.5,true)!!.bar!!
+        assertEquals(100.0,bar.max,0.0)
+        assertEquals(65.5,bar.value,0.0)
+        assertEquals(10.0,bar.normalStart,0.0)
+        assertEquals(20.0,bar.normalEnd,0.0)
+        assertEquals(0.0,bar.segments.first().start,0.0)
+        assertEquals(100.0,bar.segments.last().end,0.0)
     }
 
-    @Test
-    fun `数值型指标带刻度条且当前值在条内`() {
-        val bar = MetricGuide.info("fatRatio", 43.6, true)!!.bar!!
-        assertEquals(0.0, bar.min, 0.001)
-        assertEquals(50.0, bar.max, 0.001)
-        assertEquals(43.6, bar.value, 0.001)
-        // 分段连续覆盖 [min,max] 且含四级状态
-        assertEquals(0.0, bar.segments.first().start, 0.001)
-        assertEquals(50.0, bar.segments.last().end, 0.001)
-        assertEquals(MetricGuide.Status.LOW, bar.segments[0].status)
-        assertEquals(MetricGuide.Status.NORMAL, bar.segments[1].status)
-        assertEquals(MetricGuide.Status.HIGH, bar.segments[2].status)
-        assertEquals(MetricGuide.Status.VERY_HIGH, bar.segments[3].status)
-        // 正常段推导属性
-        assertEquals(10.0, bar.normalStart, 0.001)
-        assertEquals(20.0, bar.normalEnd, 0.001)
-    }
-
-    @Test
-    fun `内脏脂肪无偏低段零宽段被过滤`() {
-        val bar = MetricGuide.info("visceralFatLevel", 7.0, true)!!.bar!!
-        // 1-9 标准 / 9-14 偏高 / 14-20 过高：无 [1,1) 空偏低段
-        assertEquals(listOf(1.0, 9.0, 14.0, 20.0), bar.segments.flatMap { listOf(it.start, it.end) }.distinct())
-        assertEquals(MetricGuide.Status.NORMAL, bar.segments.first().status)
-    }
-
-    @Test
-    fun `身体得分正常段直达上界无空高段`() {
-        val bar = MetricGuide.info("bodyScore", 75.0, true)!!.bar!!
-        assertEquals(100.0, bar.segments.last().end, 0.001)
-        assertEquals(MetricGuide.Status.NORMAL, bar.segments.last().status)
-    }
-
-    @Test
-    fun `未知key与null数值返回null或无条`() {
-        assertNull(MetricGuide.info("nonexistent", 1.0, true))
-        // fatRatio 缺数值：无解读（网格里该卡不会出现，防御）
-        assertNull(MetricGuide.info("fatRatio", null, true))
+    @Test fun badOrMissingValuesDoNotGetAnInterpretation() {
+        for (v in listOf(Double.NaN,Double.POSITIVE_INFINITY,0.0,-1.0,100.0)) {
+            assertNull(MetricGuide.info("fatRatio",v,true))
+        }
+        assertNull(MetricGuide.info("fatRatio",null,true))
+        assertNull(MetricGuide.info("unknown",1.0,true))
     }
 }

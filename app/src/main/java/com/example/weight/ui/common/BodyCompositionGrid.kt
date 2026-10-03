@@ -21,7 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ErrorOutline
-import androidx.compose.material3.AlertDialog
+import com.example.weight.ui.common.AppAlertDialog as AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -40,8 +40,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.weight.data.LocalStorageData
 import com.example.weight.data.record.BodyComposition
 import com.example.weight.data.record.MetricDisplay
 import com.example.weight.data.record.MetricGuide
@@ -57,13 +55,20 @@ import java.util.Locale
 @Composable
 fun BodyCompositionGrid(composition: BodyComposition, modifier: Modifier = Modifier) {
     val items = composition.metricItems()
-    if (items.isEmpty()) return
+    if (items.isEmpty()) {
+        if (composition.hasAny) Text(composition.sourceDescription, style = MaterialTheme.typography.bodySmall)
+        return
+    }
 
-    val gender by LocalStorageData.gender.collectAsStateWithLifecycle()
-    val sexMale = gender != "FEMALE"
+    val sexMale = composition.inputs?.sexMale == true
     var explainTarget by remember { mutableStateOf<MetricDisplay?>(null) }
 
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = composition.sourceDescription,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         items.chunked(3).forEach { rowItems ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -83,7 +88,7 @@ fun BodyCompositionGrid(composition: BodyComposition, modifier: Modifier = Modif
     }
 
     explainTarget?.let { target ->
-        val info = MetricGuide.info(target.key, composition.rawValueOf(target.key), sexMale)
+        val info = MetricGuide.info(target.key, composition.rawValueOf(target.key), sexMale, composition)
         if (info != null) {
             MetricInfoDialog(
                 display = target,

@@ -24,7 +24,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
+import com.example.weight.ui.common.AppModalBottomSheet as ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -72,16 +72,6 @@ fun QuickAddSheet(
     // 选中项热量微调复用食物编辑弹窗
     var editingIndex by remember { mutableStateOf(-1) }
     var showFoodEditor by remember { mutableStateOf(false) }
-    if (showFoodEditor && editingIndex >= 0) {
-        FoodItemEditorSheet(
-            initialItem = state.selectedFoods.getOrNull(editingIndex),
-            onConfirm = { item ->
-                viewModel.updateSelectedFood(editingIndex, item)
-                showFoodEditor = false
-            },
-            onDismiss = { showFoodEditor = false },
-        )
-    }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -101,6 +91,17 @@ fun QuickAddSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
     ) {
+        if (showFoodEditor && editingIndex >= 0) {
+            FoodItemEditorSheet(
+                initialItem = state.selectedFoods.getOrNull(editingIndex),
+                onConfirm = { item ->
+                    viewModel.updateSelectedFood(editingIndex, item)
+                    showFoodEditor = false
+                },
+                onDismiss = { showFoodEditor = false },
+            )
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()

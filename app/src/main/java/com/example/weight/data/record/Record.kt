@@ -37,21 +37,31 @@ data class Record(
     @ColumnInfo(defaultValue = "0.0")
     val waterRatio: Double = 0.0,
 ) {
+    /** 体重修改后原测量的质量/比例不再对应；成分及其冗余列一起清空。 */
+    fun withEditedDetails(weight: Double, log: String, timestamp: Long): Record =
+        if (this.weight == weight) copy(log = log, timestamp = timestamp)
+        else copy(weight = weight, log = log, timestamp = timestamp,
+            bodyComposition = "", fatRatio = 0.0, muscleRatio = 0.0, waterRatio = 0.0)
+
     companion object {
         /**
          * 秤测量/手动记录统一构造入口：JSON 存全部 14 项成分，
          * 高频三率同步落列，两处写入点（ScaleBleEngine/MainDialog）共用一套双写逻辑。
          */
-        fun create(weight: Double, log: String, timestamp: Long, composition: BodyComposition?): Record =
-            Record(
+        fun create(weight: Double, log: String, timestamp: Long, composition: BodyComposition?): Record {
+            val matched = composition?.takeIf {
+                it.inputs == null || it.inputs.weightKg == weight
+            }
+            return Record(
                 weight = weight,
                 log = log,
                 timestamp = timestamp,
-                bodyComposition = composition?.let { BodyCompositionJson.encode(it) } ?: "",
-                fatRatio = composition?.fatRatio ?: 0.0,
-                muscleRatio = composition?.muscleRatio ?: 0.0,
-                waterRatio = composition?.waterRatio ?: 0.0,
+                bodyComposition = matched?.let { BodyCompositionJson.encode(it) } ?: "",
+                fatRatio = matched?.fatRatio ?: 0.0,
+                muscleRatio = matched?.muscleRatio ?: 0.0,
+                waterRatio = matched?.waterRatio ?: 0.0,
             )
+        }
     }
 }
 

@@ -1,5 +1,8 @@
 package com.example.weight.ui.setting
 
+import android.os.Build
+import com.example.weight.ui.theme.SurfaceEffect
+
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -21,7 +24,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material3.AlertDialog
+import com.example.weight.ui.common.AppAlertDialog as AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -139,6 +142,7 @@ internal fun DailyStatModeCard() {
 internal fun AppearanceCard() {
     val themeId by LocalStorageData.themeId.collectAsStateWithLifecycle()
     val appearanceMode by LocalStorageData.appearanceMode.collectAsStateWithLifecycle()
+    val surfaceEffect by LocalStorageData.surfaceEffect.collectAsStateWithLifecycle()
     val currentPreset = ThemePreset.fromId(themeId)
     val currentMode = AppearanceMode.fromId(appearanceMode)
     val widgetUpdater = koinInject<WidgetUpdater>()
@@ -184,6 +188,33 @@ internal fun AppearanceCard() {
             }
         }
         SettingsFootnote("主题即时生效，桌面小组件同步换色")
+        HorizontalDivider(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+        )
+        Text(
+            text = "界面材质",
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.padding(start = 16.dp, top = 8.dp),
+        )
+        SingleChoiceSegmentedButtonRow(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+        ) {
+            SurfaceEffect.entries.forEachIndexed { index, effect ->
+                SegmentedButton(
+                    selected = effect == SurfaceEffect.fromId(surfaceEffect).forSdk(Build.VERSION.SDK_INT),
+                    enabled = effect != SurfaceEffect.GLASS || Build.VERSION.SDK_INT >= 33,
+                    onClick = { LocalStorageData.surfaceEffect.update { effect.name } },
+                    shape = SegmentedButtonDefaults.itemShape(index, SurfaceEffect.entries.size),
+                ) {
+                    Text(effect.label)
+                }
+            }
+        }
+        SettingsFootnote(
+            if (Build.VERSION.SDK_INT >= 33) "即时应用到导航、顶栏、菜单、弹窗与底部面板"
+            else "当前设备使用兼容模糊效果",
+        )
     }
 }
 

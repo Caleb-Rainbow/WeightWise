@@ -62,6 +62,7 @@ data class SettingsBackup(
     val stageGoalStepKg: Double? = null,
     /** 当前/目标腰围与目标体脂率；null 表示旧备份未含，0 表示用户未设置 */
     val currentWaistCm: Double? = null,
+    val currentWaistMeasuredAt: Long? = null,
     val targetWaistCm: Double? = null,
     val targetBodyFatPercent: Double? = null,
     /*--------以下设置 v1.1 起入包；旧备份缺字段时保持默认，导入侧据此跳过覆盖--------*/

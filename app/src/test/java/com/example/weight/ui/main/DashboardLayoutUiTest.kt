@@ -44,7 +44,8 @@ import android.graphics.Bitmap
 import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34], application = android.app.Application::class, qualifiers = "w360dp-h640dp")
+// Haze's native screenshot renderer needs SDK 35+ for its shader and edge handling.
+@Config(sdk = [35], application = android.app.Application::class, qualifiers = "w360dp-h640dp")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class DashboardLayoutUiTest {
     @get:Rule

@@ -5,10 +5,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.AlertDialog
+import com.example.weight.ui.common.AppAlertDialog as AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -89,12 +90,15 @@ fun EditRecordDialog(
                     label = { Text("日志/记录") },
                     modifier = Modifier.fillMaxWidth()
                 )
+                if (weight != record.weight && record.bodyComposition.isNotBlank()) {
+                    Text("修改体重会清除原称重的身体成分", style = MaterialTheme.typography.bodySmall)
+                }
             }
         },
         confirmButton = {
             Button(onClick = {
                 onConfirm(
-                    record.copy(
+                    record.withEditedDetails(
                         weight = weight,
                         log = log,
                         timestamp = TimeUtils.convertTimeToMillis("$date $time:00")
